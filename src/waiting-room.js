@@ -1,11 +1,11 @@
 import { Player } from './player.js';
-import { BLOB_COLORS, NPC_CHATS } from './constants.js';
 import { CharRender } from './char-render.js';
 import { Templates, parseTemplate } from './templates.js';
 import { Inventory } from './inventory.js';
 import { WrBall } from './wr-ball.js';
 import { WrGimmicks } from './wr-gimmicks.js';
 import { WrRender } from './wr-render.js';
+import { WrRealtime } from './wr-realtime.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
 import { isClean } from './chat-filter.js';
@@ -18,22 +18,6 @@ let Shop = null;
 export function setShop(s) { Shop = s; }
 let Editor = null;
 export function setEditor(ed) { Editor = ed; }
-
-// ── Helper: blob sprite for NPCs ──
-function makeBlobSprite(color, size) {
-    const c = document.createElement('canvas'); c.width = size; c.height = size;
-    const ctx = c.getContext('2d'), r = size * 0.38;
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.ellipse(size/2, size*0.55, r, r*0.9, 0, 0, Math.PI*2); ctx.fill();
-    // eyes
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(size*0.38, size*0.48, size*0.08, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(size*0.62, size*0.48, size*0.08, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#2D3436';
-    ctx.beginPath(); ctx.arc(size*0.40, size*0.49, size*0.04, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(size*0.64, size*0.49, size*0.04, 0, Math.PI*2); ctx.fill();
-    return c;
-}
 
 // =========================================================
 // WAITING ROOM – MapleStory-style platformer lobby
@@ -253,7 +237,8 @@ export const WaitingRoom = {
         this.voteStarted = false; this.selectedGameId = null;
         this.initBallSpawnZones();
         this.npcs = [];
-        this.spawnNPCsGradually();
+        this.remotePlayers = new Map();
+        this.rtInit();
         this.keys = {};
         if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
         this._enterReady = false;
@@ -354,6 +339,7 @@ export const WaitingRoom = {
     },
 
     stop(){
+        this.rtDestroy();
         Vote.stop();
         GameKeyboard.hide(); // 키보드 닫기
         clearInterval(this._gameStartPollId); this._gameStartPollId = null;
@@ -424,7 +410,8 @@ export const WaitingRoom = {
             this.voteStarted = false; this.selectedGameId = null;
             this.initBallSpawnZones();
             this.npcs = [];
-            // 교사 모드에서는 봇 스폰 안 함 (테스트 계정에서만)
+            this.remotePlayers = new Map();
+            this.rtInit();
         } else {
             // 재진입: 캔버스/ctx 재바인딩 (화면 전환 후 필요)
             this.cvs = document.getElementById('waiting-canvas');
@@ -482,7 +469,7 @@ export const WaitingRoom = {
             const mx = (e.clientX - rect.left) / (rect.width / (this.cvs.width / dpr)) / z + this.camera.x;
             const my = (e.clientY - rect.top) / (rect.height / (this.cvs.height / dpr)) / z + this.camera.y;
             let best = null, bestDist = 50;
-            for(const n of this.npcs){
+            for(const n of this._rtGetRemoteArray()){
                 const d = Math.hypot(n.x - mx, n.y - my);
                 if(d < bestDist){ bestDist = d; best = n; }
             }
@@ -764,45 +751,17 @@ export const WaitingRoom = {
             this.camera.y = Math.max(0, Math.min(this.camera.y, this.H - this.VH));
         }
 
-        // NPC 물리만 업데이트 (플레이어 없음)
+        // 원격 플레이어 보간 (교사는 수신만, 물리 연산 없음)
         this.frameCount++;
-        this.npcs.forEach(n => {
-            n.aiTimer++; n.chatTimer--;
-            if(n.jumpCooldown > 0) n.jumpCooldown--;
-            if(n.aiTimer % 90 === 0) n.dir = Math.random() > .5 ? 1 : -1;
-            if(n.onGround && Math.random() < 0.02 && n.jumpCooldown <= 0){
-                n.vy = this.JUMP_FORCE * (0.8 + Math.random() * 0.4);
-                n.jumpCount = 1; n.onGround = false; n.jumpCooldown = 60;
-            }
-            if(!n.onGround && n.jumpCount === 1 && Math.random() < 0.03 && n.jumpCooldown <= 0){
-                n.vy = this.JUMP_FORCE * 0.85;
-                n.jumpCount = 2; n.jumpCooldown = 60;
-            }
-            n.vx = n.dir * this.MOVE_SPD * 0.6;
-            n.vy += this.GRAVITY; if(n.vy > 12) n.vy = 12;
-            n.x += n.vx; n.y += n.vy;
-            if(n.x < -10) n.x = this.W + 10;
-            if(n.x > this.W + 10) n.x = -10;
-            if(n.y > this.H + 50) { n.y = 0; n.vy = 0; }
-            this.checkPlatforms(n);
-
-            // 채팅 버블
-            if(n.chatTimer <= 0 && Math.random() < 0.005){
-                const msgs = NPC_CHATS;
-                this.chatBubbles.push({ entity:n, text:msgs[Math.floor(Math.random()*msgs.length)], timer:180 });
-                n.chatTimer = 300 + Math.random()*300;
-            }
-        });
-        // 공 물리 + NPC 충돌
-        this.updateBall();
-        this.checkBallEntityCollision();
+        this._rtInterpolateRemotePlayers();
         // 채팅 버블 업데이트
         this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; return b.timer > 0; });
         // 파티클 업데이트
         this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.life--; return p.life > 0; });
-        // 학생 목록 자동 갱신 (NPC 수 변화 감지)
-        if(this._lastNpcCount !== this.npcs.length){
-            this._lastNpcCount = this.npcs.length;
+        // 학생 목록 자동 갱신 (접속자 수 변화 감지)
+        const rpCount = this.remotePlayers ? this.remotePlayers.size : 0;
+        if(this._lastNpcCount !== rpCount){
+            this._lastNpcCount = rpCount;
             this._updateWrStudentList();
         }
     },
@@ -820,7 +779,7 @@ export const WaitingRoom = {
     },
 
     _cycleWrFollowTarget(dir){
-        const list = this.npcs;
+        const list = this._rtGetRemoteArray();
         if(!list.length) return;
         if(!this._followTarget){
             this._followTarget = dir > 0 ? list[0] : list[list.length-1];
@@ -853,7 +812,7 @@ export const WaitingRoom = {
     _updateWrStudentList(){
         const panel = document.getElementById('wr-spectator-student-list');
         if(!panel) return;
-        const list = this.npcs;
+        const list = this._rtGetRemoteArray();
         const isFree = this._spectatorCamMode === 'free';
         const html = [`<div class="ssl-header">📺 관전 모드</div>`];
         html.push(`<div class="ssl-item ssl-mode${isFree ? ' ssl-active' : ''}" data-idx="-1">🌐 전지적 시점</div>`);
@@ -934,6 +893,7 @@ export const WaitingRoom = {
         if(!text || text.length > 30) return;
         if(!isClean(text)) return; // 욕설 → 조용히 무시
         this.chatBubbles.push({x:this.player.x, y:this.player.y-20, text:text, timer:180, follow:this.player, isPlayer:true});
+        this._rtBroadcastChat(text);
     },
 
     // ── 모바일 전용: 커스텀 키보드로 채팅 ──
@@ -943,38 +903,7 @@ export const WaitingRoom = {
         });
     },
 
-    spawnNPCsGradually(){
-        const count = Math.min(this.totalStudents-1, 20);
-        const shuffled = [...BLOB_COLORS].sort(()=>Math.random()-.5);
-        let spawned = 0;
-        const spawnOne = () => {
-            if(!this.running || spawned >= count) return;
-            const plat = this.platforms[Math.floor(Math.random()*this.platforms.length)];
-            const sx = plat.x + Math.random()*Math.max(plat.w-30,10);
-            const npcTeam = spawned % 2 === 0 ? 'right' : 'left';
-            const npcNames=['민수','지은','서준','하은','도윤','서연','시우','지아','예준','수아','준서','다은','건우','소율','현우','유나','지호','채원','태민','은서'];
-            this.npcs.push({
-                x: sx, y: plat.y - 30, vx:0, vy:0, w:26, h:28,
-                onGround:true, dir:Math.random()>.5?1:-1,
-                sprite: makeBlobSprite(shuffled[spawned%shuffled.length],64),
-                color: shuffled[spawned%shuffled.length],
-                jumpCount:0, maxJumps:2, aiTimer:Math.random()*200|0,
-                chatTimer:150+Math.random()*400|0, targetPlatIdx: 0,
-                jumpCooldown: 0, stunTimer: 0, team: npcTeam,
-                displayName: npcNames[spawned % npcNames.length],
-            });
-            spawned++;
-            this.readyCount = spawned + 1;
-            this.updateReadyUI();
-            if(spawned === 1 && !this.ballGameStarted) this.spawnBallFirstTime();
-            const nn = this.npcs[this.npcs.length-1];
-            const arrivals=['왔어!','안녕~','ㅋㅋ 나 왔다','여기 어디야?','출석!','하이~'];
-            this.chatBubbles.push({x:nn.x,y:nn.y-20,text:arrivals[Math.floor(Math.random()*arrivals.length)],timer:100,follow:nn});
-            // 투표/게임 시작은 교사만 컨트롤 (자동 시작 없음)
-            setTimeout(spawnOne, 800+Math.random()*2000);
-        };
-        setTimeout(spawnOne, 1500);
-    },
+    // spawnNPCsGradually 삭제됨 — 실시간 멀티플레이어로 대체 (wr-realtime.js)
 
     // 테스트 버튼: 투표부터 시작
     testStartVote(){
@@ -1012,7 +941,8 @@ export const WaitingRoom = {
     },
 
     resolveEntityCollisions(){
-        const all = (this.player.explodeTimer > 0 || this.overlayActive) ? [...this.npcs] : [this.player, ...this.npcs];
+        const remotes = this._rtGetRemoteArray();
+        const all = (this.player.explodeTimer > 0 || this.overlayActive) ? [...remotes] : [this.player, ...remotes];
         const len = all.length;
         for(let i=0;i<len;i++){
             for(let j=i+1;j<len;j++){
@@ -1116,23 +1046,20 @@ export const WaitingRoom = {
         return false;
     },
     _gimmickTargets(){
-        if(this.overlayActive || !this.player) return [...this.npcs];
-        return this._inSpectator ? [...this.npcs] : [this.player,...this.npcs];
+        const remotes = this._rtGetRemoteArray();
+        if(this.overlayActive || !this.player) return [...remotes];
+        return this._inSpectator ? [...remotes] : [this.player,...remotes];
     },
     _rebalanceTeams(){
+        const remotes = this._rtGetRemoteArray();
         let leftCount=0,rightCount=0;
         if(this.player && !this._inSpectator && this.player.team===null){
-            const l=this.npcs.filter(n=>n.team==='left').length;
-            const r=this.npcs.filter(n=>n.team==='right').length;
+            const l=remotes.filter(n=>n.team==='left').length;
+            const r=remotes.filter(n=>n.team==='right').length;
             this.player.team = l<r ? 'left' : l>r ? 'right' : (Math.random()>.5?'left':'right');
         }
         if(this.player && !this._inSpectator && this.player.team){if(this.player.team==='left') leftCount++; else rightCount++;}
-        this.npcs.forEach(n=>{if(n.team==='left')leftCount++;else if(n.team==='right')rightCount++;});
-        while(Math.abs(leftCount-rightCount)>1){
-            const from=leftCount>rightCount?'left':'right';const to=from==='left'?'right':'left';
-            const c=this.npcs.find(n=>n.team===from);if(!c)break;c.team=to;
-            if(from==='left'){leftCount--;rightCount++;}else{leftCount++;rightCount--;}
-        }
+        remotes.forEach(n=>{if(n.team==='left')leftCount++;else if(n.team==='right')rightCount++;});
     },
     _updateSpectatorButtons(){
         const el = document.getElementById('wr-spectator-btns');
@@ -1280,44 +1207,11 @@ export const WaitingRoom = {
         const targetCamY = P.y - this.VH / 2;
         const clampedCamY = Math.max(0, Math.min(targetCamY, this.H - this.VH));
         this.camera.y += (clampedCamY - this.camera.y) * 0.15;
-        // NPC AI
-        this.npcs.forEach(n=>{
-            if(n.stunTimer > 0){ n.stunTimer--; n.vx*=0.85; n.vy+=this.gravityReversed?-this.GRAVITY:this.GRAVITY; if(this.gravityReversed?n.vy<-12:n.vy>12)n.vy=this.gravityReversed?-12:12; n.x+=n.vx; n.y+=n.vy; if(n.x<-10)n.x=this.W+10; if(n.x>this.W+10)n.x=-10; if(this.gravityReversed){if(n.y<-50){n.y=this.H;n.vy=0;}}else{if(n.y>this.H+50){n.y=0;n.vy=0;}} this.checkPlatforms(n); this.checkSpectatorWalls(n); return; }
-            n.aiTimer++; n.chatTimer--;
-            if(n.jumpCooldown > 0) n.jumpCooldown--;
-            if(n.aiTimer % 90 === 0){
-                if(this.ballGameStarted && this.ball && this.ballResetTimer<=0 && Math.random()<0.6){
-                    const b=this.ball; const distToBall=Math.abs(n.x-b.x);
-                    if(distToBall<200){ n.dir = n.team==='left' ? 1 : -1; } else { n.dir = n.x<b.x ? 1 : -1; }
-                } else { n.dir = Math.random()>.5 ? 1 : -1; }
-            }
-            if(n.onGround && Math.random()<0.02 && n.jumpCooldown<=0){
-                n.vy = (this.gravityReversed ? -this.JUMP_FORCE : this.JUMP_FORCE) * (0.8+Math.random()*0.4);
-                n.jumpCount = 1; n.onGround = false; n.jumpCooldown = 60;
-            }
-            if(!n.onGround && n.jumpCount===1 && Math.random()<0.03 && n.jumpCooldown<=0){
-                n.vy = (this.gravityReversed ? -this.JUMP_FORCE : this.JUMP_FORCE) * 0.85;
-                n.jumpCount = 2; n.jumpCooldown = 60;
-            }
-            if(Math.random()<0.6) n.vx = n.dir * (1 + Math.random()*1.5); else n.vx *= 0.8;
-            if(Math.abs(n.vx)<0.2) n.vx=0;
-            n.vy += this.gravityReversed ? -this.GRAVITY : this.GRAVITY;
-            if(this.gravityReversed ? n.vy < -12 : n.vy > 12) n.vy = this.gravityReversed ? -12 : 12;
-            if(this.activeWind) n.vx += this.activeWind.force * this.activeWind.direction;
-            n.x += n.vx; n.y += n.vy;
-            if(n.x < -10) n.x = this.W + 10; if(n.x > this.W + 10) n.x = -10;
-            if(this.gravityReversed){ if(n.y < -50){n.y=this.H;n.vy=0;} } else { if(n.y > this.H+50){n.y=0;n.vy=0;} }
-            this.checkPlatforms(n); this.checkSpectatorWalls(n); this.applyBouncyZone(n);
-            if(n.chatTimer<=0){
-                n.chatTimer=250+Math.random()*500|0;
-                const msgs=['안녕~','ㅋㅋ','기다리는 중~','빨리 시작하자!','여기야!','ㅎㅎ','심심해~','뛰어!','와 높다','여기 올라와봐','ㅋㅋㅋ','나 여기있다!','점프!','재밌다~','여기 뭐하는거야','빨리와!','혼자 놀고있어ㅋㅋ','어디야~'];
-                this.chatBubbles.push({x:n.x,y:n.y-10,text:msgs[Math.floor(Math.random()*msgs.length)],timer:120,follow:n});
-            }
-        });
+        // 원격 플레이어 보간 (AI 봇 대신 실제 플레이어)
+        this._rtInterpolateRemotePlayers();
         this.chatBubbles=this.chatBubbles.filter(b=>{ b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} return b.timer>0; });
         this.resolveEntityCollisions();
-        this.updateBallSpawnCondition();
-        this.updateBall();
+        if(this._isHost) this.updateBall();
         this.updateObstacles();
         this.updateEmote();
         this._spawnEffectTrail();
@@ -1327,5 +1221,5 @@ export const WaitingRoom = {
     },
 };
 
-// ── Mixin: merge ball, gimmick, and render methods into WaitingRoom ──
-Object.assign(WaitingRoom, WrBall, WrGimmicks, WrRender);
+// ── Mixin: merge ball, gimmick, render, and realtime methods into WaitingRoom ──
+Object.assign(WaitingRoom, WrBall, WrGimmicks, WrRender, WrRealtime);

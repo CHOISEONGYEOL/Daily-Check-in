@@ -237,7 +237,7 @@ export const WrGimmicks = {
                                     color:'#FF0000',size:3+Math.random()*3,life:20+Math.random()*15,maxLife:35,type:'fire'});
                             }
                         }
-                        this.npcs.forEach(n=>{
+                        this._rtGetRemoteArray().forEach(n=>{
                             if(n.stunTimer>0)return;
                             if(Math.abs(n.vx)>0.3){
                                 if(Math.random()<0.08){

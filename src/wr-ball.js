@@ -78,7 +78,8 @@ export const WrBall = {
         const b=this.ball;
         if(!b||this.ballResetTimer>0) return;
         if(!this._ballTouchers) this._ballTouchers = [];
-        const all= (this.overlayActive || !this.player) ? [...this.npcs] : [this.player,...this.npcs];
+        const remotes = this._rtGetRemoteArray();
+        const all= (this.overlayActive || !this.player) ? [...remotes] : [this.player,...remotes];
         for(const e of all){
             if(e.explodeTimer>0) continue;
             const eL=e.x-e.w/2, eR=e.x+e.w/2, eT=e.y, eB=e.y+e.h;
@@ -143,6 +144,7 @@ export const WrBall = {
         const timeStr = now.getFullYear()+'.'+String(now.getMonth()+1).padStart(2,'0')+'.'+String(now.getDate()).padStart(2,'0')+' '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
         const teamColor = side==='left'?'#FF6B6B':'#4ECDC4';
         this.goalLog.push({scorers: scorers.length>0?scorers:['???'], time:timeStr, side, teamColor, hasOG});
+        this._rtBroadcastGoal(side, scorers.length>0?scorers:['???'], hasOG, {...this.score});
         this._ballTouchers = [];
         // 골 채팅 버블
         const scorerText = scorers.length>0 ? scorers.join(', ') : '???';

@@ -492,6 +492,30 @@ export const DB = {
         if (error) console.error('saveTeacherAttendance error:', error);
     },
 
+    // ── 원격 플레이어 캐릭터 조회 (실시간 멀티플레이어용) ──
+    async getPlayerCharacterByStudentId(studentId) {
+        const { data: user } = await supabase
+            .from('users')
+            .select('id, nickname, active_title, active_char_idx')
+            .eq('student_id', studentId)
+            .single();
+        if (!user) return null;
+        const { data: char } = await supabase
+            .from('characters')
+            .select('pixels, hat, effect, pet')
+            .eq('user_id', user.id)
+            .eq('slot_index', user.active_char_idx ?? 0)
+            .single();
+        return {
+            nickname: user.nickname,
+            activeTitle: user.active_title,
+            pixels: char?.pixels || null,
+            hat: char?.hat || null,
+            effect: char?.effect || null,
+            pet: char?.pet || null,
+        };
+    },
+
     async loadTeacherAttendance(date) {
         const { data } = await supabase.from('teacher_attendance')
             .select('student_id, class_name, status, marked_at')

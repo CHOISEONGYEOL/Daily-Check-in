@@ -252,8 +252,11 @@ export const Teacher = {
         // 화면 전환
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById('waiting-room').classList.add('active');
-        // WaitingRoom god mode 시작
-        if (WaitingRoom) WaitingRoom.startGodMode();
+        // WaitingRoom god mode 시작 (채널 이름 전달)
+        if (WaitingRoom) {
+            WaitingRoom._teacherClassName = this._openClasses[0] || '';
+            WaitingRoom.startGodMode();
+        }
     },
 
     // ── 반 필터 탭 ──

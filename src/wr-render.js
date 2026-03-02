@@ -302,10 +302,11 @@ export const WrRender = {
         if(type==='explode'){
             P.explodeTimer=60; P.emoteCooldown=this.EMOTE_COOLDOWN;
             this.spawnExplosion(P.x,P.y);
-            this.npcs.forEach(n=>{
+            this._rtGetRemoteArray().forEach(n=>{
                 const dx=n.x-P.x,dy=n.y-P.y,dist=Math.sqrt(dx*dx+dy*dy);
                 if(dist<80&&dist>0){const f=(80-dist)/80*6;n.vx+=(dx/dist)*f;n.vy+=(dy/dist)*f-3;}
             });
+            this._rtBroadcastEmote('explode');
             if(this.ball&&this.ballResetTimer<=0){
                 const dx=this.ball.x-P.x,dy=this.ball.y-P.y,dist=Math.sqrt(dx*dx+dy*dy);
                 if(dist<120&&dist>0){const f=(120-dist)/120*10;this.ball.vx+=(dx/dist)*f;this.ball.vy+=(dy/dist)*f-4;}
@@ -316,6 +317,7 @@ export const WrRender = {
             const botY=P.y+P.h;
             if(type==='flat'){P.w=40;P.h=8;P.y=botY-8;this.chatBubbles.push({x:P.x,y:P.y-15,text:'찰싹!',timer:40,follow:P,isPlayer:true});}
             else if(type==='inflate'){P.w=52;P.h=60;P.y=botY-60;this.chatBubbles.push({x:P.x,y:P.y-15,text:'부풀~!',timer:40,follow:P,isPlayer:true});}
+            this._rtBroadcastEmote(type);
         }
     },
 
@@ -549,8 +551,9 @@ export const WrRender = {
                 ctx.restore();
             }
         }
-        // Entities (sorted by y for depth)
-        const entities = [...this.npcs.map(n=>({...n,isNpc:true,ref:n}))];
+        // Entities (sorted by y for depth) — 실제 원격 플레이어 사용
+        const remotes = this._rtGetRemoteArray().map(r=>({...r,isRemote:true,ref:r}));
+        const entities = [...remotes];
         if(this.player) entities.push({...this.player,isPlayer:true,ref:this.player});
         entities.sort((a,b)=>a.y-b.y);
         entities.forEach(e=>{
@@ -574,16 +577,17 @@ export const WrRender = {
                 if(this.player.explodeTimer<=20) ctx.globalAlpha=1-this.player.explodeTimer/20;
                 else return;
             }
-            const isStunned = (e.isPlayer && this.player.stunTimer>0) || (e.isNpc && e.stunTimer>0);
+            const isStunned = (e.isPlayer && this.player.stunTimer>0) || (e.isRemote && e.stunTimer>0);
             const sx = e.dir===-1;
             ctx.save();
             if(isStunned){
                 ctx.globalAlpha=0.7+Math.sin(Date.now()*0.02)*0.2;
             }
-            if(e.isPlayer&&this.player.emote==='flat'){
+            const emote = e.isPlayer ? this.player.emote : (e.isRemote ? e.emote : null);
+            if(emote==='flat'){
                 ctx.translate(e.x,e.y+e.h);if(sx)ctx.scale(-1,1);ctx.scale(1.5,0.3);
                 ctx.drawImage(e.sprite,-16,-32,32,32);
-            } else if(e.isPlayer&&this.player.emote==='inflate'){
+            } else if(emote==='inflate'){
                 ctx.globalAlpha=0.85;ctx.translate(e.x,e.y+e.h);if(sx)ctx.scale(-1,1);ctx.scale(2,2);
                 ctx.drawImage(e.sprite,-16,-32,32,32);
             } else {
@@ -614,6 +618,22 @@ export const WrRender = {
                     ctx.fillText(Player.activeTitle,e.x,e.y+22);
                 }
             }
+            // 원격 플레이어 닉네임 + 모자 + 칭호
+            if(e.isRemote){
+                if(e.hat) CharRender.renderHat(ctx, e.hat, e.x, e.y-20, 14);
+                if(e.displayName){
+                    ctx.font='bold 11px "Segoe UI",sans-serif';ctx.textAlign='center';
+                    const nw=ctx.measureText(e.displayName).width+10;
+                    ctx.fillStyle='rgba(0,0,0,.4)';
+                    ctx.beginPath();ctx.roundRect(e.x-nw/2,e.y-32,nw,16,6);ctx.fill();
+                    ctx.fillStyle='#ddd';
+                    ctx.fillText(e.displayName,e.x,e.y-20);
+                }
+                if(e.activeTitle){
+                    ctx.fillStyle='rgba(162,155,254,.75)';ctx.font='bold 10px "Segoe UI",sans-serif';ctx.textAlign='center';
+                    ctx.fillText(e.activeTitle,e.x,e.y+22);
+                }
+            }
             // POV 대상 이름표 (교사 관전 모드)
             if(isFollowed && e.displayName){
                 ctx.font='bold 11px "Segoe UI",sans-serif';
@@ -625,7 +645,7 @@ export const WrRender = {
             }
             // Team indicator
             if(this.ballGameStarted){
-                const eTeam = e.isPlayer ? this.player.team : e.team;
+                const eTeam = e.isPlayer ? this.player.team : (e.isRemote ? e.team : e.team);
                 if(eTeam){
                     const teamColor = eTeam === 'left' ? 'rgba(78,205,196,0.7)' : 'rgba(255,107,107,0.7)';
                     ctx.fillStyle=teamColor;
@@ -940,7 +960,7 @@ export const WrRender = {
             ctx.beginPath();ctx.arc(mx+this.player.x*scale, my+mh/2, 3, 0, Math.PI*2);ctx.fill();
         }
         ctx.fillStyle='rgba(108,92,231,.7)';
-        this.npcs.forEach(n=>{
+        this._rtGetRemoteArray().forEach(n=>{
             ctx.beginPath();ctx.arc(mx+n.x*scale, my+mh/2, 2, 0, Math.PI*2);ctx.fill();
         });
         // 축구 규칙 상시 공지 (미니맵 바로 아래)
