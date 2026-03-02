@@ -436,7 +436,7 @@ export const WrRender = {
         }
         // Camera transform
         ctx.save();
-        const shakeAmt = (this.screenShake > 0 && !this._inSpectator) ? this.screenShake : 0;
+        const shakeAmt = (this.screenShake > 0 && !this._inSpectator && !this.godMode) ? this.screenShake : 0;
         const shakeX = shakeAmt > 0 ? (Math.random()-.5) * shakeAmt : 0;
         const shakeY = shakeAmt > 0 ? (Math.random()-.5) * shakeAmt : 0;
         ctx.translate(-camX + shakeX, -camY + shakeY);
