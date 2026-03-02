@@ -3,7 +3,12 @@
 body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--darker);color:#fff;height:100vh;overflow:hidden;}
 .screen{display:none;height:100vh;flex-direction:column;overflow-y:auto;}.screen.active{display:flex;}.hidden{display:none!important;}
 #editor.screen{overflow:hidden;}
-@media(max-width:650px){#editor.screen{overflow-y:auto!important;}}
+@media(max-width:650px){#editor.screen{overflow-y:auto!important;-webkit-overflow-scrolling:touch;}}
+/* 모바일 에디터: 저장/지우기/반전 버튼 항상 하단 고정 */
+body.touch-device #editor.screen{overflow-y:auto!important;-webkit-overflow-scrolling:touch;}
+body.touch-device .editor-layout{overflow:visible!important;}
+body.touch-device #btn-editor-save{position:sticky;bottom:0;z-index:10;width:100%;margin-top:.4rem;}
+body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:var(--bg);}
 
 /* Common */
 .bar{display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;background:rgba(255,255,255,.04);border-bottom:1px solid var(--glass-b);}
