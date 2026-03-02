@@ -1,4 +1,5 @@
 // ── Entry point: wire up all modules ──
+import './polyfills.js'; // 구버전 브라우저 호환 (roundRect, crypto.randomUUID 등)
 import { Player } from './player.js';
 import { DB } from './db.js';
 import { OTP } from './otp.js';

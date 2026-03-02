@@ -313,12 +313,16 @@ export const WaitingRoom = {
         if(screen.orientation&&screen.orientation.lock){try{screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}
         this.cvs.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
         cancelAnimationFrame(this.animRef);
-        const loop=()=>{
+        this._lastFrameTime = 0;
+        const FRAME_MIN = 1000/61;
+        const loop=(ts)=>{
             if(!this.running) return;
+            if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
+            this._lastFrameTime = ts;
             try{ this.update(); this.render(); }catch(e){ console.error('WR loop error:',e); }
             this.animRef=requestAnimationFrame(loop);
         };
-        loop();
+        this.animRef=requestAnimationFrame(loop);
         this.updateReadyUI();
         // 테스트 계정(99999)만 테스트 시작 버튼 표시
         const testBtn = document.getElementById('wr-test-start');
@@ -491,12 +495,16 @@ export const WaitingRoom = {
 
         if(!isResume) {
             cancelAnimationFrame(this.animRef);
-            const loop = () => {
+            this._lastFrameTime = 0;
+            const FRAME_MIN = 1000/61;
+            const loop = (ts) => {
                 if(!this.running) return;
+                if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
+                this._lastFrameTime = ts;
                 try { this.updateGodMode(); this.render(); } catch(e) { console.error('WR god loop error:', e); }
                 this.animRef = requestAnimationFrame(loop);
             };
-            loop();
+            this.animRef=requestAnimationFrame(loop);
         }
     },
 
@@ -1185,8 +1193,10 @@ export const WaitingRoom = {
         if(this.running){
             cancelAnimationFrame(this.animRef);
             const self = this;
-            const loop=()=>{ if(!self.running) return; try{ self.update(); self.render(); }catch(e){ console.error('WR loop error:',e); } self.animRef=requestAnimationFrame(loop); };
-            loop();
+            self._lastFrameTime = 0;
+            const FRAME_MIN = 1000/61;
+            const loop=(ts)=>{ if(!self.running) return; if(ts - self._lastFrameTime < FRAME_MIN){ self.animRef=requestAnimationFrame(loop); return; } self._lastFrameTime=ts; try{ self.update(); self.render(); }catch(e){ console.error('WR loop error:',e); } self.animRef=requestAnimationFrame(loop); };
+            self.animRef=requestAnimationFrame(loop);
         }
     },
 

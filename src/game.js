@@ -826,13 +826,17 @@ export const Game = {
 
         // Game loop
         cancelAnimationFrame(this.animRef);
-        const loop=()=>{
+        this._lastFrameTime = 0;
+        const FRAME_MIN = 1000/61;
+        const loop=(ts)=>{
             if(!document.getElementById('game').classList.contains('active')) return;
+            if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
+            this._lastFrameTime = ts;
             this.update();
             this.render();
             this.animRef=requestAnimationFrame(loop);
         };
-        loop();
+        this.animRef=requestAnimationFrame(loop);
     },
 
     // ═══════════════════════════════════════
@@ -896,13 +900,17 @@ export const Game = {
         this.updateHUD();
 
         cancelAnimationFrame(this.animRef);
-        const loop=()=>{
+        this._lastFrameTime = 0;
+        const FRAME_MIN = 1000/61;
+        const loop=(ts)=>{
             if(!document.getElementById('game').classList.contains('active')) return;
+            if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
+            this._lastFrameTime = ts;
             this.update();
             this.render();
             this.animRef=requestAnimationFrame(loop);
         };
-        loop();
+        this.animRef=requestAnimationFrame(loop);
     },
 
     assignNumbers(){

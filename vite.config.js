@@ -5,6 +5,7 @@ export default {
     open: true
   },
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
+    target: 'es2015'
   }
 };
