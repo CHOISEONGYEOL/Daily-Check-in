@@ -231,7 +231,7 @@ export const WrGimmicks = {
                             P.x=ownGoalX;P.y=ownGoalY;
                             P.vx=0;P.vy=0;P.stunTimer=90;
                             this.screenShake=10;
-                            this.chatBubbles.push({x:P.x,y:P.y-30,text:'🔴 걸렸다! 강제이동!',timer:90,follow:P,isPlayer:true});
+                            this.chatBubbles.push({x:P.x,y:P.y-45,text:'🔴 걸렸다! 강제이동!',timer:90,follow:P,isPlayer:true});
                             for(let j=0;j<20;j++){
                                 this.particles.push({x:P.x,y:P.y+15,vx:(Math.random()-.5)*6,vy:-Math.random()*4-1,
                                     color:'#FF0000',size:3+Math.random()*3,life:20+Math.random()*15,maxLife:35,type:'fire'});
@@ -245,7 +245,7 @@ export const WrGimmicks = {
                                     const nGoalX = n.team==='right' ? this.W-60 : 60;
                                     n.x=nGoalX;n.y=this.H-15-60;
                                     n.vx=0;n.vy=0;n.stunTimer=70;
-                                    this.chatBubbles.push({x:n.x,y:n.y-20,text:'🔴 걸렸다!',timer:70,follow:n});
+                                    this.chatBubbles.push({x:n.x,y:n.y-45,text:'🔴 걸렸다!',timer:70,follow:n});
                                     for(let j=0;j<12;j++){
                                         this.particles.push({x:n.x,y:n.y+15,vx:(Math.random()-.5)*5,vy:-Math.random()*3-1,
                                             color:'#FF0000',size:2+Math.random()*3,life:18+Math.random()*12,maxLife:30,type:'fire'});

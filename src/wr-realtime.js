@@ -339,12 +339,12 @@ export const WrRealtime = {
         const playerTouch = (this._ballTouchers || []).find(t => t.name === playerName);
         if (playerTouch && playerTouch.team === scoringTeam && this.player) {
             Player.addCoins(this.GOAL_REWARD, 'goal');
-            this.chatBubbles.push({ x: this.player.x, y: this.player.y - 40, text: `🪙 +${this.GOAL_REWARD}`, timer: 90, follow: this.player });
+            this.chatBubbles.push({ x: this.player.x, y: this.player.y - 55, text: `🪙 +${this.GOAL_REWARD}`, timer: 90, follow: this.player });
             this._goalRewardMsg = { text: `⚽ 골! 🪙 +${this.GOAL_REWARD} 코인 획득!`, timer: 120 };
         } else if (playerTouch && playerTouch.team !== scoringTeam && this.player) {
             const penalty = Math.min(this.OG_PENALTY, Player.coins);
             if (penalty > 0) Player.addCoins(-penalty, 'own_goal');
-            this.chatBubbles.push({ x: this.player.x, y: this.player.y - 40, text: `😱 -${this.OG_PENALTY}`, timer: 90, follow: this.player });
+            this.chatBubbles.push({ x: this.player.x, y: this.player.y - 55, text: `😱 -${this.OG_PENALTY}`, timer: 90, follow: this.player });
             this._goalRewardMsg = { text: `🫣 자책골! 🪙 -${this.OG_PENALTY} 코인 차감!`, timer: 120 };
         }
     },
