@@ -300,7 +300,6 @@ export const WrGimmicks = {
                 }
             } else if(obs.type==='earthquake'){
                 obs.rumblePhase+=0.15;
-                this.screenShake=Math.max(this.screenShake,6+Math.sin(obs.rumblePhase)*4);
                 if(this.frameCount%45===0){
                     const all=this._gimmickTargets();
                     all.forEach(e=>{
@@ -317,7 +316,6 @@ export const WrGimmicks = {
                         d.vy+=0.4;d.y+=d.vy;
                         if(d.y>=this.H-30){
                             d.y=this.H-30;d.fallen=true;d.craterTimer=180;
-                            this.screenShake=Math.max(this.screenShake,12);
                             const all=this._gimmickTargets();
                             all.forEach(e=>{
                                 const dx=e.x-(d.x+d.w/2),dist=Math.abs(dx);
@@ -548,7 +546,6 @@ export const WrGimmicks = {
             }
             this.obstacles.push({type:'earthquake',timer:480,intensity:1.0,debris:debris,rumblePhase:0});
             this.chatBubbles.push({x:this.W/2,y:this.H/2,text:'🌍 지진이다! 조심해!',timer:150,follow:null});
-            this.screenShake = 20;
         } else if(type==='typhoon'){
             const tx = 150+Math.random()*(this.W-300);
             const ty = 100+Math.random()*(this.H-300);
