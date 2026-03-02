@@ -233,6 +233,8 @@ export const WrRender = {
                     }
                 }
             } else if(obs.type==='earthquake'){
+                // 관전자 모드: 지진 이펙트 전체 스킵 (화면 흔들림 + 잔해 = 렉 유발)
+                if(this._inSpectator) return;
                 const crackAlpha=Math.min(1,obs.timer/100);
                 ctx.strokeStyle=`rgba(100,50,0,${crackAlpha*0.6})`;ctx.lineWidth=2;
                 for(let c=0;c<6;c++){

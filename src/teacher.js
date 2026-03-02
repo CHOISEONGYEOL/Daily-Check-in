@@ -766,12 +766,14 @@ export const Teacher = {
             if (statsEl) {
                 const span = document.createElement('span');
                 span.className = 'trc-stat trc-stat-live';
-                span.innerHTML = '🟢 접속 <strong id="trc-live">0</strong>';
+                span.innerHTML = '🟢 접속 <strong id="trc-live">0</strong>/<strong id="trc-total">0</strong>';
                 statsEl.insertBefore(span, statsEl.firstChild);
                 liveEl = document.getElementById('trc-live');
             }
         }
         if (liveEl) liveEl.textContent = liveCount;
+        const totalEl = document.getElementById('trc-total');
+        if (totalEl) totalEl.textContent = classStudents.length;
 
         // 정렬: 실시간 접속 > 출석(시간순) → 지각 → 조퇴 → 결석 → 미체크
         const order = { present: 0, late: 1, early: 2, absent: 3 };
