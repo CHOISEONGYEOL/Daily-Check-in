@@ -116,7 +116,7 @@
 /* Spectator UI */
 .spectator-badge{position:absolute;top:10px;right:10px;z-index:100;background:rgba(0,0,0,.75);color:#fff;padding:8px 16px;border-radius:10px;font-size:.78rem;font-weight:600;border:1.5px solid rgba(255,215,0,.4);backdrop-filter:blur(6px);pointer-events:none;animation:pulseGlow 2s infinite;}
 .teacher-spectator-status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;background:rgba(0,0,0,.85);padding:1.5rem 2.5rem;border-radius:16px;border:2px solid rgba(255,215,0,.3);color:#fff;font-size:1.1rem;font-weight:600;text-align:center;backdrop-filter:blur(8px);animation:pulseGlow 2s infinite;pointer-events:none;}
-.spectator-student-list{position:absolute;top:50px;left:10px;z-index:100;background:rgba(0,0,0,.82);border:1.5px solid rgba(255,215,0,.3);border-radius:12px;padding:6px 0;max-height:calc(100vh - 80px);overflow-y:auto;min-width:140px;backdrop-filter:blur(6px);scrollbar-width:thin;}
+.spectator-student-list{position:absolute;bottom:40px;left:10px;z-index:100;background:rgba(0,0,0,.82);border:1.5px solid rgba(255,215,0,.3);border-radius:12px;padding:6px 0;max-height:45vh;overflow-y:auto;min-width:140px;backdrop-filter:blur(6px);scrollbar-width:thin;}
 .ssl-header{padding:6px 12px;font-size:.72rem;font-weight:700;color:#FFD700;border-bottom:1px solid rgba(255,255,255,.1);white-space:nowrap;}
 .ssl-item{padding:5px 12px;font-size:.7rem;color:rgba(255,255,255,.8);cursor:pointer;white-space:nowrap;transition:background .15s;}
 .ssl-item:hover{background:rgba(255,255,255,.1);}
