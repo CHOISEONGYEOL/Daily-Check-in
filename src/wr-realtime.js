@@ -7,9 +7,9 @@ import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 import { PerfMonitor } from './perf-monitor.js';
 
-const SEND_INTERVAL = 125;   // 위치 전송 주기 (ms) = 8Hz
-const BALL_INTERVAL = 80;    // 공 상태 전송 주기 (ms) — 12.5Hz for smoother sync
-const INTERP_MS = SEND_INTERVAL; // 보간 시간
+const SEND_INTERVAL = 500;   // 위치 전송 주기 (ms) = 2Hz (트래픽 절감)
+const BALL_INTERVAL = 200;   // 공 상태 전송 주기 (ms) = 5Hz
+const INTERP_MS = SEND_INTERVAL; // 보간 시간 (전송 주기와 동기화)
 
 export const WrRealtime = {
     remotePlayers: null,   // Map<studentId, RemotePlayerEntity>
@@ -21,6 +21,8 @@ export const WrRealtime = {
     _rtStatus: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
     _rtRemoteArrayCache: null, // 캐시된 배열 (매 프레임 1회 갱신)
     _rtRemoteArrayDirty: true, // 캐시 무효화 플래그
+    _rtLastSentPos: null,      // delta check: 마지막 전송 위치
+    _rtLastSentBall: null,     // delta check: 마지막 전송 공 상태
 
     // ── 채널 초기화 ──
     rtInit() {
@@ -115,40 +117,50 @@ export const WrRealtime = {
         this._rtStatus = 'disconnected';
     },
 
-    // ── 위치 브로드캐스트 (10Hz) ──
+    // ── 위치 브로드캐스트 (2Hz, delta check) ──
     _rtBroadcastPosition() {
         if (!this._rtChannel || !this.player || this.godMode) return;
+        const p = this.player;
+        const x = Math.round(p.x), y = Math.round(p.y);
+        const vx = Math.round(p.vx * 10) / 10, vy = Math.round(p.vy * 10) / 10;
+        // Delta check: 위치·속도·방향·이모트 모두 동일하면 전송 스킵
+        const last = this._rtLastSentPos;
+        if (last && last.x === x && last.y === y && last.vx === vx && last.vy === vy
+            && last.dir === p.dir && last.emote === p.emote
+            && last.explode === (p.explodeTimer > 0)) return;
+        this._rtLastSentPos = { x, y, vx, vy, dir: p.dir, emote: p.emote, explode: p.explodeTimer > 0 };
         this._rtChannel.send({
             type: 'broadcast', event: 'pos',
             payload: {
                 sid: String(Player.studentId),
-                x: Math.round(this.player.x),
-                y: Math.round(this.player.y),
-                vx: Math.round(this.player.vx * 10) / 10,
-                vy: Math.round(this.player.vy * 10) / 10,
-                dir: this.player.dir,
-                onGround: this.player.onGround,
-                emote: this.player.emote,
-                stunTimer: this.player.stunTimer > 0 ? this.player.stunTimer : 0,
-                explodeTimer: this.player.explodeTimer > 0 ? this.player.explodeTimer : 0,
-                team: this.player.team,
+                x, y, vx, vy,
+                dir: p.dir,
+                onGround: p.onGround,
+                emote: p.emote,
+                stunTimer: p.stunTimer > 0 ? p.stunTimer : 0,
+                explodeTimer: p.explodeTimer > 0 ? p.explodeTimer : 0,
+                team: p.team,
                 spec: this._inSpectator ? 1 : 0,
             }
         });
         PerfMonitor.logSend(150);
     },
 
-    // ── 공 상태 브로드캐스트 (호스트만, 10Hz) ──
+    // ── 공 상태 브로드캐스트 (호스트만, 5Hz, delta check) ──
     _rtBroadcastBall() {
         if (!this._rtChannel || !this._isHost || !this.ball) return;
+        const b = this.ball;
+        const bx = Math.round(b.x), by = Math.round(b.y);
+        const bvx = Math.round(b.vx * 100) / 100, bvy = Math.round(b.vy * 100) / 100;
+        // Delta check: 위치·속도 동일하면 전송 스킵
+        const last = this._rtLastSentBall;
+        if (last && last.bx === bx && last.by === by && last.bvx === bvx && last.bvy === bvy) return;
+        this._rtLastSentBall = { bx, by, bvx, bvy };
         this._rtChannel.send({
             type: 'broadcast', event: 'ball',
             payload: {
                 sid: String(Player.studentId),
-                bx: Math.round(this.ball.x),
-                by: Math.round(this.ball.y),
-                bvx: Math.round(this.ball.vx * 100) / 100,
-                bvy: Math.round(this.ball.vy * 100) / 100,
+                bx, by, bvx, bvy,
                 angle: Math.round(this.ballAngle * 100) / 100,
                 score: { ...this.score },
                 resetTimer: this.ballResetTimer,
@@ -266,18 +278,18 @@ export const WrRealtime = {
         if (b.x + b.r >= this.W) { b.x = this.W - b.r; b.vx = -Math.abs(b.vx) * this.BALL_BOUNCE; }
         // Entity collision (local prediction — guarded to prevent game loop crash)
         if (this.ballGameStarted) { try { this.checkBallEntityCollision(); } catch(e) {} }
-        // Smooth server correction (position 10%/frame, velocity 25%/frame)
+        // Smooth server correction (200ms 간격에 맞춰 완만하게 보정)
         if (b._serverX !== undefined) {
-            b.x += (b._serverX - b.x) * 0.10;
-            b.y += (b._serverY - b.y) * 0.10;
+            b.x += (b._serverX - b.x) * 0.05;
+            b.y += (b._serverY - b.y) * 0.05;
             const dx = b._serverX - b.x, dy = b._serverY - b.y;
-            if (dx*dx + dy*dy < 1) { b._serverX = undefined; b._serverY = undefined; }
+            if (dx*dx + dy*dy < 4) { b._serverX = undefined; b._serverY = undefined; }
         }
         if (b._serverVx !== undefined) {
-            b.vx += (b._serverVx - b.vx) * 0.25;
-            b.vy += (b._serverVy - b.vy) * 0.25;
+            b.vx += (b._serverVx - b.vx) * 0.12;
+            b.vy += (b._serverVy - b.vy) * 0.12;
             const dvx = b._serverVx - b.vx, dvy = b._serverVy - b.vy;
-            if (dvx*dvx + dvy*dvy < 0.5) { b._serverVx = undefined; b._serverVy = undefined; }
+            if (dvx*dvx + dvy*dvy < 1) { b._serverVx = undefined; b._serverVy = undefined; }
         }
     },
 
@@ -573,19 +585,35 @@ export const WrRealtime = {
         this.updateReadyUI();
     },
 
-    // ── 매 프레임 보간 ──
+    // ── 매 프레임 보간 (smoothstep + velocity extrapolation) ──
     _rtInterpolateRemotePlayers() {
         const now = Date.now();
         for (const rp of this.remotePlayers.values()) {
-            if (rp._interpT >= 1) {
-                rp.dir = rp._targetDir;
-                continue;
-            }
             const elapsed = now - rp._lastUpdateTime;
-            rp._interpT = Math.min(elapsed / INTERP_MS, 1);
 
-            rp.x = rp._prevX + (rp._targetX - rp._prevX) * rp._interpT;
-            rp.y = rp._prevY + (rp._targetY - rp._prevY) * rp._interpT;
+            if (elapsed <= INTERP_MS) {
+                // Phase 1: Smoothstep lerp (prev → target)
+                const t = elapsed / INTERP_MS;
+                const s = t * t * (3 - 2 * t); // smoothstep: 부드러운 가감속
+                rp.x = rp._prevX + (rp._targetX - rp._prevX) * s;
+                rp.y = rp._prevY + (rp._targetY - rp._prevY) * s;
+            } else if (elapsed < INTERP_MS * 3) {
+                // Phase 2: Velocity extrapolation (target 이후 예측)
+                const extraMs = elapsed - INTERP_MS;
+                const extraFrames = extraMs / 16.67;
+                rp.x = rp._targetX + rp._targetVx * extraFrames;
+                rp.y = rp._targetY + rp._targetVy * extraFrames;
+                // 지면 클램프
+                if (this.H && rp.y + rp.h > this.H - 30) rp.y = this.H - 30 - rp.h;
+            }
+            // Phase 3: 3x 이상 지연 → 마지막 위치 유지 (텔레포트 방지)
+
+            // 맵 래핑
+            if (this.W) {
+                if (rp.x < 0) rp.x += this.W;
+                else if (rp.x > this.W) rp.x -= this.W;
+            }
+
             rp.dir = rp._targetDir;
 
             if (rp.emoteTimer > 0) {
