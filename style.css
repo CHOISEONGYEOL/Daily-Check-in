@@ -229,8 +229,9 @@ body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:v
 .mks-label{display:flex;flex-direction:column;gap:.25rem;font-size:.78rem;color:rgba(255,255,255,.5);font-weight:600;}
 .mks-input{padding:.5rem .7rem;border-radius:10px;border:2px solid var(--glass-b);background:rgba(255,255,255,.08);color:#fff;font-size:.9rem;outline:none;transition:var(--tr);}.mks-input:focus{border-color:var(--purple);}
 .mks-editor-row{display:flex;gap:.6rem;align-items:flex-start;}
-.mks-canvas-wrap{border:2px solid var(--glass-b);border-radius:8px;overflow:hidden;background:#111;touch-action:none;line-height:0;}
+.mks-canvas-wrap{border:2px solid var(--glass-b);border-radius:8px;overflow:auto;background:#111;touch-action:none;line-height:0;max-width:90vw;max-height:70vh;width:240px;height:240px;transition:width .2s,height .2s;}
 .mks-canvas-wrap canvas{image-rendering:pixelated;cursor:crosshair;display:block;width:240px;height:240px;}
+.mks-zoom-bar{display:flex;align-items:center;gap:.3rem;}
 .mks-ed-tools{display:flex;flex-direction:column;gap:.4rem;min-width:100px;}
 .mks-ed-btns{display:flex;flex-wrap:wrap;gap:.3rem;}
 .mks-palette{display:flex;flex-wrap:wrap;gap:2px;}

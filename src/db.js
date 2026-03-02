@@ -61,6 +61,10 @@ export const DB = {
             if (user.student_name !== studentName) {
                 return { user: null, isNew: false, error: 'name_mismatch' };
             }
+            // 닉네임 검증 (최초 설정 후 비밀번호 역할)
+            if (user.nickname && user.nickname !== nickname) {
+                return { user: null, isNew: false, error: 'nickname_mismatch' };
+            }
             this.userId = user.id;
             this.sessionToken = token;
             this.ready = true;

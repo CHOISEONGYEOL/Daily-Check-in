@@ -21,7 +21,9 @@ export const Marketplace = {
         drawing: false,
         tool: 'pen',
         color: '#6C5CE7',
+        zoom: 1,
     },
+    _draftTimer: null,
     _edPalette: ['#2D3436','#636E72','#B2BEC3','#DFE6E9','#FFFFFF','#D63031','#E17055','#FDCB6E','#FFEAA7','#00B894','#00CEC9','#0984E3','#6C5CE7','#A29BFE','#FD79A8','#E84393','#74B9FF','#FAB1A0','#855E42','#A0522D'],
 
     // ── 이모지 목록 (펫용) ──
@@ -263,7 +265,7 @@ export const Marketplace = {
             <div class="mks-section">
                 <div class="mks-title">🎨 도트 아트 그리기 (32x32)</div>
                 <div class="mks-editor-row">
-                    <div class="mks-canvas-wrap"><canvas id="mks-canvas" width="${CANVAS_PX}" height="${CANVAS_PX}"></canvas></div>
+                    <div class="mks-canvas-wrap" id="mks-canvas-wrap"><canvas id="mks-canvas" width="${CANVAS_PX}" height="${CANVAS_PX}"></canvas></div>
                     <div class="mks-ed-tools">
                         <div class="mks-ed-btns">
                             <button class="tool-btn active" data-tool="pen" onclick="Marketplace.edSetTool('pen',this)">✏️ 펜</button>
@@ -272,6 +274,11 @@ export const Marketplace = {
                         </div>
                         <div class="mks-palette" id="mks-palette"></div>
                         <canvas id="mks-preview" width="64" height="64" style="image-rendering:pixelated;border-radius:6px;border:2px solid rgba(255,255,255,.1);width:48px;height:48px;"></canvas>
+                        <div class="mks-zoom-bar">
+                            <button class="btn sm outline" onclick="Marketplace.edZoom(-0.5)">🔍−</button>
+                            <span id="mks-zoom-label" style="color:#aaa;font-size:.8rem;min-width:28px;text-align:center">1x</span>
+                            <button class="btn sm outline" onclick="Marketplace.edZoom(0.5)">🔍+</button>
+                        </div>
                         <button class="btn sm outline" onclick="Marketplace.edClear()">🗑️ 전체 지우기</button>
                     </div>
                 </div>
@@ -295,7 +302,15 @@ export const Marketplace = {
 
         this._setupEditorCanvas();
         this._renderEdPalette();
+        this._ed.zoom = 1;
+        // 드래프트 불러오기
+        this._loadDraft();
         this._edDraw();
+        // 폼 입력 시 자동 저장 연결
+        ['mks-name','mks-desc','mks-price'].forEach(id=>{
+            const el=document.getElementById(id);
+            if(el) el.oninput=()=>this._scheduleDraftSave();
+        });
     },
 
     selectType(type, btn) {
@@ -343,6 +358,7 @@ export const Marketplace = {
         else if (this._ed.tool === 'eraser') this._ed.pixels[y][x] = null;
         else if (this._ed.tool === 'fill') this._edFlood(x, y, this._ed.pixels[y][x], this._ed.color);
         this._edDraw();
+        this._scheduleDraftSave();
     },
     _edFlood(x, y, t, r) {
         if (t === r || x < 0 || x >= GRID || y < 0 || y >= GRID || this._ed.pixels[y][x] !== t) return;
@@ -378,6 +394,7 @@ export const Marketplace = {
     edClear() {
         this._ed.pixels = Array.from({ length: GRID }, () => Array(GRID).fill(null));
         this._edDraw();
+        localStorage.removeItem('mks_draft');
     },
     _renderEdPalette() {
         const p = document.getElementById('mks-palette');
@@ -394,6 +411,79 @@ export const Marketplace = {
             };
             p.appendChild(s);
         });
+    },
+
+    // ── 줌 ──
+    edZoom(delta) {
+        this._ed.zoom = Math.max(1, Math.min(4, this._ed.zoom + delta));
+        const c = document.getElementById('mks-canvas');
+        const wrap = document.getElementById('mks-canvas-wrap');
+        if (c) {
+            c.style.transform = `scale(${this._ed.zoom})`;
+            c.style.transformOrigin = '0 0';
+        }
+        if (wrap) {
+            wrap.style.width = (240 * this._ed.zoom) + 'px';
+            wrap.style.height = (240 * this._ed.zoom) + 'px';
+        }
+        const label = document.getElementById('mks-zoom-label');
+        if (label) label.textContent = this._ed.zoom + 'x';
+    },
+
+    // ── 임시저장 ──
+    _scheduleDraftSave() {
+        clearTimeout(this._draftTimer);
+        this._draftTimer = setTimeout(() => this._saveDraft(), 2000);
+    },
+    _saveDraft() {
+        try {
+            const data = {
+                pixels: this._ed.pixels,
+                type: this._selectedType,
+                emoji: this._selectedEmoji,
+                name: document.getElementById('mks-name')?.value || '',
+                desc: document.getElementById('mks-desc')?.value || '',
+                price: document.getElementById('mks-price')?.value || '50',
+                savedAt: Date.now()
+            };
+            localStorage.setItem('mks_draft', JSON.stringify(data));
+        } catch (e) { /* storage full 등 무시 */ }
+    },
+    _loadDraft() {
+        try {
+            const raw = localStorage.getItem('mks_draft');
+            if (!raw) return;
+            const d = JSON.parse(raw);
+            if (!d.pixels || !Array.isArray(d.pixels)) return;
+            if (!confirm('이전에 작업하던 작품이 있습니다. 불러올까요?')) {
+                localStorage.removeItem('mks_draft');
+                return;
+            }
+            // 픽셀 복원
+            this._ed.pixels = d.pixels.map(r => [...r]);
+            // 유형 복원
+            if (d.type) {
+                this._selectedType = d.type;
+                document.querySelectorAll('.mks-type-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.type === d.type);
+                });
+                if (d.type === 'pet') this.selectType('pet', document.querySelector('.mks-type-btn[data-type="pet"]'));
+                if (d.emoji) {
+                    this._selectedEmoji = d.emoji;
+                    setTimeout(() => {
+                        const emojiBtn = [...document.querySelectorAll('.mks-emoji-btn')].find(b => b.textContent === d.emoji);
+                        if (emojiBtn) emojiBtn.classList.add('active');
+                    }, 50);
+                }
+            }
+            // 폼 필드 복원
+            const nameEl = document.getElementById('mks-name');
+            const descEl = document.getElementById('mks-desc');
+            const priceEl = document.getElementById('mks-price');
+            if (nameEl && d.name) nameEl.value = d.name;
+            if (descEl && d.desc) descEl.value = d.desc;
+            if (priceEl && d.price) priceEl.value = d.price;
+        } catch (e) { localStorage.removeItem('mks_draft'); }
     },
 
     // ── 등록 실행 ──
@@ -418,6 +508,7 @@ export const Marketplace = {
 
         const ok = await this.submitItem(params);
         if (ok) {
+            localStorage.removeItem('mks_draft');
             this.renderMySubmissions();
         }
     },

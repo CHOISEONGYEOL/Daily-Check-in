@@ -43,6 +43,11 @@ export const ProfileSetup = {
                 if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
                 return;
             }
+            if (result.error === 'nickname_mismatch') {
+                if (err) { err.textContent = '닉네임이 일치하지 않습니다! (닉네임은 최초 설정 후 변경 불가)'; err.classList.remove('hidden'); }
+                if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                return;
+            }
             if (result.error === 'ip_conflict') {
                 if (err) { err.textContent = '이 네트워크에서 다른 학생이 이미 접속 중입니다.'; err.classList.remove('hidden'); }
                 if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
