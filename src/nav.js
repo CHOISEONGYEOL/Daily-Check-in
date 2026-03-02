@@ -61,6 +61,9 @@ export const Nav = {
         // Redirect to profile setup if no profile
         if (id === 'lobby' && !Player.hasProfile()) { id = 'profile-setup'; }
 
+        // ── 교사 계정: 로비 → 대시보드 ──
+        if (id === 'lobby' && Player.studentId === TEACHER_ACCOUNT) { id = 'teacher'; }
+
         // ── 교사 계정은 대기실 진입 차단 ──
         if (id === 'waiting-room' && Player.studentId === TEACHER_ACCOUNT) {
             alert('교사 계정은 게임에 참여할 수 없습니다.\n대시보드에서 게임을 열어주세요!');
