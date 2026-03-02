@@ -382,15 +382,19 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .btn.sm{min-height:44px;min-width:44px;padding:.5rem 1rem;font-size:.85rem;}
 }
 @media(hover:hover){.mobile-controls{display:none;}.wr-mobile-controls{display:none;}.wr-emote-controls{display:none;}}
+/* Fallback: JS-detected touch device (hover 미디어쿼리 미지원 기기) */
+body.touch-device .mobile-controls,body.touch-device .wr-mobile-controls,body.touch-device .wr-emote-controls{display:flex;}
 
-/* Rotate overlay (mobile portrait → game screen) */
-.rotate-overlay{position:fixed;inset:0;z-index:99999;background:var(--darker);display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;}
-.rotate-overlay.hidden{display:none !important;}
-.rotate-content{padding:2rem;}
-.rotate-icon{font-size:4rem;margin-bottom:1rem;animation:rotateHint 2s ease-in-out infinite;}
-.rotate-content h2{font-size:1.4rem;margin-bottom:.5rem;color:#fff;}
-.rotate-content p{color:rgba(255,255,255,.5);font-size:.9rem;}
-@keyframes rotateHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
+/* ── 게임 화면 강제 가로 회전 (세로 모드 터치 기기) ── */
+@media(orientation:portrait){
+body.touch-device #waiting-room.screen.active,
+body.touch-device #game.screen.active{
+    position:fixed;top:50%;left:50%;
+    width:100vh;height:100vw;
+    transform:translate(-50%,-50%) rotate(90deg);
+    z-index:1000;overflow:hidden;
+}
+}
 
 /* Mobile: small screens */
 @media(max-width:400px){

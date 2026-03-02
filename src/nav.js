@@ -15,34 +15,10 @@ import { Marketplace } from './marketplace.js';
 const TEST_ACCOUNT = '99999';
 const TEACHER_ACCOUNT = '77777';
 
-// ── 가로 회전 오버레이 (게임 화면 세로 모드 차단) ──
-const _GAME_SCREENS = new Set(['waiting-room', 'game']);
-let _currentScreen = '';
-
-function _isTouchDevice() {
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+// ── 터치 기기 감지 → CSS 강제 가로 회전 활성화 ──
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.body.classList.add('touch-device');
 }
-
-function _checkOrientation() {
-    const overlay = document.getElementById('rotate-overlay');
-    if (!overlay) return;
-    if (!_isTouchDevice() || !_GAME_SCREENS.has(_currentScreen)) {
-        overlay.classList.add('hidden');
-        return;
-    }
-    const isPortrait = window.matchMedia('(orientation: portrait)').matches
-        || window.innerHeight > window.innerWidth;
-    overlay.classList.toggle('hidden', !isPortrait);
-}
-
-window.addEventListener('resize', _checkOrientation);
-try { screen.orientation?.addEventListener('change', _checkOrientation); } catch(e) {}
-try { window.matchMedia('(orientation: portrait)').addEventListener('change', _checkOrientation); } catch(e) {}
-// 폴백: 오버레이 표시 중이면 500ms마다 재확인 (일부 폰에서 이벤트 누락 대비)
-setInterval(() => {
-    const overlay = document.getElementById('rotate-overlay');
-    if (overlay && !overlay.classList.contains('hidden')) _checkOrientation();
-}, 500);
 
 // ── 세션 강제 종료 (다른 기기 로그인) ──
 window.addEventListener('session-revoked', () => {
@@ -117,8 +93,6 @@ export const Nav = {
     },
 
     _doGo(id) {
-        _currentScreen = id;
-        _checkOrientation();
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(id).classList.add('active');
         Player.refreshUI();
@@ -162,6 +136,10 @@ export const Nav = {
         if (id !== 'teacher') Teacher.stop();
         if (id !== 'game-setup') OTP.stop();
         if (id !== 'waiting-room') WaitingRoom.stop();
+        // 게임 화면: CSS 강제 회전 후 캔버스 리사이즈 트리거
+        if (id === 'waiting-room' || id === 'game') {
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+        }
     },
     // ── 게임 버튼 상태 폴링 ──
     _gameBtnPollId: null,
