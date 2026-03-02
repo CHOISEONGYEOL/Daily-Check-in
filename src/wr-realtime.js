@@ -6,8 +6,8 @@ import { CharRender } from './char-render.js';
 import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 
-const SEND_INTERVAL = 100;   // 위치 전송 주기 (ms) = 10Hz
-const BALL_INTERVAL = 100;   // 공 상태 전송 주기 (ms)
+const SEND_INTERVAL = 125;   // 위치 전송 주기 (ms) = 8Hz
+const BALL_INTERVAL = 125;   // 공 상태 전송 주기 (ms)
 const INTERP_MS = SEND_INTERVAL; // 보간 시간
 
 export const WrRealtime = {
@@ -18,6 +18,8 @@ export const WrRealtime = {
     _rtBallInterval: null,
     _rtSpriteCache: new Map(),
     _rtStatus: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
+    _rtRemoteArrayCache: null, // 캐시된 배열 (매 프레임 1회 갱신)
+    _rtRemoteArrayDirty: true, // 캐시 무효화 플래그
 
     // ── 채널 초기화 ──
     rtInit() {
@@ -105,6 +107,8 @@ export const WrRealtime = {
             this._rtChannel = null;
         }
         if (this.remotePlayers) this.remotePlayers.clear();
+        this._rtRemoteArrayCache = null;
+        this._rtRemoteArrayDirty = true;
         this._isHost = false;
         this._rtStatus = 'disconnected';
     },
@@ -323,10 +327,12 @@ export const WrRealtime = {
         for (const [sid] of this.remotePlayers) {
             if (!presentIds.has(sid)) {
                 this.remotePlayers.delete(sid);
+                this._rtRemoteArrayDirty = true;
             }
         }
 
         this._rtElectHost();
+        this._rtAssignTeams();
         this._rtUpdateReadyCount();
     },
 
@@ -341,6 +347,7 @@ export const WrRealtime = {
         }
 
         this._rtElectHost();
+        this._rtAssignTeams();
         this._rtUpdateReadyCount();
         this._rtCheckBallSpawn();
     },
@@ -350,6 +357,7 @@ export const WrRealtime = {
         console.log('[RT] leave:', key);
         if (String(key) === String(Player.studentId)) return;
         this.remotePlayers.delete(String(key));
+        this._rtRemoteArrayDirty = true;
         this._rtElectHost();
         this._rtUpdateReadyCount();
 
@@ -390,6 +398,7 @@ export const WrRealtime = {
         };
 
         this.remotePlayers.set(sid, rp);
+        this._rtRemoteArrayDirty = true;
 
         // 스프라이트 비동기 로드 (폴백 먼저 설정)
         rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
@@ -455,6 +464,32 @@ export const WrRealtime = {
         }
     },
 
+    // ── 팀 자동 배정 (studentId 정렬 → 교대 배정) ──
+    _rtAssignTeams() {
+        if (!this._rtChannel || this.godMode) return;
+        const state = this._rtChannel.presenceState();
+        const allIds = [];
+        for (const [key, presences] of Object.entries(state)) {
+            if (!presences || presences.length === 0) continue;
+            const p = presences[0];
+            if (p.isTeacher) continue;
+            allIds.push(String(p.studentId));
+        }
+        allIds.sort((a, b) => parseInt(a) - parseInt(b));
+        // 짝수 인덱스 = left, 홀수 인덱스 = right
+        const myIdx = allIds.indexOf(String(Player.studentId));
+        if (myIdx >= 0 && this.player) {
+            this.player.team = myIdx % 2 === 0 ? 'left' : 'right';
+        }
+        // 원격 플레이어 팀도 갱신
+        for (const rp of this.remotePlayers.values()) {
+            const idx = allIds.indexOf(rp.studentId);
+            if (idx >= 0) {
+                rp.team = idx % 2 === 0 ? 'left' : 'right';
+            }
+        }
+    },
+
     // ── 공 스폰 조건 체크 ──
     _rtCheckBallSpawn() {
         const playerCount = this.remotePlayers.size + (this.player ? 1 : 0);
@@ -491,8 +526,12 @@ export const WrRealtime = {
         }
     },
 
-    // ── remotePlayers 배열 변환 (this.npcs 대체) ──
+    // ── remotePlayers 배열 변환 (this.npcs 대체, 캐시 사용) ──
     _rtGetRemoteArray() {
-        return this.remotePlayers ? [...this.remotePlayers.values()] : [];
+        if (this._rtRemoteArrayDirty || !this._rtRemoteArrayCache) {
+            this._rtRemoteArrayCache = this.remotePlayers ? [...this.remotePlayers.values()] : [];
+            this._rtRemoteArrayDirty = false;
+        }
+        return this._rtRemoteArrayCache;
     },
 };

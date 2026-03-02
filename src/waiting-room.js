@@ -767,13 +767,16 @@ export const WaitingRoom = {
             this.camera.y = Math.max(0, Math.min(this.camera.y, this.H - this.VH));
         }
 
-        // 원격 플레이어 보간 (교사는 수신만, 물리 연산 없음)
+        // 원격 플레이어 보간
         this.frameCount++;
         this._rtInterpolateRemotePlayers();
+        // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
+        this.updateObstacles();
+        if(this._isHost) this.updateBall();
         // 채팅 버블 업데이트
-        this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; return b.timer > 0; });
+        this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} return b.timer > 0; });
         // 파티클 업데이트
-        this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.life--; return p.life > 0; });
+        this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; return p.life > 0; });
         // 학생 목록 자동 갱신 (접속자 수 변화 감지)
         const rpCount = this.remotePlayers ? this.remotePlayers.size : 0;
         if(this._lastNpcCount !== rpCount){
