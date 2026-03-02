@@ -24,6 +24,7 @@ export const Marketplace = {
         zoom: 1,
     },
     _draftTimer: null,
+    _currentDraftId: null,
     _edPalette: ['#2D3436','#636E72','#B2BEC3','#DFE6E9','#FFFFFF','#D63031','#E17055','#FDCB6E','#FFEAA7','#00B894','#00CEC9','#0984E3','#6C5CE7','#A29BFE','#FD79A8','#E84393','#74B9FF','#FAB1A0','#855E42','#A0522D'],
 
     // ── 이모지 목록 (펫용) ──
@@ -297,14 +298,17 @@ export const Marketplace = {
                     <span style="font-size:.85rem;color:#aaa;margin-top:2px">1 ~ 9,999 코인 범위에서 입력 가능</span>
                 </label>
             </div>
+            <div style="display:flex;gap:.5rem;margin-bottom:.4rem;">
+                <button class="btn big outline" onclick="Marketplace._openDraftDashboard()" style="flex:1">📂 불러오기</button>
+                <button class="btn big teal" onclick="Marketplace._saveDraftNow()" style="flex:1">💾 임시저장</button>
+            </div>
             <button class="btn big purple" onclick="Marketplace.doSubmit()" style="width:100%">📤 판매 등록 요청</button>
         `;
 
         this._setupEditorCanvas();
         this._renderEdPalette();
         this._ed.zoom = 1;
-        // 드래프트 불러오기
-        this._loadDraft();
+        this._currentDraftId = null;
         this._edDraw();
         // 폼 입력 시 자동 저장 연결
         ['mks-name','mks-desc','mks-price'].forEach(id=>{
@@ -394,7 +398,7 @@ export const Marketplace = {
     edClear() {
         this._ed.pixels = Array.from({ length: GRID }, () => Array(GRID).fill(null));
         this._edDraw();
-        localStorage.removeItem('mks_draft');
+        this._currentDraftId = null;
     },
     _renderEdPalette() {
         const p = document.getElementById('mks-palette');
@@ -430,60 +434,150 @@ export const Marketplace = {
         if (label) label.textContent = this._ed.zoom + 'x';
     },
 
-    // ── 임시저장 ──
+    // ── 임시저장 (DB) ──
     _scheduleDraftSave() {
         clearTimeout(this._draftTimer);
-        this._draftTimer = setTimeout(() => this._saveDraft(), 2000);
+        this._draftTimer = setTimeout(() => this._saveDraftToDB(), 5000);
     },
-    _saveDraft() {
+    async _saveDraftToDB() {
+        if (!DB.userId) return;
+        const hasPixels = this._ed.pixels && this._ed.pixels.some(r => r.some(c => c !== null));
+        if (!hasPixels) return;
         try {
-            const data = {
-                pixels: this._ed.pixels,
-                type: this._selectedType,
-                emoji: this._selectedEmoji,
+            const row = {
+                user_id: DB.userId,
+                item_type: this._selectedType || 'hat',
                 name: document.getElementById('mks-name')?.value || '',
-                desc: document.getElementById('mks-desc')?.value || '',
-                price: document.getElementById('mks-price')?.value || '50',
-                savedAt: Date.now()
+                description: document.getElementById('mks-desc')?.value || '',
+                proposed_price: parseInt(document.getElementById('mks-price')?.value) || 50,
+                pixel_data: this._ed.pixels,
+                icon: this._selectedEmoji || null,
+                updated_at: new Date().toISOString(),
             };
-            localStorage.setItem('mks_draft', JSON.stringify(data));
-        } catch (e) { /* storage full 등 무시 */ }
-    },
-    _loadDraft() {
-        try {
-            const raw = localStorage.getItem('mks_draft');
-            if (!raw) return;
-            const d = JSON.parse(raw);
-            if (!d.pixels || !Array.isArray(d.pixels)) return;
-            if (!confirm('이전에 작업하던 작품이 있습니다. 불러올까요?')) {
-                localStorage.removeItem('mks_draft');
-                return;
+            if (this._currentDraftId) {
+                await supabase.from('item_drafts').update(row).eq('id', this._currentDraftId);
+            } else {
+                const { data } = await supabase.from('item_drafts').insert(row).select('id').single();
+                if (data) this._currentDraftId = data.id;
             }
-            // 픽셀 복원
-            this._ed.pixels = d.pixels.map(r => [...r]);
-            // 유형 복원
-            if (d.type) {
-                this._selectedType = d.type;
-                document.querySelectorAll('.mks-type-btn').forEach(b => {
-                    b.classList.toggle('active', b.dataset.type === d.type);
-                });
-                if (d.type === 'pet') this.selectType('pet', document.querySelector('.mks-type-btn[data-type="pet"]'));
-                if (d.emoji) {
-                    this._selectedEmoji = d.emoji;
+        } catch (e) { /* ignore */ }
+    },
+    async _saveDraftNow() {
+        if (!DB.userId) { alert('로그인이 필요합니다.'); return; }
+        clearTimeout(this._draftTimer);
+        await this._saveDraftToDB();
+        alert('임시저장 완료!');
+    },
+    async _openDraftDashboard() {
+        if (!DB.userId) { alert('로그인이 필요합니다.'); return; }
+        const { data } = await supabase
+            .from('item_drafts')
+            .select('*')
+            .eq('user_id', DB.userId)
+            .order('updated_at', { ascending: false });
+        this._renderDraftDashboard(data || []);
+    },
+    _renderDraftDashboard(drafts) {
+        const overlay = document.createElement('div');
+        overlay.className = 'mks-draft-overlay';
+        overlay.id = 'mks-draft-overlay';
+        let cardsHtml = '';
+        if (!drafts.length) {
+            cardsHtml = '<div class="mks-draft-empty">저장된 작품이 없습니다.</div>';
+        } else {
+            drafts.forEach(d => {
+                const typeLabel = {hat:'🎩 모자', pet:'🐾 펫', character:'🧑 캐릭터', effect:'✨ 효과', title:'🏷️ 타이틀', skin:'🎨 스킨'}[d.item_type] || d.item_type;
+                const name = d.name || '(이름 없음)';
+                const date = new Date(d.updated_at).toLocaleDateString('ko-KR', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                cardsHtml += `
+                    <div class="mks-draft-card" data-draft-id="${d.id}">
+                        <canvas class="mks-draft-preview" width="64" height="64" data-pixels='${JSON.stringify(d.pixel_data)}'></canvas>
+                        <div class="mks-draft-info">
+                            <div class="mks-draft-name">${name}</div>
+                            <div class="mks-draft-meta">${typeLabel} · 🪙${d.proposed_price}</div>
+                            <div class="mks-draft-date">${date}</div>
+                        </div>
+                        <div class="mks-draft-actions">
+                            <button class="btn sm purple mks-draft-load" data-id="${d.id}">불러오기</button>
+                            <button class="btn sm outline mks-draft-del" data-id="${d.id}">🗑️</button>
+                        </div>
+                    </div>`;
+            });
+        }
+        overlay.innerHTML = `
+            <div class="mks-draft-panel">
+                <div class="mks-draft-header">
+                    <span style="font-size:.95rem;font-weight:800;">📂 내 임시저장 작품</span>
+                    <button class="btn sm outline" onclick="document.getElementById('mks-draft-overlay')?.remove()">✕ 닫기</button>
+                </div>
+                <div class="mks-draft-list">${cardsHtml}</div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        // Draw pixel previews
+        overlay.querySelectorAll('.mks-draft-preview').forEach(cvs => {
+            try {
+                const pd = JSON.parse(cvs.dataset.pixels || 'null');
+                if (!pd) return;
+                const ctx = cvs.getContext('2d');
+                const s = 64 / GRID;
+                for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+                    if (pd[y] && pd[y][x]) { ctx.fillStyle = pd[y][x]; ctx.fillRect(Math.floor(x*s), Math.floor(y*s), Math.ceil(s), Math.ceil(s)); }
+                }
+            } catch(e) {}
+        });
+
+        // Load handlers
+        overlay.querySelectorAll('.mks-draft-load').forEach(btn => {
+            btn.onclick = () => {
+                const id = parseInt(btn.dataset.id);
+                const draft = drafts.find(d => d.id === id);
+                if (draft) { this._applyDraft(draft); overlay.remove(); }
+            };
+        });
+        // Delete handlers
+        overlay.querySelectorAll('.mks-draft-del').forEach(btn => {
+            btn.onclick = async () => {
+                const id = parseInt(btn.dataset.id);
+                if (!confirm('이 작품을 삭제하시겠습니까?')) return;
+                await supabase.from('item_drafts').delete().eq('id', id);
+                btn.closest('.mks-draft-card')?.remove();
+                if (this._currentDraftId === id) this._currentDraftId = null;
+                if (!overlay.querySelector('.mks-draft-card')) {
+                    overlay.querySelector('.mks-draft-list').innerHTML = '<div class="mks-draft-empty">저장된 작품이 없습니다.</div>';
+                }
+            };
+        });
+    },
+    _applyDraft(d) {
+        if (d.pixel_data && Array.isArray(d.pixel_data)) {
+            this._ed.pixels = d.pixel_data.map(r => [...r]);
+        }
+        if (d.item_type) {
+            this._selectedType = d.item_type;
+            document.querySelectorAll('.mks-type-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.type === d.item_type);
+            });
+            if (d.item_type === 'pet') {
+                const petBtn = document.querySelector('.mks-type-btn[data-type="pet"]');
+                if (petBtn) this.selectType('pet', petBtn);
+                if (d.icon) {
+                    this._selectedEmoji = d.icon;
                     setTimeout(() => {
-                        const emojiBtn = [...document.querySelectorAll('.mks-emoji-btn')].find(b => b.textContent === d.emoji);
+                        const emojiBtn = [...document.querySelectorAll('.mks-emoji-btn')].find(b => b.textContent === d.icon);
                         if (emojiBtn) emojiBtn.classList.add('active');
                     }, 50);
                 }
             }
-            // 폼 필드 복원
-            const nameEl = document.getElementById('mks-name');
-            const descEl = document.getElementById('mks-desc');
-            const priceEl = document.getElementById('mks-price');
-            if (nameEl && d.name) nameEl.value = d.name;
-            if (descEl && d.desc) descEl.value = d.desc;
-            if (priceEl && d.price) priceEl.value = d.price;
-        } catch (e) { localStorage.removeItem('mks_draft'); }
+        }
+        const nameEl = document.getElementById('mks-name');
+        const descEl = document.getElementById('mks-desc');
+        const priceEl = document.getElementById('mks-price');
+        if (nameEl) nameEl.value = d.name || '';
+        if (descEl) descEl.value = d.description || '';
+        if (priceEl) priceEl.value = d.proposed_price || 50;
+        this._currentDraftId = d.id;
+        this._edDraw();
     },
 
     // ── 등록 실행 ──
@@ -508,7 +602,10 @@ export const Marketplace = {
 
         const ok = await this.submitItem(params);
         if (ok) {
-            localStorage.removeItem('mks_draft');
+            if (this._currentDraftId) {
+                supabase.from('item_drafts').delete().eq('id', this._currentDraftId).then(() => {});
+                this._currentDraftId = null;
+            }
             this.renderMySubmissions();
         }
     },
