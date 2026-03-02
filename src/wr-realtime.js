@@ -16,21 +16,23 @@ export const WrRealtime = {
     _isHost: false,
     _rtSendInterval: null,
     _rtBallInterval: null,
-    _rtSpriteCache: new Map(), // 스프라이트 캐시 (재접속 시 재사용)
+    _rtSpriteCache: new Map(),
+    _rtStatus: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
 
     // ── 채널 초기화 ──
     rtInit() {
         if (this._rtChannel) this.rtDestroy();
         this.remotePlayers = new Map();
+        this._rtStatus = 'connecting';
 
         const className = this.godMode
             ? (this._teacherClassName || '')
             : (Player.className || '');
         const channelName = `wr:${className || 'main'}`;
-        console.log('[RT] rtInit — channel:', channelName, 'studentId:', Player.studentId, 'className:', className);
+        console.log('[RT] init channel=' + channelName + ' sid=' + Player.studentId);
 
         const channel = supabase.channel(channelName, {
-            config: { broadcast: { self: false }, presence: { key: Player.studentId } }
+            config: { broadcast: { self: false }, presence: { key: String(Player.studentId) } }
         });
 
         // Broadcast 수신
@@ -47,18 +49,18 @@ export const WrRealtime = {
                 this._rtOnPresenceJoin(key, newPresences[0]);
             }
         });
-        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        channel.on('presence', { event: 'leave' }, ({ key }) => {
             this._rtOnPresenceLeave(key);
         });
 
         channel.subscribe(async (status) => {
-            console.log('[RT] subscribe status:', status);
+            console.log('[RT] subscribe:', status);
             if (status === 'SUBSCRIBED') {
-                // Presence에 자신을 등록
+                this._rtStatus = 'connected';
                 try {
                     if (!this.godMode) {
-                        const trackData = {
-                            studentId: Player.studentId,
+                        await channel.track({
+                            studentId: String(Player.studentId),
                             nickname: Player.nickname || '',
                             activeTitle: Player.activeTitle || '',
                             hat: Player.equipped?.hat || null,
@@ -66,20 +68,22 @@ export const WrRealtime = {
                             pet: Player.equipped?.pet || null,
                             team: this.player?.team || 'left',
                             isTeacher: false,
-                        };
-                        console.log('[RT] tracking presence:', trackData);
-                        await channel.track(trackData);
-                        console.log('[RT] presence tracked OK');
+                        });
+                        console.log('[RT] tracked OK');
                     } else {
                         await channel.track({
-                            studentId: Player.studentId || '77777',
+                            studentId: String(Player.studentId || '77777'),
                             nickname: '선생님',
                             isTeacher: true,
                         });
                     }
                 } catch (e) {
                     console.error('[RT] track error:', e);
+                    this._rtStatus = 'error';
                 }
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                this._rtStatus = 'error';
+                console.error('[RT] channel error:', status);
             }
         });
 
@@ -102,6 +106,7 @@ export const WrRealtime = {
         }
         if (this.remotePlayers) this.remotePlayers.clear();
         this._isHost = false;
+        this._rtStatus = 'disconnected';
     },
 
     // ── 위치 브로드캐스트 (10Hz) ──
@@ -110,9 +115,9 @@ export const WrRealtime = {
         this._rtChannel.send({
             type: 'broadcast', event: 'pos',
             payload: {
-                sid: Player.studentId,
-                x: Math.round(this.player.x * 10) / 10,
-                y: Math.round(this.player.y * 10) / 10,
+                sid: String(Player.studentId),
+                x: Math.round(this.player.x),
+                y: Math.round(this.player.y),
                 vx: Math.round(this.player.vx * 10) / 10,
                 vy: Math.round(this.player.vy * 10) / 10,
                 dir: this.player.dir,
@@ -131,9 +136,9 @@ export const WrRealtime = {
         this._rtChannel.send({
             type: 'broadcast', event: 'ball',
             payload: {
-                sid: Player.studentId,
-                bx: Math.round(this.ball.x * 10) / 10,
-                by: Math.round(this.ball.y * 10) / 10,
+                sid: String(Player.studentId),
+                bx: Math.round(this.ball.x),
+                by: Math.round(this.ball.y),
                 bvx: Math.round(this.ball.vx * 100) / 100,
                 bvy: Math.round(this.ball.vy * 100) / 100,
                 angle: Math.round(this.ballAngle * 100) / 100,
@@ -149,7 +154,7 @@ export const WrRealtime = {
         if (!this._rtChannel) return;
         this._rtChannel.send({
             type: 'broadcast', event: 'chat',
-            payload: { sid: Player.studentId, text }
+            payload: { sid: String(Player.studentId), text }
         });
     },
 
@@ -158,7 +163,7 @@ export const WrRealtime = {
         if (!this._rtChannel) return;
         this._rtChannel.send({
             type: 'broadcast', event: 'emote',
-            payload: { sid: Player.studentId, emoteType }
+            payload: { sid: String(Player.studentId), emoteType }
         });
     },
 
@@ -167,18 +172,15 @@ export const WrRealtime = {
         if (!this._rtChannel || !this._isHost) return;
         this._rtChannel.send({
             type: 'broadcast', event: 'goal',
-            payload: { sid: Player.studentId, side, scorers, hasOG, score }
+            payload: { sid: String(Player.studentId), side, scorers, hasOG, score }
         });
     },
 
     // ── 원격 플레이어 위치 수신 ──
     _rtOnRemotePos(data) {
-        if (!data || data.sid === Player.studentId) return;
-        let rp = this.remotePlayers.get(data.sid);
-        if (!rp) {
-            console.log('[RT] pos received but no remote player for sid:', data.sid, 'remotes:', [...this.remotePlayers.keys()]);
-            return;
-        }
+        if (!data || data.sid === String(Player.studentId)) return;
+        const rp = this.remotePlayers.get(data.sid);
+        if (!rp) return;
 
         // 맵 경계 텔레포트 감지
         const teleport = Math.abs(data.x - rp.x) > this.W * 0.5;
@@ -204,7 +206,7 @@ export const WrRealtime = {
 
     // ── 공 상태 수신 (비호스트만) ──
     _rtOnRemoteBall(data) {
-        if (this._isHost) return; // 호스트는 자체 물리 사용
+        if (this._isHost) return;
         if (!data) return;
 
         if (data.started && !this.ballGameStarted) {
@@ -227,7 +229,7 @@ export const WrRealtime = {
 
     // ── 원격 채팅 수신 ──
     _rtOnRemoteChat(data) {
-        if (!data || data.sid === Player.studentId) return;
+        if (!data || data.sid === String(Player.studentId)) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) return;
         this.chatBubbles.push({
@@ -238,14 +240,13 @@ export const WrRealtime = {
 
     // ── 원격 이모트 수신 ──
     _rtOnRemoteEmote(data) {
-        if (!data || data.sid === Player.studentId) return;
+        if (!data || data.sid === String(Player.studentId)) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) return;
         rp.emote = data.emoteType;
         rp.emoteTimer = this.EMOTE_DURATION;
         if (data.emoteType === 'explode') {
             rp.explodeTimer = 30;
-            // 폭발 파티클
             for (let i = 0; i < 15; i++) {
                 this.particles.push({
                     x: rp.x, y: rp.y + rp.h / 2,
@@ -259,7 +260,7 @@ export const WrRealtime = {
 
     // ── 원격 골 이벤트 수신 ──
     _rtOnRemoteGoal(data) {
-        if (this._isHost) return; // 호스트는 로컬에서 처리
+        if (this._isHost) return;
         if (!data) return;
         this.score = data.score;
         this.goalFlash = 90;
@@ -275,7 +276,6 @@ export const WrRealtime = {
         const goalLabel = data.hasOG ? '⚽ OG! 자책골!' : '⚽ GOAL!';
         this.chatBubbles.push({ x: this.W / 2, y: this.H / 2 - 80, text: `${goalLabel} ${scorerText}`, timer: 150, follow: null });
 
-        // 골 이펙트 파티클
         const bx = data.side === 'left' ? 20 : this.W - 20, by = this.H - 90;
         for (let i = 0; i < 25; i++) {
             this.particles.push({
@@ -305,19 +305,16 @@ export const WrRealtime = {
     _rtOnPresenceSync() {
         if (!this._rtChannel) return;
         const state = this._rtChannel.presenceState();
-        console.log('[RT] presenceSync — state:', JSON.stringify(state));
         const presentIds = new Set();
 
-        // 현재 접속자 파악
         for (const [key, presences] of Object.entries(state)) {
             if (!presences || presences.length === 0) continue;
             const p = presences[0];
-            if (p.studentId === Player.studentId) continue; // 자신 제외
-            if (p.isTeacher) continue; // 교사는 엔티티 없음
-            presentIds.add(p.studentId);
+            if (String(p.studentId) === String(Player.studentId)) continue;
+            if (p.isTeacher) continue;
+            presentIds.add(String(p.studentId));
 
-            // 아직 remotePlayers에 없으면 추가
-            if (!this.remotePlayers.has(p.studentId)) {
+            if (!this.remotePlayers.has(String(p.studentId))) {
                 this._rtCreateRemotePlayer(p);
             }
         }
@@ -335,11 +332,11 @@ export const WrRealtime = {
 
     // ── Presence 접속 ──
     async _rtOnPresenceJoin(key, presence) {
-        console.log('[RT] presenceJoin — key:', key, 'presence:', presence);
-        if (!presence || presence.studentId === Player.studentId) return;
+        console.log('[RT] join:', key, presence?.nickname);
+        if (!presence || String(presence.studentId) === String(Player.studentId)) return;
         if (presence.isTeacher) return;
 
-        if (!this.remotePlayers.has(presence.studentId)) {
+        if (!this.remotePlayers.has(String(presence.studentId))) {
             await this._rtCreateRemotePlayer(presence);
         }
 
@@ -350,24 +347,23 @@ export const WrRealtime = {
 
     // ── Presence 퇴장 ──
     _rtOnPresenceLeave(key) {
-        console.log('[RT] presenceLeave — key:', key);
-        if (key === Player.studentId) return;
-        this.remotePlayers.delete(key);
+        console.log('[RT] leave:', key);
+        if (String(key) === String(Player.studentId)) return;
+        this.remotePlayers.delete(String(key));
         this._rtElectHost();
         this._rtUpdateReadyCount();
 
-        // 교사 학생 목록 갱신
         if (this.godMode) this._updateWrStudentList();
     },
 
     // ── 원격 플레이어 엔티티 생성 ──
     async _rtCreateRemotePlayer(presence) {
-        const sid = presence.studentId;
-        console.log('[RT] createRemotePlayer — sid:', sid, 'nickname:', presence.nickname);
-        // 스폰 위치: 랜덤 플랫폼
-        const plat = this.platforms[Math.floor(Math.random() * this.platforms.length)];
-        const sx = plat.x + Math.random() * Math.max(plat.w - 30, 10);
-        const sy = plat.y - 30;
+        const sid = String(presence.studentId);
+        console.log('[RT] create player:', sid, presence.nickname);
+
+        // 스폰 위치: 맵 하단 중앙 근처
+        const sx = this.W * 0.4 + Math.random() * this.W * 0.2;
+        const sy = this.H - 47;
 
         const rp = {
             studentId: sid,
@@ -395,9 +391,10 @@ export const WrRealtime = {
 
         this.remotePlayers.set(sid, rp);
 
-        // 스프라이트 비동기 로드
+        // 스프라이트 비동기 로드 (폴백 먼저 설정)
+        rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
+
         try {
-            // 캐시 확인
             if (this._rtSpriteCache.has(sid)) {
                 rp.sprite = this._rtSpriteCache.get(sid);
             } else {
@@ -413,12 +410,7 @@ export const WrRealtime = {
                 }
             }
         } catch (e) {
-            console.warn('Failed to load sprite for', sid, e);
-        }
-
-        // 폴백: 스프라이트 없으면 기본 템플릿
-        if (!rp.sprite) {
-            rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
+            console.warn('[RT] sprite load fail:', sid, e);
         }
 
         // 도착 알림
@@ -428,7 +420,6 @@ export const WrRealtime = {
             follow: rp, isPlayer: false
         });
 
-        // 교사 학생 목록 갱신
         if (this.godMode) this._updateWrStudentList();
     },
 
@@ -442,7 +433,7 @@ export const WrRealtime = {
             if (!presences || presences.length === 0) continue;
             const p = presences[0];
             if (p.isTeacher) continue;
-            studentIds.push(p.studentId);
+            studentIds.push(String(p.studentId));
         }
 
         if (studentIds.length === 0) {
@@ -450,14 +441,13 @@ export const WrRealtime = {
             return;
         }
 
-        // 숫자 정렬, 가장 낮은 학번 = 호스트
         studentIds.sort((a, b) => parseInt(a) - parseInt(b));
         const newHost = studentIds[0];
         const wasHost = this._isHost;
-        this._isHost = (Player.studentId === newHost);
+        this._isHost = (String(Player.studentId) === newHost);
 
-        // 호스트가 바뀌었을 때 공 브로드캐스트 시작/중지
         if (this._isHost && !wasHost) {
+            console.log('[RT] I am now HOST');
             if (this._rtBallInterval) clearInterval(this._rtBallInterval);
             this._rtBallInterval = setInterval(() => this._rtBroadcastBall(), BALL_INTERVAL);
         } else if (!this._isHost && wasHost) {
@@ -468,7 +458,7 @@ export const WrRealtime = {
     // ── 공 스폰 조건 체크 ──
     _rtCheckBallSpawn() {
         const playerCount = this.remotePlayers.size + (this.player ? 1 : 0);
-        if (playerCount >= 2 && !this.ballGameStarted) {
+        if (playerCount >= 2 && !this.ballGameStarted && this._isHost) {
             this.spawnBallFirstTime();
         }
     },
@@ -484,7 +474,6 @@ export const WrRealtime = {
         const now = Date.now();
         for (const rp of this.remotePlayers.values()) {
             if (rp._interpT >= 1) {
-                // 보간 완료 — 외삽 (약간 예측)
                 rp.dir = rp._targetDir;
                 continue;
             }
@@ -495,7 +484,6 @@ export const WrRealtime = {
             rp.y = rp._prevY + (rp._targetY - rp._prevY) * rp._interpT;
             rp.dir = rp._targetDir;
 
-            // 이모트 타이머 감소
             if (rp.emoteTimer > 0) {
                 rp.emoteTimer--;
                 if (rp.emoteTimer <= 0) rp.emote = null;

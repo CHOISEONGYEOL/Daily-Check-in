@@ -297,6 +297,17 @@ export const WaitingRoom = {
         });
         if(screen.orientation&&screen.orientation.lock){try{screen.orientation.lock('landscape').catch(()=>{});}catch(e){}}
         this.cvs.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+        // 풀스크린 변경 시 RT 연결 재확인
+        if(!this._onFullscreenChange){
+            this._onFullscreenChange = () => {
+                if(this.running && this._rtStatus !== 'connected'){
+                    console.log('[RT] fullscreen change — reconnecting');
+                    this.rtInit();
+                }
+            };
+            document.addEventListener('fullscreenchange', this._onFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', this._onFullscreenChange);
+        }
         cancelAnimationFrame(this.animRef);
         this._lastFrameTime = 0;
         const FRAME_MIN = 1000/61;
@@ -340,6 +351,11 @@ export const WaitingRoom = {
 
     stop(){
         this.rtDestroy();
+        if(this._onFullscreenChange){
+            document.removeEventListener('fullscreenchange', this._onFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', this._onFullscreenChange);
+            this._onFullscreenChange = null;
+        }
         Vote.stop();
         GameKeyboard.hide(); // 키보드 닫기
         clearInterval(this._gameStartPollId); this._gameStartPollId = null;

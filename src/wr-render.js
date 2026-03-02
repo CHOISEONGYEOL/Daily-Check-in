@@ -557,6 +557,7 @@ export const WrRender = {
         if(this.player) entities.push({...this.player,isPlayer:true,ref:this.player});
         entities.sort((a,b)=>a.y-b.y);
         entities.forEach(e=>{
+            if(!e.sprite) return; // 스프라이트 미로드 시 건너뜀
             if(e.x < camX - 50 || e.x > camX + VW + 50) return;
 
             // POV 대상 하이라이트 (교사 관전 모드)
@@ -988,5 +989,18 @@ export const WrRender = {
             ctx.globalAlpha = 1;
             msg.timer--;
         }
+        // ── RT 상태 표시 (디버그) ──
+        const rtStatus = this._rtStatus || 'off';
+        const rtRemoteCount = this.remotePlayers ? this.remotePlayers.size : 0;
+        const rtChannel = this._rtChannel ? 'OK' : 'NO';
+        const rtHost = this._isHost ? 'HOST' : 'client';
+        const className = this.godMode ? (this._teacherClassName||'?') : (Player.className||'?');
+        const statusColor = rtStatus === 'connected' ? '#4ECDC4' : (rtStatus === 'connecting' ? '#FFD700' : '#FF6B6B');
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = 'rgba(0,0,0,.5)';
+        ctx.beginPath();ctx.roundRect(4, VH-32, 260, 16, 4);ctx.fill();
+        ctx.fillStyle = statusColor; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(`RT:${rtStatus} ch:wr:${className} players:${rtRemoteCount} ${rtHost}`, 8, VH-21);
+        ctx.globalAlpha = 1;
     },
 };
