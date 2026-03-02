@@ -30,12 +30,19 @@ function _checkOrientation() {
         overlay.classList.add('hidden');
         return;
     }
-    const isPortrait = window.innerHeight > window.innerWidth;
+    const isPortrait = window.matchMedia('(orientation: portrait)').matches
+        || window.innerHeight > window.innerWidth;
     overlay.classList.toggle('hidden', !isPortrait);
 }
 
 window.addEventListener('resize', _checkOrientation);
 try { screen.orientation?.addEventListener('change', _checkOrientation); } catch(e) {}
+try { window.matchMedia('(orientation: portrait)').addEventListener('change', _checkOrientation); } catch(e) {}
+// 폴백: 오버레이 표시 중이면 500ms마다 재확인 (일부 폰에서 이벤트 누락 대비)
+setInterval(() => {
+    const overlay = document.getElementById('rotate-overlay');
+    if (overlay && !overlay.classList.contains('hidden')) _checkOrientation();
+}, 500);
 
 // ── 세션 강제 종료 (다른 기기 로그인) ──
 window.addEventListener('session-revoked', () => {

@@ -3,6 +3,7 @@
 body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--darker);color:#fff;height:100vh;overflow:hidden;}
 .screen{display:none;height:100vh;flex-direction:column;overflow-y:auto;}.screen.active{display:flex;}.hidden{display:none!important;}
 #editor.screen{overflow:hidden;}
+@media(max-width:650px){#editor.screen{overflow-y:auto!important;}}
 
 /* Common */
 .bar{display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;background:rgba(255,255,255,.04);border-bottom:1px solid var(--glass-b);}
@@ -57,9 +58,12 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .btn-edit-profile{background:none;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.45);font-size:.7rem;padding:.25rem .7rem;border-radius:8px;cursor:pointer;transition:var(--tr);margin-top:.4rem;}.btn-edit-profile:hover{border-color:var(--purple);color:var(--purple-l);}
 .btn-logout{background:none;border:1px solid rgba(255,70,70,.25);color:rgba(255,70,70,.6);font-size:.7rem;padding:.25rem .7rem;border-radius:8px;cursor:pointer;transition:var(--tr);margin-top:.3rem;}.btn-logout:hover{background:rgba(255,70,70,.1);color:#ff4646;border-color:rgba(255,70,70,.5);}
 @media(max-width:560px){
-    .lobby-body{flex-direction:column;align-items:center;}
+    .lobby-body{flex-direction:column;align-items:center;gap:.8rem;}
     .lobby-left{min-width:unset;}
     .lobby-right{width:100%;max-width:320px;}
+    .lobby-right .btn.big{padding:.55rem 1rem;font-size:.88rem;border-radius:10px;}
+    .lobby-header{margin-bottom:.6rem;}
+    .lobby-char canvas{width:96px!important;height:96px!important;}
 }
 
 /* Profile Edit */
@@ -389,7 +393,23 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 @keyframes rotateHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
 
 /* Mobile: small screens */
-@media(max-width:400px){.profile-wrap{padding:1rem;}.logo{font-size:1.5rem;}}
+@media(max-width:400px){
+.profile-wrap{padding:1rem;}
+.logo{font-size:1.5rem;}
+.lobby-wrap{padding:1rem;}
+.lobby-right .btn.big{padding:.5rem .8rem;font-size:.82rem;}
+.lobby-char canvas{width:80px!important;height:80px!important;}
+.lobby-stats{gap:.4rem;}
+.lobby-stats .pill{font-size:.78rem;padding:.2rem .6rem;}
+.canvas-frame{max-height:42vw!important;max-width:42vw!important;}
+.template-grid{grid-template-columns:repeat(auto-fill,60px)!important;}
+.template-thumb{width:60px!important;height:60px!important;}
+.tool-sec{padding:.35rem;}
+.palette{gap:1px;}
+.pal-swatch{width:18px;height:18px;}
+.bar h2{font-size:.9rem;}
+.btn-save{padding:.45rem;font-size:.8rem;}
+}
 @media(max-width:500px){.mks-editor-row{flex-direction:column;align-items:center;}}
 
 /* Mobile: teacher dashboard */
