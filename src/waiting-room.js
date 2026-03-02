@@ -1163,8 +1163,8 @@ export const WaitingRoom = {
         // 만약 _inSpectator인데 박스 밖으로 나갔으면 해제
         if(this._inSpectator && !this._isInsideAnySpectatorBox(P)) this._inSpectator = false;
         if(this.ballGameStarted){
-            if(this._inSpectator && this.player.team !== null){ this.player.team = null; this._rebalanceTeams(); }
-            else if(!this._inSpectator && this.player.team === null){ this._rebalanceTeams(); }
+            if(this._inSpectator && this.player.team !== null){ this.player.team = null; this._rtAssignTeams(); }
+            else if(!this._inSpectator && this.player.team === null){ this._rtAssignTeams(); }
         }
         this.showSpectatorBtns = this._inSpectator && !this.overlayActive;
         this._updateSpectatorButtons();

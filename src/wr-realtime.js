@@ -131,6 +131,7 @@ export const WrRealtime = {
                 stunTimer: this.player.stunTimer > 0 ? this.player.stunTimer : 0,
                 explodeTimer: this.player.explodeTimer > 0 ? this.player.explodeTimer : 0,
                 team: this.player.team,
+                spec: this._inSpectator ? 1 : 0,
             }
         });
     },
@@ -207,6 +208,10 @@ export const WrRealtime = {
         rp.stunTimer = data.stunTimer;
         rp.explodeTimer = data.explodeTimer;
         rp.team = data.team;
+        const wasSpec = rp._inSpectator;
+        rp._inSpectator = !!data.spec;
+        // 관람석 진입/퇴장 시 팀 재배정
+        if (wasSpec !== rp._inSpectator && this.ballGameStarted) this._rtAssignTeams();
     },
 
     // ── 공 상태 수신 (비호스트만) ──
@@ -475,23 +480,35 @@ export const WrRealtime = {
     // ── 팀 자동 배정 (studentId 정렬 → 교대 배정) ──
     _rtAssignTeams() {
         if (!this._rtChannel || this.godMode) return;
+        // 관람석에 있는 플레이어 제외하고 활성 플레이어만 팀 배정
+        const spectatorIds = new Set();
+        for (const rp of this.remotePlayers.values()) {
+            if (rp._inSpectator) spectatorIds.add(rp.studentId);
+        }
+        const activeIds = [];
         const state = this._rtChannel.presenceState();
-        const allIds = [];
         for (const [key, presences] of Object.entries(state)) {
             if (!presences || presences.length === 0) continue;
             const p = presences[0];
             if (p.isTeacher) continue;
-            allIds.push(String(p.studentId));
+            const sid = String(p.studentId);
+            // 관람석 플레이어 또는 로컬 관람석 제외
+            if (spectatorIds.has(sid)) continue;
+            if (sid === String(Player.studentId) && this._inSpectator) continue;
+            activeIds.push(sid);
         }
-        allIds.sort((a, b) => parseInt(a) - parseInt(b));
+        activeIds.sort((a, b) => parseInt(a) - parseInt(b));
         // 짝수 인덱스 = left, 홀수 인덱스 = right
-        const myIdx = allIds.indexOf(String(Player.studentId));
-        if (myIdx >= 0 && this.player) {
+        const myIdx = activeIds.indexOf(String(Player.studentId));
+        if (this._inSpectator && this.player) {
+            this.player.team = null;
+        } else if (myIdx >= 0 && this.player) {
             this.player.team = myIdx % 2 === 0 ? 'left' : 'right';
         }
         // 원격 플레이어 팀도 갱신
         for (const rp of this.remotePlayers.values()) {
-            const idx = allIds.indexOf(rp.studentId);
+            if (rp._inSpectator) { rp.team = null; continue; }
+            const idx = activeIds.indexOf(rp.studentId);
             if (idx >= 0) {
                 rp.team = idx % 2 === 0 ? 'left' : 'right';
             }
