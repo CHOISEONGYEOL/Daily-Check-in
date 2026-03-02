@@ -23,8 +23,14 @@ export const WrTeacher = {
                     clearInterval(this._gameStartPollId);
                     this._gameStartPollId = null;
                     this.voteStarted = true;
-                    Vote.start(this.totalStudents, () => {
-                        this.selectedGameId = Vote.selectedGame.id;
+                    Vote.start(this.totalStudents, async () => {
+                        // DB에서 확정된 게임 ID 읽기 (중앙 동기화 — 모든 학생이 같은 게임)
+                        try {
+                            const data = await DB.getSpectatorData(Player.className);
+                            this.selectedGameId = data.selectedGame || Vote.selectedGame.id;
+                        } catch(e) {
+                            this.selectedGameId = Vote.selectedGame.id;
+                        }
                         this.startCountdown();
                     });
                 }

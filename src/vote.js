@@ -211,11 +211,13 @@ export const Vote = {
         this._announceResult();
     },
 
-    _announceResult() {
+    async _announceResult() {
         const open = this.openGames;
-        // 교사에게 결과 전송
+        // 교사에게 결과 전송 (await로 DB 확정 보장)
         if(Player.className && Player.studentId !== TEST_ACCOUNT) {
-            DB.setSelectedGame(Player.className, this.selectedGame.id).catch(()=>{});
+            try {
+                await DB.setSelectedGame(Player.className, this.selectedGame.id);
+            } catch(e) { /* ignore */ }
             DB.setGamePhase(Player.className, 'countdown', {
                 vote_data: JSON.stringify({ votes: this.votes, winner: this.selectedGame.id, ts: Date.now() })
             }).catch(()=>{});
