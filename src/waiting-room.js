@@ -320,6 +320,9 @@ export const WaitingRoom = {
         };
         loop();
         this.updateReadyUI();
+        // 테스트 계정(99999)만 테스트 시작 버튼 표시
+        const testBtn = document.getElementById('wr-test-start');
+        if(testBtn) testBtn.classList.toggle('hidden', Player.studentId !== '99999');
         // ── 학생: 교사의 game_started 신호 폴링 ──
         this._startGameStartPoll();
     },

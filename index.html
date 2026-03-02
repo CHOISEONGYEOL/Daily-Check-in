@@ -283,7 +283,7 @@
         <div class="wr-chat-bar">
             <input type="text" id="wr-chat-input" maxlength="30" placeholder="Enter로 채팅..." autocomplete="off">
             <button id="wr-chat-mobile-btn" class="btn sm purple wr-chat-mobile-btn" onclick="WaitingRoom.openMobileChat()">💬</button>
-            <button class="btn sm purple wr-test-btn" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
+            <button class="btn sm purple wr-test-btn hidden" id="wr-test-start" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
         </div>
         <!-- 모바일 전용 커스텀 한글 키보드 -->
         <div id="game-keyboard" class="game-keyboard hidden">
