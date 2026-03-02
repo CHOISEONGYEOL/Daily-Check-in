@@ -4,6 +4,7 @@ import { GRID } from './constants.js';
 import { esc } from './sanitize.js';
 import { TeacherAttendance } from './teacher-attendance.js';
 import { TeacherMarket, setTeacherMarketMarketplace } from './teacher-market.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 // Forward references
 let Marketplace = null;
@@ -620,8 +621,9 @@ export const Teacher = {
         this._mainTab = tab;
         document.querySelectorAll('.teacher-main-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const tabs = ['teacher-students-tab', 'teacher-market-tab', 'teacher-attendance-tab'];
+        const tabs = ['teacher-students-tab', 'teacher-market-tab', 'teacher-attendance-tab', 'teacher-perf-tab'];
         tabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        clearInterval(this._perfInterval);
         if (tab === 'students') {
             document.getElementById('teacher-students-tab').classList.remove('hidden');
         } else if (tab === 'market') {
@@ -630,7 +632,61 @@ export const Teacher = {
         } else if (tab === 'attendance') {
             document.getElementById('teacher-attendance-tab').classList.remove('hidden');
             this._initAttendance();
+        } else if (tab === 'perf') {
+            document.getElementById('teacher-perf-tab').classList.remove('hidden');
+            this._initPerfTab();
         }
+    },
+
+    // ── 성능 모니터링 탭 ──
+    _perfInterval: null,
+    _initPerfTab() {
+        this._renderPerfGraphs();
+        this._perfInterval = setInterval(() => this._renderPerfGraphs(), 1000);
+    },
+    _renderPerfGraphs() {
+        // status
+        const st = document.getElementById('perf-status');
+        if (st) {
+            st.textContent = PerfMonitor.enabled
+                ? `🟢 모니터링 중 (FPS: ${PerfMonitor._snap.fps})`
+                : '⏸ 대기실 미진입';
+            st.style.color = PerfMonitor.enabled ? '#00B894' : 'rgba(255,255,255,.4)';
+        }
+
+        // FPS graph
+        PerfMonitor.drawGraph(document.getElementById('perf-fps-graph'), [
+            { data: PerfMonitor.fps, color: '#00B894', label: 'FPS' },
+        ], { title: 'FPS (프레임/초)', baseline: 60 });
+
+        // Frame time graph (update + render breakdown)
+        PerfMonitor.drawGraph(document.getElementById('perf-time-graph'), [
+            { data: PerfMonitor.frameTime, color: '#FDCB6E', label: '전체' },
+            { data: PerfMonitor.updateTime, color: '#6C5CE7', label: 'Update' },
+            { data: PerfMonitor.renderTime, color: '#FD79A8', label: 'Render' },
+        ], { title: '프레임 시간 (ms)', baseline: 16.6 });
+
+        // Network graph
+        PerfMonitor.drawGraph(document.getElementById('perf-net-graph'), [
+            { data: PerfMonitor.msgSentPerSec, color: '#0984E3', label: '송신 msg/s' },
+            { data: PerfMonitor.msgRecvPerSec, color: '#00CEC9', label: '수신 msg/s' },
+        ], { title: '네트워크 메시지' });
+
+        // Error log
+        this._renderPerfErrors();
+    },
+    _renderPerfErrors() {
+        const el = document.getElementById('perf-error-log');
+        if (!el) return;
+        const errs = PerfMonitor.errors;
+        if (!errs.length) { el.innerHTML = '<span style="color:rgba(255,255,255,.25)">에러 없음</span>'; return; }
+        el.innerHTML = errs.slice(-50).reverse().map(e =>
+            `<div class="perf-error-entry"><span class="perf-error-time">${e.ts}</span>${e.msg}</div>`
+        ).join('');
+    },
+    _perfClearErrors() {
+        PerfMonitor.errors.length = 0;
+        this._renderPerfErrors();
     },
 
 };

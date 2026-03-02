@@ -13,6 +13,7 @@ import { Vote } from './vote.js';
 import { DB } from './db.js';
 import { isClean } from './chat-filter.js';
 import { GameKeyboard } from './game-keyboard.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 // Re-export setGame so main.js import stays unchanged
 export { setGame };
@@ -324,10 +325,11 @@ export const WaitingRoom = {
             if(!this.running) return;
             if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
             this._lastFrameTime = ts;
-            try{ this.update(); this.render(); }catch(e){ console.error('WR loop error:',e); }
+            try{ PerfMonitor.startFrame(); this.update(); PerfMonitor.endUpdate(); this.render(); PerfMonitor.endFrame(); }catch(e){ PerfMonitor.logError(e.message); console.error('WR loop error:',e); }
             this.animRef=requestAnimationFrame(loop);
         };
         this.animRef=requestAnimationFrame(loop);
+        PerfMonitor.enabled = true;
         this.updateReadyUI();
         // 테스트 계정(99999)만 테스트 시작 버튼 표시
         const testBtn = document.getElementById('wr-test-start');
@@ -350,6 +352,7 @@ export const WaitingRoom = {
         this.overlayActive = false; this.overlayScreen = null;
         this.showSpectatorBtns = false; this._hideSpectatorButtons();
         this.running = false;
+        PerfMonitor.enabled = false;
         cancelAnimationFrame(this.animRef);
         clearInterval(this.countdownTimer);
         if(this._onkeydown) { window.removeEventListener('keydown',this._onkeydown); window.removeEventListener('keyup',this._onkeyup); }

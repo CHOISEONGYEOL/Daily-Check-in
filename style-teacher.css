@@ -187,3 +187,13 @@ select.t-edit-input option{background:#1a1a2e;color:#fff;}
 .ta-date-wrap{justify-content:center;}
 .t-roster-fields{flex-direction:column;}
 }
+
+/* Performance Dashboard */
+.perf-dashboard{padding:.8rem;display:flex;flex-direction:column;gap:.8rem;}
+.perf-controls{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;}
+.perf-status{font-size:.85rem;font-weight:700;}
+.perf-graphs{display:flex;flex-direction:column;gap:.5rem;}
+.perf-graphs canvas{width:100%;height:120px;background:#0d0d1a;border-radius:8px;border:1px solid var(--glass-b);}
+.perf-error-log{max-height:220px;overflow-y:auto;font-family:'Courier New',monospace;font-size:.72rem;background:#0d0d1a;border-radius:8px;padding:.6rem;border:1px solid var(--glass-b);line-height:1.6;}
+.perf-error-entry{padding:.15rem 0;border-bottom:1px solid rgba(255,255,255,.04);color:#ff7675;}
+.perf-error-time{color:rgba(255,255,255,.25);margin-right:.5rem;}

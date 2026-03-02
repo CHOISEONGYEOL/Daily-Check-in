@@ -422,6 +422,7 @@
             <button class="teacher-main-tab active" onclick="Teacher.switchMainTab(this,'students')">👥 학생 관리</button>
             <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'market')">🎨 판매 요청</button>
             <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'attendance')">📅 출결 기록</button>
+            <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'perf')">📊 성능</button>
         </div>
         <!-- 학생 관리 탭 -->
         <div id="teacher-students-tab">
@@ -489,6 +490,21 @@
             </div>
             <div id="teacher-market-grid" class="teacher-market-grid">
                 <div class="teacher-empty">로딩 중...</div>
+            </div>
+        </div>
+        <!-- 성능 모니터링 탭 -->
+        <div id="teacher-perf-tab" class="hidden">
+            <div class="perf-dashboard">
+                <div class="perf-controls">
+                    <span class="perf-status" id="perf-status">⏸ 대기실 미진입</span>
+                    <button class="btn sm outline" onclick="Teacher._perfClearErrors()">🗑️ 에러 초기화</button>
+                </div>
+                <div class="perf-graphs">
+                    <canvas id="perf-fps-graph" width="500" height="120"></canvas>
+                    <canvas id="perf-time-graph" width="500" height="120"></canvas>
+                    <canvas id="perf-net-graph" width="500" height="120"></canvas>
+                </div>
+                <div class="perf-error-log" id="perf-error-log">에러 없음</div>
             </div>
         </div>
     </div>

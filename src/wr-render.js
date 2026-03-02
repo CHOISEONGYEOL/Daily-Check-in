@@ -3,6 +3,7 @@
 import { Player } from './player.js';
 import { CharRender } from './char-render.js';
 import { Inventory } from './inventory.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 export const WrRender = {
     renderObstacles(ctx){
@@ -850,6 +851,8 @@ export const WrRender = {
                 ctx.fillText('Enter 채팅 / ←→ 이동 / ↑ 점프 / 1납작 2부풀기 3폭발',VW/2,VH-8);
             }
         }
+        // FPS overlay
+        if(PerfMonitor.enabled) PerfMonitor.renderOverlay(ctx);
     },
 
 };

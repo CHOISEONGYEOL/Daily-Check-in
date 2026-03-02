@@ -18,6 +18,7 @@ import { LS } from './storage.js';
 import { Nav } from './nav.js';
 import { Marketplace, setMarketShop, setMarketNav } from './marketplace.js';
 import { GameKeyboard } from './game-keyboard.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 // ── Wire forward references ──
 setInventory(Inventory);
@@ -77,6 +78,8 @@ setSetupEditorKeys(setupEditorKeys);
 const TEACHER_ACCOUNT = '77777';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // 성능 모니터 초기화 (에러 캡처 + 1초 tick)
+    PerfMonitor.init();
     // 커스텀 한글 키보드 초기화 (모바일용)
     GameKeyboard.init();
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));

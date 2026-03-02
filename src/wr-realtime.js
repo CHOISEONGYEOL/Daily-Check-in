@@ -5,6 +5,7 @@ import { Player } from './player.js';
 import { CharRender } from './char-render.js';
 import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 const SEND_INTERVAL = 125;   // 위치 전송 주기 (ms) = 8Hz
 const BALL_INTERVAL = 80;    // 공 상태 전송 주기 (ms) — 12.5Hz for smoother sync
@@ -38,12 +39,12 @@ export const WrRealtime = {
         });
 
         // Broadcast 수신
-        channel.on('broadcast', { event: 'pos' }, ({ payload }) => this._rtOnRemotePos(payload));
-        channel.on('broadcast', { event: 'ball' }, ({ payload }) => this._rtOnRemoteBall(payload));
-        channel.on('broadcast', { event: 'chat' }, ({ payload }) => this._rtOnRemoteChat(payload));
-        channel.on('broadcast', { event: 'emote' }, ({ payload }) => this._rtOnRemoteEmote(payload));
-        channel.on('broadcast', { event: 'goal' }, ({ payload }) => this._rtOnRemoteGoal(payload));
-        channel.on('broadcast', { event: 'shutdown' }, () => this._rtOnShutdown());
+        channel.on('broadcast', { event: 'pos' }, ({ payload }) => { PerfMonitor.logRecv(150); this._rtOnRemotePos(payload); });
+        channel.on('broadcast', { event: 'ball' }, ({ payload }) => { PerfMonitor.logRecv(200); this._rtOnRemoteBall(payload); });
+        channel.on('broadcast', { event: 'chat' }, ({ payload }) => { PerfMonitor.logRecv(80); this._rtOnRemoteChat(payload); });
+        channel.on('broadcast', { event: 'emote' }, ({ payload }) => { PerfMonitor.logRecv(60); this._rtOnRemoteEmote(payload); });
+        channel.on('broadcast', { event: 'goal' }, ({ payload }) => { PerfMonitor.logRecv(120); this._rtOnRemoteGoal(payload); });
+        channel.on('broadcast', { event: 'shutdown' }, () => { PerfMonitor.logRecv(20); this._rtOnShutdown(); });
 
         // Presence 수신
         channel.on('presence', { event: 'sync' }, () => this._rtOnPresenceSync());
@@ -134,6 +135,7 @@ export const WrRealtime = {
                 spec: this._inSpectator ? 1 : 0,
             }
         });
+        PerfMonitor.logSend(150);
     },
 
     // ── 공 상태 브로드캐스트 (호스트만, 10Hz) ──
@@ -153,6 +155,7 @@ export const WrRealtime = {
                 started: this.ballGameStarted,
             }
         });
+        PerfMonitor.logSend(200);
     },
 
     // ── 채팅 브로드캐스트 ──
@@ -162,6 +165,7 @@ export const WrRealtime = {
             type: 'broadcast', event: 'chat',
             payload: { sid: String(Player.studentId), text }
         });
+        PerfMonitor.logSend(80);
     },
 
     // ── 이모트 브로드캐스트 ──
@@ -171,6 +175,7 @@ export const WrRealtime = {
             type: 'broadcast', event: 'emote',
             payload: { sid: String(Player.studentId), emoteType }
         });
+        PerfMonitor.logSend(60);
     },
 
     // ── 골 이벤트 브로드캐스트 (호스트만) ──
@@ -180,6 +185,7 @@ export const WrRealtime = {
             type: 'broadcast', event: 'goal',
             payload: { sid: String(Player.studentId), side, scorers, hasOG, score }
         });
+        PerfMonitor.logSend(120);
     },
 
     // ── 원격 플레이어 위치 수신 ──
