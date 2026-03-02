@@ -27,6 +27,7 @@ export const WrRealtime = {
             ? (this._teacherClassName || '')
             : (Player.className || '');
         const channelName = `wr:${className || 'main'}`;
+        console.log('[RT] rtInit — channel:', channelName, 'studentId:', Player.studentId, 'className:', className);
 
         const channel = supabase.channel(channelName, {
             config: { broadcast: { self: false }, presence: { key: Player.studentId } }
@@ -51,26 +52,33 @@ export const WrRealtime = {
         });
 
         channel.subscribe(async (status) => {
+            console.log('[RT] subscribe status:', status);
             if (status === 'SUBSCRIBED') {
                 // Presence에 자신을 등록
-                if (!this.godMode) {
-                    await channel.track({
-                        studentId: Player.studentId,
-                        nickname: Player.nickname || '',
-                        activeTitle: Player.activeTitle || '',
-                        hat: Player.equipped?.hat || null,
-                        effect: Player.equipped?.effect || null,
-                        pet: Player.equipped?.pet || null,
-                        team: this.player?.team || 'left',
-                        isTeacher: false,
-                    });
-                } else {
-                    // 교사: 관전자로 등록 (엔티티 없음)
-                    await channel.track({
-                        studentId: Player.studentId || '77777',
-                        nickname: '선생님',
-                        isTeacher: true,
-                    });
+                try {
+                    if (!this.godMode) {
+                        const trackData = {
+                            studentId: Player.studentId,
+                            nickname: Player.nickname || '',
+                            activeTitle: Player.activeTitle || '',
+                            hat: Player.equipped?.hat || null,
+                            effect: Player.equipped?.effect || null,
+                            pet: Player.equipped?.pet || null,
+                            team: this.player?.team || 'left',
+                            isTeacher: false,
+                        };
+                        console.log('[RT] tracking presence:', trackData);
+                        await channel.track(trackData);
+                        console.log('[RT] presence tracked OK');
+                    } else {
+                        await channel.track({
+                            studentId: Player.studentId || '77777',
+                            nickname: '선생님',
+                            isTeacher: true,
+                        });
+                    }
+                } catch (e) {
+                    console.error('[RT] track error:', e);
                 }
             }
         });
@@ -167,7 +175,10 @@ export const WrRealtime = {
     _rtOnRemotePos(data) {
         if (!data || data.sid === Player.studentId) return;
         let rp = this.remotePlayers.get(data.sid);
-        if (!rp) return; // Presence join 전에 pos가 올 수 있음 — 무시
+        if (!rp) {
+            console.log('[RT] pos received but no remote player for sid:', data.sid, 'remotes:', [...this.remotePlayers.keys()]);
+            return;
+        }
 
         // 맵 경계 텔레포트 감지
         const teleport = Math.abs(data.x - rp.x) > this.W * 0.5;
@@ -294,6 +305,7 @@ export const WrRealtime = {
     _rtOnPresenceSync() {
         if (!this._rtChannel) return;
         const state = this._rtChannel.presenceState();
+        console.log('[RT] presenceSync — state:', JSON.stringify(state));
         const presentIds = new Set();
 
         // 현재 접속자 파악
@@ -323,6 +335,7 @@ export const WrRealtime = {
 
     // ── Presence 접속 ──
     async _rtOnPresenceJoin(key, presence) {
+        console.log('[RT] presenceJoin — key:', key, 'presence:', presence);
         if (!presence || presence.studentId === Player.studentId) return;
         if (presence.isTeacher) return;
 
@@ -337,6 +350,7 @@ export const WrRealtime = {
 
     // ── Presence 퇴장 ──
     _rtOnPresenceLeave(key) {
+        console.log('[RT] presenceLeave — key:', key);
         if (key === Player.studentId) return;
         this.remotePlayers.delete(key);
         this._rtElectHost();
@@ -349,6 +363,7 @@ export const WrRealtime = {
     // ── 원격 플레이어 엔티티 생성 ──
     async _rtCreateRemotePlayer(presence) {
         const sid = presence.studentId;
+        console.log('[RT] createRemotePlayer — sid:', sid, 'nickname:', presence.nickname);
         // 스폰 위치: 랜덤 플랫폼
         const plat = this.platforms[Math.floor(Math.random() * this.platforms.length)];
         const sx = plat.x + Math.random() * Math.max(plat.w - 30, 10);
