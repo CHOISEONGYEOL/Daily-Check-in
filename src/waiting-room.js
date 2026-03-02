@@ -244,6 +244,8 @@ export const WaitingRoom = {
         this.npcs = [];
         this.remotePlayers = new Map();
         this.rtInit();
+        // 테스트 계정: 로컬 NPC 생성 (테스트용)
+        if(Player.studentId === '99999') this._spawnTestNPCs();
         this.keys = {};
         if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
         this._enterReady = false;
@@ -626,6 +628,63 @@ export const WaitingRoom = {
         }
     },
 
+    // ── 테스트 계정 NPC (로컬 AI) ──
+    _spawnTestNPCs(){
+        const COLORS = ['#FF6B6B','#4ECDC4','#A29BFE','#FDCB6E','#6C5CE7','#FD79A8','#00CEC9','#E17055'];
+        const count = Math.min(this.totalStudents - 1, 10);
+        for(let i = 0; i < count; i++){
+            const sx = this.W * 0.2 + Math.random() * this.W * 0.6;
+            const sy = this.H - 47;
+            const color = COLORS[i % COLORS.length];
+            const size = 64;
+            // blob 스프라이트 생성
+            const c = document.createElement('canvas'); c.width = size; c.height = size;
+            const cx = c.getContext('2d'), r = size * 0.38;
+            cx.fillStyle = color;
+            cx.beginPath(); cx.ellipse(size/2, size*0.55, r, r*0.9, 0, 0, Math.PI*2); cx.fill();
+            cx.fillStyle = '#fff';
+            cx.beginPath(); cx.arc(size*0.38, size*0.48, size*0.08, 0, Math.PI*2); cx.fill();
+            cx.beginPath(); cx.arc(size*0.62, size*0.48, size*0.08, 0, Math.PI*2); cx.fill();
+            cx.fillStyle = '#2D3436';
+            cx.beginPath(); cx.arc(size*0.40, size*0.49, size*0.04, 0, Math.PI*2); cx.fill();
+            cx.beginPath(); cx.arc(size*0.64, size*0.49, size*0.04, 0, Math.PI*2); cx.fill();
+            const npc = {
+                studentId: `npc_${i}`,
+                x: sx, y: sy, vx: 0, vy: 0, w: 26, h: 30,
+                dir: Math.random() > 0.5 ? 1 : -1, onGround: true,
+                jumpCount: 0, maxJumps: 2,
+                emote: null, emoteTimer: 0, stunTimer: 0, explodeTimer: 0,
+                team: i % 2 === 0 ? 'left' : 'right',
+                sprite: c, hat: null, effect: null, pet: null,
+                displayName: `NPC ${i+1}`, activeTitle: '',
+                _moveDir: 0, _corrX: 0, _corrY: 0,
+                _aiTimer: Math.floor(Math.random() * 120) + 60,
+                _isTestNPC: true,
+            };
+            this.remotePlayers.set(npc.studentId, npc);
+        }
+        this._rtRemoteArrayDirty = true;
+        this._isHost = true; // 테스트 계정이 호스트
+    },
+
+    _updateTestNPCsAI(){
+        for(const npc of this.remotePlayers.values()){
+            if(!npc._isTestNPC) continue;
+            npc._aiTimer--;
+            if(npc._aiTimer <= 0){
+                const r = Math.random();
+                if(r < 0.3) npc._moveDir = -1;
+                else if(r < 0.6) npc._moveDir = 1;
+                else npc._moveDir = 0;
+                // 가끔 점프
+                if(Math.random() < 0.3 && npc.onGround){
+                    npc.vy = -10; npc.onGround = false; npc.jumpCount = 1;
+                }
+                npc._aiTimer = Math.floor(Math.random() * 120) + 60;
+            }
+        }
+    },
+
     // ── Update Loop ──
     update(){
         this.frameCount++;
@@ -708,6 +767,8 @@ export const WaitingRoom = {
         this.camera.y += (clampedCamY - this.camera.y) * 0.15;
         // 원격 플레이어 클라이언트 예측 (매 프레임 물리 시뮬)
         this._rtPredictRemotePlayers();
+        // 테스트 NPC AI 업데이트
+        if(Player.studentId === '99999') this._updateTestNPCsAI();
         // 상태 변화 시 위치 전송 (Event-Driven)
         this._rtCheckAndSendPos();
         // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)

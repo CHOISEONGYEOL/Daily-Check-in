@@ -419,7 +419,7 @@ export const WrTeacher = {
 
         // 원격 플레이어 보간
         this.frameCount++;
-        this._rtInterpolateRemotePlayers();
+        this._rtPredictRemotePlayers();
         // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
         this.updateObstacles();
         if(this._isHost) this.updateBall(); else this._rtPredictBall();

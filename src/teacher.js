@@ -165,7 +165,20 @@ export const Teacher = {
             id: sessionId,
             is_open: newState,
             teacher_id: DB.userId,
-            ...(newState ? { opened_at: new Date().toISOString() } : { closed_at: new Date().toISOString() }),
+            // 열기: 이전 세션 잔여 상태 초기화 (game_started, phase 등)
+            ...(newState ? {
+                opened_at: new Date().toISOString(),
+                game_started: false,
+                phase: 'waiting',
+                vote_data: null,
+                selected_game: null
+            } : {
+                closed_at: new Date().toISOString(),
+                game_started: false,
+                phase: 'waiting',
+                vote_data: null,
+                selected_game: null
+            }),
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
