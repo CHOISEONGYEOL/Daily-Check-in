@@ -18,6 +18,9 @@ export const Teacher = {
     _mainTab: 'students',
     _classFilter: '',   // '' = 전체, '6반', '7반' 등
     _attendance: {},     // { studentId: { status, markedAt } }
+    // ── 실시간 접속 상태 (Supabase Presence) ──
+    _rtChannels: new Map(),      // className → Supabase channel
+    _realtimeOnline: new Set(),  // 현재 대기실에 접속 중인 studentId Set
 
     async init() {
         await Promise.all([this.loadStudents(), this.loadGameState(), this._loadTodayAttendance()]);
@@ -26,12 +29,18 @@ export const Teacher = {
         this.render();
         clearInterval(this._pollId);
         this._pollId = setInterval(() => this.refresh(), 10000); // 10초마다 갱신
+        // 열린 반이 있으면 Presence 구독 (재진입 시 복구)
+        if (this._openClasses.length > 0) {
+            this._openClasses.forEach(c => this._rtSubscribe(c));
+            this.startRosterPoll();
+        }
     },
 
     stop() {
         clearInterval(this._pollId);
         this._pollId = null;
         this.stopRosterPoll();
+        this._rtUnsubscribeAll();
     },
 
     _editingId: null,  // 현재 인라인 편집 중인 studentId
@@ -159,11 +168,14 @@ export const Teacher = {
         this.gameIsOpen = this._openClasses.length > 0;
         this.updateToggle();
         if (btn) btn.style.pointerEvents = '';
-        // 출석부 실시간 폴링
+        // 출석부 실시간 폴링 + Presence 구독
         if (this._openClasses.length > 0) {
             this.startRosterPoll();
+            // 열린 반에 Presence 구독
+            this._openClasses.forEach(c => this._rtSubscribe(c));
         } else {
             this.stopRosterPoll();
+            this._rtUnsubscribeAll();
             // 모든 반이 닫히면 대기실도 정리
             if (WaitingRoom && WaitingRoom.running) WaitingRoom.stop();
         }
@@ -237,6 +249,80 @@ export const Teacher = {
         this._populateGameClassSelect();
     },
 
+    // ── 실시간 접속 상태: Presence 구독 ──
+    _rtSubscribe(className) {
+        if (this._rtChannels.has(className)) return; // 이미 구독 중
+
+        // WaitingRoom이 이미 이 채널을 사용 중이면 공유 모드
+        if (WaitingRoom && WaitingRoom.running && WaitingRoom._rtChannel) {
+            const wrChannel = WaitingRoom._rtChannel;
+            this._rtChannels.set(className, { shared: true, channel: wrChannel });
+            // 공유 채널에서 Presence 읽기 → 폴링으로 처리
+            this._rtSyncFromChannel(className, wrChannel);
+            return;
+        }
+
+        const channelName = `wr:${className || 'main'}`;
+        const channel = supabase.channel(channelName, {
+            config: { broadcast: { self: false }, presence: { key: 'teacher-dash-' + Date.now() } }
+        });
+
+        channel.on('presence', { event: 'sync' }, () => {
+            this._rtSyncFromChannel(className, channel);
+        });
+
+        channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('[Teacher RT] subscribed to', channelName);
+                await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+            }
+        });
+
+        this._rtChannels.set(className, { shared: false, channel });
+    },
+
+    _rtUnsubscribe(className) {
+        const entry = this._rtChannels.get(className);
+        if (!entry) return;
+        // 공유 채널은 해제하지 않음 (WaitingRoom이 관리)
+        if (!entry.shared) {
+            entry.channel.unsubscribe();
+            supabase.removeChannel(entry.channel);
+        }
+        this._rtChannels.delete(className);
+        // 해당 반 학생 오프라인 처리
+        const classStudentIds = new Set(this.students.filter(s => s.className === className).map(s => s.studentId));
+        for (const sid of classStudentIds) this._realtimeOnline.delete(sid);
+    },
+
+    _rtUnsubscribeAll() {
+        for (const [cls] of this._rtChannels) {
+            this._rtUnsubscribe(cls);
+        }
+        this._realtimeOnline.clear();
+    },
+
+    // Presence 상태 읽기 → _realtimeOnline 갱신 + UI 업데이트
+    _rtSyncFromChannel(className, channel) {
+        const state = channel.presenceState();
+        // 이 반에서 이전에 온라인이었던 학생 제거
+        const classStudentIds = new Set(this.students.filter(s => s.className === className).map(s => s.studentId));
+        for (const sid of classStudentIds) this._realtimeOnline.delete(sid);
+
+        // 현재 접속자 추가
+        for (const [key, presences] of Object.entries(state)) {
+            if (!presences || presences.length === 0) continue;
+            const p = presences[0];
+            if (p.isTeacher) continue;
+            const sid = String(p.studentId);
+            if (sid) this._realtimeOnline.add(sid);
+        }
+
+        // UI 즉시 갱신
+        if (this._openClasses.length > 0) this.renderRosterCheck();
+        this.render();
+    },
+
     // ── 교사 대기실 입장 (전지전능 관전 모드) ──
     async enterWaitingRoom() {
         if (this._openClasses.length === 0) {
@@ -308,7 +394,7 @@ export const Teacher = {
             ? this.students.filter(s => s.className === this._classFilter)
             : this.students;
         const total = classStudents.length;
-        const online = classStudents.filter(s => s.online).length;
+        const online = classStudents.filter(s => this._realtimeOnline.has(s.studentId) || s.online).length;
         const checked = classStudents.filter(s => s.checked).length;
         const el = id => document.getElementById(id);
         if (el('t-total')) el('t-total').textContent = total;
@@ -316,9 +402,9 @@ export const Teacher = {
         if (el('t-checked')) el('t-checked').textContent = checked;
         if (el('t-absent')) el('t-absent').textContent = total - checked;
 
-        // 정렬: 접속 > 출석 > 미접속
+        // 정렬: 실시간 접속 > 출석 > 미접속
         filtered.sort((a, b) => {
-            const score = s => (s.online ? 2 : 0) + (s.checked ? 1 : 0);
+            const score = s => (this._realtimeOnline.has(s.studentId) ? 4 : 0) + (s.online ? 2 : 0) + (s.checked ? 1 : 0);
             return score(b) - score(a) || a.studentId.localeCompare(b.studentId);
         });
 
@@ -363,10 +449,11 @@ export const Teacher = {
             }
 
             // ── 일반 카드 ──
-            card.className = `teacher-card ${status}${s.unregistered ? ' unregistered' : ''}`;
+            const isLive = this._realtimeOnline.has(s.studentId);
+            card.className = `teacher-card ${status}${s.unregistered ? ' unregistered' : ''}${isLive ? ' t-live' : ''}`;
 
-            const dotColor = s.online ? 'green' : s.checked ? 'yellow' : 'gray';
-            const timeStr = s.lastActive ? this._timeAgo(s.lastActive) : '미접속';
+            const dotColor = isLive ? 'live' : s.online ? 'green' : s.checked ? 'yellow' : 'gray';
+            const timeStr = isLive ? '🟢 접속중' : s.lastActive ? this._timeAgo(s.lastActive) : '미접속';
             const nickHtml = s.nickname ? `<div class="teacher-card-nick">@${esc(s.nickname)}</div>` : '';
             const unregBadge = s.unregistered ? '<span class="teacher-unreg-badge">미등록</span>' : '';
             const genderBadge = s.gender ? `<span class="t-gender-badge ${s.gender === '남' ? 'male' : 'female'}">${esc(s.gender)}</span>` : '';
@@ -648,6 +735,9 @@ export const Teacher = {
         if (!grid) return;
         const classStudents = this._getRosterStudents();
 
+        // 실시간 접속자 수
+        const liveCount = classStudents.filter(s => this._realtimeOnline.has(s.studentId)).length;
+
         // 통계
         let cnt = { present: 0, late: 0, early: 0, absent: 0 };
         classStudents.forEach(s => {
@@ -659,10 +749,27 @@ export const Teacher = {
         if (el('trc-late')) el('trc-late').textContent = cnt.late;
         if (el('trc-early')) el('trc-early').textContent = cnt.early;
         if (el('trc-absent')) el('trc-absent').textContent = cnt.absent;
+        // 실시간 접속자 수 표시
+        let liveEl = document.getElementById('trc-live');
+        if (!liveEl) {
+            const statsEl = document.querySelector('.trc-stats');
+            if (statsEl) {
+                const span = document.createElement('span');
+                span.className = 'trc-stat trc-stat-live';
+                span.innerHTML = '🟢 접속 <strong id="trc-live">0</strong>';
+                statsEl.insertBefore(span, statsEl.firstChild);
+                liveEl = document.getElementById('trc-live');
+            }
+        }
+        if (liveEl) liveEl.textContent = liveCount;
 
-        // 정렬: 출석(시간순) → 지각 → 조퇴 → 결석 → 미체크
+        // 정렬: 실시간 접속 > 출석(시간순) → 지각 → 조퇴 → 결석 → 미체크
         const order = { present: 0, late: 1, early: 2, absent: 3 };
         const sorted = [...classStudents].sort((a, b) => {
+            // 실시간 접속자 우선
+            const aLive = this._realtimeOnline.has(a.studentId) ? 0 : 1;
+            const bLive = this._realtimeOnline.has(b.studentId) ? 0 : 1;
+            if (aLive !== bLive) return aLive - bLive;
             const sa = this._getStatus(a.studentId);
             const sb = this._getStatus(b.studentId);
             const oa = sa ? order[sa] : 9;
@@ -680,16 +787,20 @@ export const Teacher = {
             const att = this._attendance[s.studentId];
             const st = att?.status || '';
             const markedAt = att?.markedAt;
+            const isLive = this._realtimeOnline.has(s.studentId);
             const card = document.createElement('div');
-            card.className = `trc-card ${st}`;
+            card.className = `trc-card ${st}${isLive ? ' trc-live' : ''}`;
 
-            // 도트 색상
-            const dotColor = st === 'present' ? 'green' : st === 'late' ? 'yellow' : st === 'early' ? 'purple' : st === 'absent' ? 'red' : 'gray';
+            // 도트 색상: 실시간 접속 = 초록(애니메이션), 출석 = 초록(정적), 지각 = 노랑, 조퇴 = 보라, 결석 = 빨강, 기타 = 회색
+            const dotColor = isLive ? 'live' : st === 'present' ? 'green' : st === 'late' ? 'yellow' : st === 'early' ? 'purple' : st === 'absent' ? 'red' : 'gray';
 
             // 타임스탬프
             const timeStr = markedAt
                 ? new Date(markedAt).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' })
                 : '';
+
+            // 접속 상태 뱃지
+            const liveBadge = isLive ? '<span class="trc-live-badge">🟢 접속중</span>' : '';
 
             card.innerHTML = `
                 <div class="trc-dot ${dotColor}"></div>
@@ -697,6 +808,7 @@ export const Teacher = {
                     <div class="trc-name-row">
                         <span class="trc-name">${s.studentName}</span>
                         <span class="trc-id">${s.studentId}</span>
+                        ${liveBadge}
                     </div>
                     ${timeStr ? `<span class="trc-time">${timeStr}</span>` : ''}
                 </div>
@@ -737,12 +849,18 @@ export const Teacher = {
         });
     },
 
-    // 실시간 출석부 폴링 (학생 입장 시 자동 반영)
+    // 실시간 출석부 폴링 + Presence 동기화
     _rosterPollId: null,
     startRosterPoll() {
         this.stopRosterPoll();
         this._rosterPollId = setInterval(async () => {
             await this._loadTodayAttendance();
+            // 공유 채널이면 주기적으로 Presence 상태 읽기
+            for (const [cls, entry] of this._rtChannels) {
+                if (entry.shared && entry.channel) {
+                    this._rtSyncFromChannel(cls, entry.channel);
+                }
+            }
             if (this._openClasses.length > 0) this.renderRosterCheck();
         }, 5000);
     },

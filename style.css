@@ -497,6 +497,11 @@ body.touch-device #game.screen.active{
 .trc-dot.purple{background:#a29bfe;}
 .trc-dot.red{background:#ff7675;}
 .trc-dot.gray{background:rgba(255,255,255,.2);}
+.trc-dot.live{background:#00ff88;box-shadow:0 0 8px rgba(0,255,136,.8);animation:live-pulse 1.5s ease-in-out infinite;}
+.trc-card.trc-live{border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.1);}
+.trc-live-badge{font-size:.6rem;padding:.1rem .35rem;border-radius:4px;background:rgba(0,255,136,.2);color:#00ff88;border:1px solid rgba(0,255,136,.3);font-weight:700;animation:live-pulse 1.5s ease-in-out infinite;}
+.trc-stat-live strong{color:#00ff88;}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .trc-info{display:flex;flex-direction:column;min-width:0;flex:1;}
 .trc-name-row{display:flex;align-items:baseline;gap:.4rem;}
 .trc-name{font-weight:700;font-size:.85rem;white-space:nowrap;}
@@ -532,6 +537,8 @@ body.touch-device #game.screen.active{
 .teacher-dot.green{background:#00b894;box-shadow:0 0 6px rgba(0,184,148,.5);}
 .teacher-dot.yellow{background:#fdcb6e;box-shadow:0 0 6px rgba(253,203,110,.4);}
 .teacher-dot.gray{background:#636e72;}
+.teacher-dot.live{background:#00ff88;box-shadow:0 0 8px rgba(0,255,136,.8);animation:live-pulse 1.5s ease-in-out infinite;}
+.teacher-card.t-live{border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.1);}
 .teacher-card-info{flex:1;min-width:0;}
 .teacher-card-name{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .teacher-card-meta{font-size:.7rem;color:rgba(255,255,255,.4);margin-top:1px;}

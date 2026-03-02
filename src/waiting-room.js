@@ -773,10 +773,14 @@ export const WaitingRoom = {
         // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
         this.updateObstacles();
         if(this._isHost) this.updateBall();
-        // 채팅 버블 업데이트
-        this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} return b.timer > 0; });
-        // 파티클 업데이트
-        this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; return p.life > 0; });
+        // 채팅 버블 인플레이스 업데이트
+        { let w=0; const arr=this.chatBubbles;
+        for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} if(b.timer>0) arr[w++]=b; }
+        arr.length=w; }
+        // 파티클 인플레이스 업데이트
+        { let w=0; const arr=this.particles;
+        for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
+        arr.length=w; }
         // 학생 목록 자동 갱신 (접속자 수 변화 감지)
         const rpCount = this.remotePlayers ? this.remotePlayers.size : 0;
         if(this._lastNpcCount !== rpCount){
@@ -1228,7 +1232,10 @@ export const WaitingRoom = {
         this.camera.y += (clampedCamY - this.camera.y) * 0.15;
         // 원격 플레이어 보간 (AI 봇 대신 실제 플레이어)
         this._rtInterpolateRemotePlayers();
-        this.chatBubbles=this.chatBubbles.filter(b=>{ b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} return b.timer>0; });
+        // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)
+        { let w=0; const arr=this.chatBubbles;
+        for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} if(b.timer>0) arr[w++]=b; }
+        arr.length=w; }
         this.resolveEntityCollisions();
         if(this._isHost) this.updateBall();
         this.updateObstacles();
@@ -1236,7 +1243,10 @@ export const WaitingRoom = {
         this._spawnEffectTrail();
         if(this.screenShake > 0) this.screenShake *= 0.85;
         if(this.screenShake < 0.5) this.screenShake = 0;
-        this.particles = this.particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.life--; return p.life > 0; });
+        // particles 인플레이스 업데이트 (새 배열 생성 안 함)
+        { let w=0; const arr=this.particles;
+        for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
+        arr.length=w; }
     },
 };
 

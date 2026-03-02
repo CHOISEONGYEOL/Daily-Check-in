@@ -10,7 +10,7 @@ export const WrRender = {
             if(obs.type==='rotatingPlatform'){
                 const p=obs.platform;
                 const cx=p.x+p.w/2, cy=p.y+p.h/2;
-                const intensity=0.5+Math.sin(Date.now()*0.012)*0.4;
+                const intensity=0.5+Math.sin((this._frameNow||Date.now())*0.012)*0.4;
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate(obs.angle);
@@ -34,8 +34,8 @@ export const WrRender = {
                 ctx.fillText('🌀 회전!',cx,p.y-14);
             } else if(obs.type==='meteor'){
                 if(obs.warningTimer>0){
-                    const a=0.3+Math.sin(Date.now()*0.015)*0.3;
-                    const pulse=1+Math.sin(Date.now()*0.02)*0.15;
+                    const a=0.3+Math.sin((this._frameNow||Date.now())*0.015)*0.3;
+                    const pulse=1+Math.sin((this._frameNow||Date.now())*0.02)*0.15;
                     ctx.fillStyle=`rgba(255,0,0,${a*0.5})`;
                     ctx.beginPath();ctx.arc(obs.x,this.H-15,60*pulse,0,Math.PI*2);ctx.fill();
                     ctx.fillStyle=`rgba(255,0,0,${a})`;
@@ -46,7 +46,7 @@ export const WrRender = {
                     ctx.fillStyle='#FF2222';ctx.font='bold 18px sans-serif';ctx.textAlign='center';
                     ctx.fillText('⚠️ 운석!',obs.x,this.H-57);
                 } else if(!obs.impacted){
-                    const glow=0.5+Math.sin(Date.now()*0.02)*0.3;
+                    const glow=0.5+Math.sin((this._frameNow||Date.now())*0.02)*0.3;
                     ctx.fillStyle=`rgba(255,100,0,${glow*0.3})`;ctx.beginPath();ctx.arc(obs.x,obs.y,45,0,Math.PI*2);ctx.fill();
                     ctx.fillStyle='#FF4500';ctx.beginPath();ctx.arc(obs.x,obs.y,28,0,Math.PI*2);ctx.fill();
                     ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(obs.x,obs.y,16,0,Math.PI*2);ctx.fill();
@@ -71,14 +71,14 @@ export const WrRender = {
                     ctx.beginPath();ctx.arc(obs.x,this.H-15,50+(1-a)*30,0,Math.PI*2);ctx.fill();
                 }
             } else if(obs.type==='bouncyZone'){
-                const a=0.25+Math.sin(Date.now()*0.006)*0.15;
+                const a=0.25+Math.sin((this._frameNow||Date.now())*0.006)*0.15;
                 ctx.fillStyle=`rgba(0,255,128,${a*0.4})`;
                 ctx.fillRect(obs.x,this.H-35,obs.w,20);
                 ctx.fillStyle=`rgba(0,255,128,${a+0.15})`;
                 ctx.fillRect(obs.x,this.H-20,obs.w,8);
                 ctx.fillStyle=`rgba(0,255,128,${a+0.3})`;ctx.font='bold 20px sans-serif';ctx.textAlign='center';
                 for(let bx=obs.x+25;bx<obs.x+obs.w;bx+=35){
-                    ctx.fillText('▲',bx,this.H-27+Math.sin(Date.now()*0.01+bx)*5);
+                    ctx.fillText('▲',bx,this.H-27+Math.sin((this._frameNow||Date.now())*0.01+bx)*5);
                 }
                 ctx.fillStyle='rgba(0,255,128,0.7)';ctx.font='bold 12px sans-serif';
                 ctx.fillText('🟢 슈퍼 바운스!',obs.x+obs.w/2,this.H-40);
@@ -97,9 +97,9 @@ export const WrRender = {
                 ctx.globalAlpha=1;
                 ctx.fillStyle='rgba(200,230,255,0.15)';ctx.font='bold 40px sans-serif';ctx.textAlign='center';
                 const windText = obs.direction>0?'→ → →':'← ← ←';
-                ctx.fillText(windText,this.W/2,this.H/2+Math.sin(Date.now()*0.005)*10);
+                ctx.fillText(windText,this.W/2,this.H/2+Math.sin((this._frameNow||Date.now())*0.005)*10);
             } else if(obs.type==='blackHole'){
-                const t=Date.now()*0.003,pulse=1+Math.sin(t)*0.1;
+                const t=(this._frameNow||Date.now())*0.003,pulse=1+Math.sin(t)*0.1;
                 ctx.save();ctx.translate(obs.x,obs.y);ctx.rotate(t*0.5);
                 for(let ring=3;ring>0;ring--){
                     const r=20+ring*25;
@@ -120,7 +120,7 @@ export const WrRender = {
             } else if(obs.type==='ghostPlatforms'){
                 if(this.ghostLightningVisible){
                     this.ghostPlatforms.forEach(gp=>{
-                        const a=0.5+Math.sin(Date.now()*0.005)*0.2;
+                        const a=0.5+Math.sin((this._frameNow||Date.now())*0.005)*0.2;
                         ctx.fillStyle=`rgba(200,220,255,${a*0.6})`;
                         ctx.fillRect(gp.x,gp.y,gp.w,gp.h);
                         ctx.strokeStyle=`rgba(180,200,255,${a})`;ctx.lineWidth=2;
@@ -200,7 +200,7 @@ export const WrRender = {
                 }
             } else if(obs.type==='tsunami'){
                 if(obs.warningTimer>0){
-                    const a=0.3+Math.sin(Date.now()*0.01)*0.4;
+                    const a=0.3+Math.sin((this._frameNow||Date.now())*0.01)*0.4;
                     const warnX=obs.direction>0?80:this.W-80;
                     ctx.fillStyle=`rgba(0,100,255,${a})`;ctx.font='bold 32px sans-serif';ctx.textAlign='center';
                     ctx.fillText(obs.direction>0?'🌊 →':'← 🌊',warnX,this.H/2);
@@ -208,7 +208,7 @@ export const WrRender = {
                     ctx.fillText('⚠️ 해일 경보!',this.W/2,55);
                     ctx.strokeStyle=`rgba(0,100,255,${a*0.5})`;ctx.lineWidth=3;
                     ctx.beginPath();ctx.moveTo(0,this.H-5);
-                    for(let wx=0;wx<this.W;wx+=10) ctx.lineTo(wx,this.H-5+Math.sin(wx*0.05+Date.now()*0.01)*4);
+                    for(let wx=0;wx<this.W;wx+=10) ctx.lineTo(wx,this.H-5+Math.sin(wx*0.05+(this._frameNow||Date.now())*0.01)*4);
                     ctx.stroke();
                 } else if(obs.active){
                     const waveX=obs.x;
@@ -224,8 +224,8 @@ export const WrRender = {
                     ctx.beginPath();ctx.arc(crestX,this.H-obs.waveHeight,25,0,Math.PI,obs.direction<0);ctx.fill();
                     ctx.fillStyle='rgba(255,255,255,0.5)';
                     for(let fy=this.H-obs.waveHeight+10;fy<this.H;fy+=25){
-                        const fx=waveX+Math.sin(fy*0.1+Date.now()*0.008)*8;
-                        ctx.beginPath();ctx.arc(fx,fy,3+Math.sin(fy+Date.now()*0.005)*2,0,Math.PI*2);ctx.fill();
+                        const fx=waveX+Math.sin(fy*0.1+(this._frameNow||Date.now())*0.008)*8;
+                        ctx.beginPath();ctx.arc(fx,fy,3+Math.sin(fy+(this._frameNow||Date.now())*0.005)*2,0,Math.PI*2);ctx.fill();
                     }
                     ctx.fillStyle='rgba(200,230,255,0.4)';
                     for(let s=0;s<4;s++){
@@ -261,12 +261,12 @@ export const WrRender = {
                 });
                 const da=0.04+Math.sin(obs.rumblePhase*2)*0.02;
                 ctx.fillStyle=`rgba(180,160,120,${da})`;ctx.fillRect(0,0,this.W,this.H);
-                const la=0.5+Math.sin(Date.now()*0.008)*0.3;
+                const la=0.5+Math.sin((this._frameNow||Date.now())*0.008)*0.3;
                 ctx.fillStyle=`rgba(200,100,0,${la})`;ctx.font='bold 14px sans-serif';ctx.textAlign='center';
                 ctx.fillText('🌍 지진!',this.W/2,40);
                 ctx.fillStyle='rgba(200,100,0,0.4)';ctx.fillRect(this.W/2-40,48,80*(obs.timer/480),3);
             } else if(obs.type==='typhoon'){
-                const t=Date.now()*0.003,pulse=1+Math.sin(t)*0.1;
+                const t=(this._frameNow||Date.now())*0.003,pulse=1+Math.sin(t)*0.1;
                 ctx.save();ctx.translate(obs.x,obs.y);
                 for(let ring=5;ring>0;ring--){
                     const r=30+ring*50;
@@ -370,14 +370,14 @@ export const WrRender = {
             ctx.fillStyle='#3E2723';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
             ctx.fillText(d.text,d.x,d.y-39);
         } else if(d.type==='star'){
-            const t = Date.now()*0.002+d.x;
+            const t = (this._frameNow||Date.now())*0.002+d.x;
             ctx.globalAlpha = 0.3+Math.sin(t)*0.2;
             ctx.fillStyle='#fff';ctx.font='10px sans-serif';ctx.textAlign='center';
             ctx.fillText('✦',d.x,d.y);
             ctx.globalAlpha=1;
         } else if(d.type==='cloud'){
             ctx.fillStyle='rgba(255,255,255,.06)';
-            const cx=d.x+Math.sin(Date.now()*0.0003+d.x)*20;
+            const cx=d.x+Math.sin((this._frameNow||Date.now())*0.0003+d.x)*20;
             ctx.beginPath();ctx.ellipse(cx,d.y,40,14,0,0,Math.PI*2);ctx.fill();
             ctx.beginPath();ctx.ellipse(cx-20,d.y+5,20,10,0,0,Math.PI*2);ctx.fill();
             ctx.beginPath();ctx.ellipse(cx+25,d.y+3,22,11,0,0,Math.PI*2);ctx.fill();
@@ -391,18 +391,27 @@ export const WrRender = {
         const VW = this.VW;
         const VH = this.VH;
         const P = this.player;
-        // Sky gradient
-        const grad=ctx.createLinearGradient(0,0,0,VH);
-        grad.addColorStop(0,'#050520');
-        grad.addColorStop(0.25,'#0d0d30');
-        grad.addColorStop(0.5,'#151540');
-        grad.addColorStop(0.75,'#152238');
-        grad.addColorStop(1,'#1a3a4a');
-        ctx.fillStyle=grad;ctx.fillRect(0,0,VW,VH);
-        // Vignette
-        const vig=ctx.createRadialGradient(VW/2,VH/2,VH*0.3,VW/2,VH/2,VH*0.9);
-        vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.3)');
-        ctx.fillStyle=vig;ctx.fillRect(0,0,VW,VH);
+        // 프레임 시작 시 1회만 Date.now() 호출 (이후 this._frameNow 참조)
+        this._frameNow = Date.now();
+        const now = this._frameNow;
+        // Sky gradient (캐시 — VH 변경 시에만 재생성)
+        if(!this._skyGrad || this._skyGradVH !== VH){
+            this._skyGrad = ctx.createLinearGradient(0,0,0,VH);
+            this._skyGrad.addColorStop(0,'#050520');
+            this._skyGrad.addColorStop(0.25,'#0d0d30');
+            this._skyGrad.addColorStop(0.5,'#151540');
+            this._skyGrad.addColorStop(0.75,'#152238');
+            this._skyGrad.addColorStop(1,'#1a3a4a');
+            this._skyGradVH = VH;
+        }
+        ctx.fillStyle=this._skyGrad;ctx.fillRect(0,0,VW,VH);
+        // Vignette (캐시)
+        if(!this._vigGrad || this._vigVW !== VW || this._vigVH !== VH){
+            this._vigGrad=ctx.createRadialGradient(VW/2,VH/2,VH*0.3,VW/2,VH/2,VH*0.9);
+            this._vigGrad.addColorStop(0,'rgba(0,0,0,0)');this._vigGrad.addColorStop(1,'rgba(0,0,0,0.3)');
+            this._vigVW = VW; this._vigVH = VH;
+        }
+        ctx.fillStyle=this._vigGrad;ctx.fillRect(0,0,VW,VH);
         // Parallax mountains
         this.bgLayers.forEach(layer=>{
             const lx = layer.x - camX * layer.speed;
@@ -429,17 +438,22 @@ export const WrRender = {
         const shakeX = shakeAmt > 0 ? (Math.random()-.5) * shakeAmt : 0;
         const shakeY = shakeAmt > 0 ? (Math.random()-.5) * shakeAmt : 0;
         ctx.translate(-camX + shakeX, -camY + shakeY);
-        // Decorations
-        this.decorations.forEach(d=>this.renderDecoration(ctx,d));
-        // Platforms
-        this.platforms.forEach(p=>{
-            if(p._ghostHidden) return;
-            if(p.x + p.w < camX - 50 || p.x > camX + VW + 50) return;
-            ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=6;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+        // Decorations (뷰포트 밖은 건너뜀)
+        for(let di=0;di<this.decorations.length;di++){
+            const d=this.decorations[di];
+            if(d.x<camX-80||d.x>camX+VW+80) continue;
+            this.renderDecoration(ctx,d);
+        }
+        // Platforms (그라디언트 캐시 + shadow 배치)
+        ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=6;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+        for(let pi=0;pi<this.platforms.length;pi++){
+            const p=this.platforms[pi];
+            if(p._ghostHidden) continue;
+            if(p.x + p.w < camX - 50 || p.x > camX + VW + 50) continue;
             if(p.type==='ground'){
-                const grd=ctx.createLinearGradient(0,p.y,0,p.y+p.h);
-                grd.addColorStop(0,p.top);grd.addColorStop(0.15,p.color);grd.addColorStop(1,'#3a5c3a');
-                ctx.fillStyle=grd;
+                // 그라디언트 캐시
+                if(!p._grad){p._grad=ctx.createLinearGradient(0,p.y,0,p.y+p.h);p._grad.addColorStop(0,p.top);p._grad.addColorStop(0.15,p.color);p._grad.addColorStop(1,'#3a5c3a');}
+                ctx.fillStyle=p._grad;
                 ctx.fillRect(p.x,p.y,p.w,p.h);
                 ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
                 ctx.fillStyle=p.top;
@@ -456,10 +470,10 @@ export const WrRender = {
                     ctx.fillStyle='#66BB6A';
                     ctx.fillRect(p.x+gx+8,p.y-2,2,3);
                 }
+                ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=6;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
             } else {
-                const pgrd=ctx.createLinearGradient(0,p.y,0,p.y+p.h);
-                pgrd.addColorStop(0,p.top);pgrd.addColorStop(0.3,p.color);pgrd.addColorStop(1,'rgba(0,0,0,.15)');
-                ctx.fillStyle=pgrd;
+                if(!p._grad){p._grad=ctx.createLinearGradient(0,p.y,0,p.y+p.h);p._grad.addColorStop(0,p.top);p._grad.addColorStop(0.3,p.color);p._grad.addColorStop(1,'rgba(0,0,0,.15)');}
+                ctx.fillStyle=p._grad;
                 ctx.beginPath();ctx.roundRect(p.x,p.y,p.w,p.h,5);ctx.fill();
                 ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
                 ctx.fillStyle='rgba(255,255,255,.15)';
@@ -482,7 +496,7 @@ export const WrRender = {
                     ctx.fillText('📺 관람석',p.x+p.w/2,p.y-22);
                 }
             }
-        });
+        }
         ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
         // ── 관람석 박스 테두리 ──
         if(this.spectatorBoxes){
@@ -551,17 +565,33 @@ export const WrRender = {
                 ctx.restore();
             }
         }
-        // Entities (sorted by y for depth) — 실제 원격 플레이어 사용
-        const remotes = this._rtGetRemoteArray().map(r=>({...r,isRemote:true,ref:r}));
-        const entities = [...remotes];
-        if(this.player) entities.push({...this.player,isPlayer:true,ref:this.player});
-        entities.sort((a,b)=>a.y-b.y);
-        entities.forEach(e=>{
-            if(!e.sprite) return; // 스프라이트 미로드 시 건너뜀
-            if(e.x < camX - 50 || e.x > camX + VW + 50) return;
+        // Entities (sorted by y for depth) — 실제 원격 플레이어 (객체 재사용, 스프레드 없음)
+        const remotes = this._rtGetRemoteArray();
+        // 재사용 가능한 렌더 리스트 (매 프레임 new Array 방지)
+        if(!this._renderList) this._renderList = [];
+        const rl = this._renderList;
+        rl.length = 0;
+        for(let i=0;i<remotes.length;i++){
+            const r = remotes[i];
+            if(!r.sprite || r.x < camX - 50 || r.x > camX + VW + 50) continue;
+            r._isRemote = true; r._isPlayer = false;
+            rl.push(r);
+        }
+        if(this.player && this.player.sprite){
+            this.player._isPlayer = true; this.player._isRemote = false;
+            rl.push(this.player);
+        }
+        // 삽입 정렬 (거의 정렬된 상태이므로 O(n)에 가까움)
+        for(let i=1;i<rl.length;i++){
+            const e=rl[i]; let j=i-1;
+            while(j>=0 && rl[j].y>e.y){ rl[j+1]=rl[j]; j--; }
+            rl[j+1]=e;
+        }
+        for(let ei=0;ei<rl.length;ei++){
+            const e=rl[ei];
 
             // POV 대상 하이라이트 (교사 관전 모드)
-            const isFollowed = this.godMode && this._followTarget && this._followTarget === e.ref;
+            const isFollowed = this.godMode && this._followTarget && this._followTarget === e;
             if(isFollowed){
                 ctx.save();
                 ctx.strokeStyle = '#FFD700';
@@ -570,21 +600,21 @@ export const WrRender = {
                 ctx.shadowBlur = 12;
                 ctx.beginPath(); ctx.arc(e.x, e.y, 22, 0, Math.PI*2); ctx.stroke();
                 ctx.restore();
-                const ay = e.y - 38 + Math.sin(Date.now()*0.005)*3;
+                const ay = e.y - 38 + Math.sin(now*0.005)*3;
                 ctx.fillStyle='#FFD700'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
                 ctx.fillText('▼', e.x, ay);
             }
-            if(e.isPlayer&&this.player.explodeTimer>0){
+            if(e._isPlayer&&this.player.explodeTimer>0){
                 if(this.player.explodeTimer<=20) ctx.globalAlpha=1-this.player.explodeTimer/20;
-                else return;
+                else continue;
             }
-            const isStunned = (e.isPlayer && this.player.stunTimer>0) || (e.isRemote && e.stunTimer>0);
+            const isStunned = (e._isPlayer && this.player.stunTimer>0) || (e._isRemote && e.stunTimer>0);
             const sx = e.dir===-1;
             ctx.save();
             if(isStunned){
-                ctx.globalAlpha=0.7+Math.sin(Date.now()*0.02)*0.2;
+                ctx.globalAlpha=0.7+Math.sin(now*0.02)*0.2;
             }
-            const emote = e.isPlayer ? this.player.emote : (e.isRemote ? e.emote : null);
+            const emote = e._isPlayer ? this.player.emote : (e._isRemote ? e.emote : null);
             if(emote==='flat'){
                 ctx.translate(e.x,e.y+e.h);if(sx)ctx.scale(-1,1);ctx.scale(1.5,0.3);
                 ctx.drawImage(e.sprite,-16,-32,32,32);
@@ -592,7 +622,7 @@ export const WrRender = {
                 ctx.globalAlpha=0.85;ctx.translate(e.x,e.y+e.h);if(sx)ctx.scale(-1,1);ctx.scale(2,2);
                 ctx.drawImage(e.sprite,-16,-32,32,32);
             } else {
-                const sc = (e.isPlayer&&this.sizeChange&&!this._inSpectator) ? (this.sizeChange==='giant'?2.2:0.5) : 1;
+                const sc = (e._isPlayer&&this.sizeChange&&!this._inSpectator) ? (this.sizeChange==='giant'?2.2:0.5) : 1;
                 if(sc!==1){
                     ctx.translate(e.x,e.y+e.h);if(sx)ctx.scale(-1,1);ctx.scale(sc,sc);
                     ctx.drawImage(e.sprite,-16,-32,32,32);
@@ -601,14 +631,19 @@ export const WrRender = {
             }
             ctx.restore();ctx.globalAlpha=1;
             // Player indicator + hat + nickname
-            if(e.isPlayer){
+            if(e._isPlayer){
                 CharRender.renderHat(ctx, Player.equipped.hat, e.x, e.y-20, 14);
-                const ay=e.y-34+Math.sin(Date.now()*0.005)*4;
+                const ay=e.y-34+Math.sin(now*0.005)*4;
                 ctx.fillStyle='#FDCB6E';ctx.font='12px sans-serif';ctx.textAlign='center';
                 ctx.fillText('▼',e.x,ay);
                 if(Player.nickname){
                     ctx.font='bold 11px "Segoe UI",sans-serif';
-                    const nw=ctx.measureText(Player.nickname).width+10;
+                    // measureText 캐시
+                    if(this._nickW===undefined||this._nickCached!==Player.nickname){
+                        this._nickW=ctx.measureText(Player.nickname).width+10;
+                        this._nickCached=Player.nickname;
+                    }
+                    const nw=this._nickW;
                     ctx.fillStyle='rgba(0,0,0,.4)';
                     ctx.beginPath();ctx.roundRect(e.x-nw/2,e.y-32,nw,16,6);ctx.fill();
                     ctx.fillStyle='#fff';
@@ -620,11 +655,16 @@ export const WrRender = {
                 }
             }
             // 원격 플레이어 닉네임 + 모자 + 칭호
-            if(e.isRemote){
+            if(e._isRemote){
                 if(e.hat) CharRender.renderHat(ctx, e.hat, e.x, e.y-20, 14);
                 if(e.displayName){
                     ctx.font='bold 11px "Segoe UI",sans-serif';ctx.textAlign='center';
-                    const nw=ctx.measureText(e.displayName).width+10;
+                    // measureText 캐시 (원격 플레이어별)
+                    if(e._nameW===undefined||e._nameCached!==e.displayName){
+                        e._nameW=ctx.measureText(e.displayName).width+10;
+                        e._nameCached=e.displayName;
+                    }
+                    const nw=e._nameW;
                     ctx.fillStyle='rgba(0,0,0,.4)';
                     ctx.beginPath();ctx.roundRect(e.x-nw/2,e.y-32,nw,16,6);ctx.fill();
                     ctx.fillStyle='#ddd';
@@ -638,7 +678,8 @@ export const WrRender = {
             // POV 대상 이름표 (교사 관전 모드)
             if(isFollowed && e.displayName){
                 ctx.font='bold 11px "Segoe UI",sans-serif';
-                const nw=ctx.measureText(e.displayName).width+10;
+                if(e._nameW===undefined) e._nameW=ctx.measureText(e.displayName).width+10;
+                const nw=e._nameW;
                 ctx.fillStyle='rgba(0,0,0,.5)';
                 ctx.beginPath();ctx.roundRect(e.x-nw/2,e.y-32,nw,16,6);ctx.fill();
                 ctx.fillStyle='#FFD700';
@@ -646,16 +687,15 @@ export const WrRender = {
             }
             // Team indicator
             if(this.ballGameStarted){
-                const eTeam = e.isPlayer ? this.player.team : (e.isRemote ? e.team : e.team);
+                const eTeam = e._isPlayer ? this.player.team : e.team;
                 if(eTeam){
-                    const teamColor = eTeam === 'left' ? 'rgba(78,205,196,0.7)' : 'rgba(255,107,107,0.7)';
-                    ctx.fillStyle=teamColor;
+                    ctx.fillStyle = eTeam === 'left' ? 'rgba(78,205,196,0.7)' : 'rgba(255,107,107,0.7)';
                     ctx.beginPath();ctx.ellipse(e.x,e.y+e.h+2,e.w/2+3,4,0,0,Math.PI*2);ctx.fill();
                 }
             }
             // Stun stars
             if(isStunned){
-                const st = Date.now()*0.008;
+                const st = now*0.008;
                 ctx.font='bold 14px sans-serif';ctx.textAlign='center';
                 for(let si=0;si<3;si++){
                     const sa=st+si*Math.PI*2/3;
@@ -668,7 +708,7 @@ export const WrRender = {
                 ctx.fillStyle='rgba(255,100,100,.9)';
                 ctx.fillText('스턴!',e.x,e.y-36);
             }
-        });
+        }
         // Pet
         if(Player.equipped.pet && Inventory.PET_EMOJI[Player.equipped.pet] && this.petTrail && this.petTrail.length > 0){
             const pidx = Math.max(0, this.petTrail.length - 18);
@@ -724,7 +764,7 @@ export const WrRender = {
         }
         // Frog curse edge tint
         if(this.reversedControls){
-            const fa=0.04+Math.sin(Date.now()*0.005)*0.02;
+            const fa=0.04+Math.sin((this._frameNow||Date.now())*0.005)*0.02;
             ctx.fillStyle=`rgba(0,200,50,${fa})`;ctx.fillRect(0,0,VW,VH);
         }
 
@@ -894,7 +934,7 @@ export const WrRender = {
                 ctx.font=`${10+alpha*4}px sans-serif`;ctx.textAlign='center';ctx.fillText('💖',p.x,p.y);
             } else if(p.type==='sparkle'){
                 ctx.fillStyle=p.color;const s=p.size*alpha;
-                ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Date.now()*0.005+p.x);
+                ctx.save();ctx.translate(p.x,p.y);ctx.rotate((this._frameNow||Date.now())*0.005+p.x);
                 ctx.fillRect(-s/2,-0.5,s,1);ctx.fillRect(-0.5,-s/2,1,s);ctx.restore();
             } else if(p.type==='fire'){
                 ctx.fillStyle=p.color;const s=p.size*alpha;
@@ -904,10 +944,10 @@ export const WrRender = {
                 ctx.beginPath();ctx.arc(p.x,p.y,p.size*alpha,0,Math.PI*2);ctx.stroke();
                 ctx.globalAlpha=alpha*0.15;ctx.fillStyle=p.color;ctx.fill();
             } else if(p.type==='leaf'){
-                ctx.fillStyle=p.color;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Date.now()*0.003+p.x);
+                ctx.fillStyle=p.color;ctx.save();ctx.translate(p.x,p.y);ctx.rotate((this._frameNow||Date.now())*0.003+p.x);
                 ctx.beginPath();ctx.ellipse(0,0,p.size*alpha,p.size*alpha*0.5,0,0,Math.PI*2);ctx.fill();ctx.restore();
             } else if(p.type==='petal'){
-                ctx.fillStyle=p.color;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Date.now()*0.002+p.y);
+                ctx.fillStyle=p.color;ctx.save();ctx.translate(p.x,p.y);ctx.rotate((this._frameNow||Date.now())*0.002+p.y);
                 ctx.beginPath();ctx.ellipse(0,0,p.size*alpha*0.4,p.size*alpha,0,0,Math.PI*2);ctx.fill();ctx.restore();
             } else if(p.type==='snow'){
                 ctx.fillStyle=p.color;const s=p.size*alpha;
@@ -989,18 +1029,6 @@ export const WrRender = {
             ctx.globalAlpha = 1;
             msg.timer--;
         }
-        // ── RT 상태 표시 (디버그) ──
-        const rtStatus = this._rtStatus || 'off';
-        const rtRemoteCount = this.remotePlayers ? this.remotePlayers.size : 0;
-        const rtChannel = this._rtChannel ? 'OK' : 'NO';
-        const rtHost = this._isHost ? 'HOST' : 'client';
-        const className = this.godMode ? (this._teacherClassName||'?') : (Player.className||'?');
-        const statusColor = rtStatus === 'connected' ? '#4ECDC4' : (rtStatus === 'connecting' ? '#FFD700' : '#FF6B6B');
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = 'rgba(0,0,0,.5)';
-        ctx.beginPath();ctx.roundRect(4, VH-32, 260, 16, 4);ctx.fill();
-        ctx.fillStyle = statusColor; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'left';
-        ctx.fillText(`RT:${rtStatus} ch:wr:${className} players:${rtRemoteCount} ${rtHost}`, 8, VH-21);
-        ctx.globalAlpha = 1;
+        // (RT 디버그 표시 제거됨 — 최적화 완료)
     },
 };
