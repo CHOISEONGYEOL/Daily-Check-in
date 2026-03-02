@@ -252,15 +252,18 @@ body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:v
 .wr-chat-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:.4rem;z-index:10;align-items:center;}
 .wr-chat-bar input{width:240px;padding:.45rem .8rem;border-radius:20px;border:2px solid rgba(255,255,255,.2);background:rgba(0,0,0,.55);color:#fff;font-size:.85rem;outline:none;backdrop-filter:blur(4px);}.wr-chat-bar input:focus{border-color:var(--purple);background:rgba(0,0,0,.75);}
 .wr-chat-bar input::placeholder{color:rgba(255,255,255,.3);}
-.wr-mobile-controls{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:stretch;z-index:10;pointer-events:none;}
-.wr-mobile-controls>*{pointer-events:auto;}
-.wr-dpad{display:flex;gap:0;align-items:flex-end;padding:0 0 16px 8px;}
-.wr-dpad .wr-ctrl-btn{width:72px;height:72px;font-size:1.6rem;}
-.wr-ctrl-btn{border-radius:50%;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:#fff;font-size:1.3rem;cursor:pointer;backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;touch-action:none;}
-.wr-ctrl-btn:active,.wr-ctrl-btn.pressed{background:rgba(108,92,231,.55);border-color:var(--purple);transform:scale(.92);}
-.wr-rpad{display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:flex-end;padding:0 8px 16px 0;}
-.wr-ctrl-btn.jump-btn{width:80px;height:80px;font-size:1.4rem;background:rgba(108,92,231,.35);border-color:rgba(108,92,231,.5);}
-.wr-ctrl-btn.down-btn{width:72px;height:72px;font-size:1.4rem;background:rgba(0,0,0,.45);border-color:rgba(255,255,255,.25);}
+/* ── Mobile controls: split keyboard layout (벽에 딱 붙는 스플릿) ── */
+.wr-mobile-controls{position:absolute;bottom:0;left:0;right:0;top:45%;display:flex;justify-content:space-between;z-index:10;pointer-events:none;}
+.wr-mobile-controls>*{pointer-events:auto;display:flex;}
+.wr-dpad{flex-direction:row;align-items:stretch;}
+.wr-dpad .wr-ctrl-btn{width:22vw;font-size:2.4rem;}
+.wr-ctrl-btn{border-radius:0;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.28);color:rgba(255,255,255,.85);font-size:2rem;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent;}
+.wr-ctrl-btn:active,.wr-ctrl-btn.pressed{background:rgba(108,92,231,.45);border-color:rgba(108,92,231,.5);}
+.wr-rpad{flex-direction:column;align-items:stretch;}
+.wr-ctrl-btn.jump-btn{width:22vw;flex:1;font-size:2.4rem;background:rgba(108,92,231,.22);border:1px solid rgba(108,92,231,.25);}
+.wr-ctrl-btn.down-btn{width:22vw;flex:1;font-size:2.4rem;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);}
+/* Mobile chat icon */
+.wr-chat-icon{display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:50px;height:50px;border-radius:50%;background:rgba(108,92,231,.45);border:2px solid rgba(255,255,255,.18);color:#fff;font-size:1.3rem;z-index:15;align-items:center;justify-content:center;-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .wr-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;}
 
 /* ===== VOTE OVERLAY ===== */
@@ -389,15 +392,14 @@ body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:v
 /* Fallback: JS-detected touch device (hover 미디어쿼리 미지원 기기) */
 body.touch-device .mobile-controls,body.touch-device .wr-mobile-controls{display:flex;}
 
-/* ── 모바일 채팅 버튼: PC에서 숨김, 터치에서만 표시 ── */
-.wr-chat-mobile-btn{display:none;}
-body.touch-device .wr-chat-mobile-btn{display:inline-flex;}
-body.touch-device #wr-chat-input{display:none;} /* 모바일: 네이티브 입력 숨김 */
+/* ── 모바일: 채팅 아이콘 표시, PC 입력 숨김 ── */
+body.touch-device .wr-chat-icon{display:flex;}
+body.touch-device .wr-chat-bar{display:none;} /* 모바일: PC 채팅바 전체 숨김 */
 
 /* ── 커스텀 한글 키보드 ── */
 .game-keyboard{position:absolute;bottom:0;left:0;right:0;z-index:50;background:rgba(20,20,35,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.15);padding:6px 4px;display:flex;flex-direction:column;gap:4px;}
 .gk-display-bar{display:flex;align-items:center;padding:3px 10px;gap:8px;}
-#gk-display{flex:1;min-height:34px;padding:6px 12px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff;font-size:.95rem;border:1px solid rgba(255,255,255,.15);word-break:break-all;}
+#gk-display{flex:1;min-height:34px;padding:6px 12px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff;font-size:.95rem;border:1px solid rgba(255,255,255,.15);word-break:break-all;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
 #gk-display[data-empty="true"]::before{content:'메시지를 입력하세요...';color:rgba(255,255,255,.3);}
 .gk-close{width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,60,60,.3);color:#fff;font-size:.8rem;cursor:pointer;flex-shrink:0;}
 .gk-keys{display:flex;flex-direction:column;gap:4px;align-items:center;}

@@ -258,8 +258,8 @@ export const WrRealtime = {
         if (this.gravityReversed && b.y >= gY) { b.y = gY; b.vy = -Math.abs(b.vy) * this.BALL_BOUNCE; }
         if (b.x - b.r <= 0) { b.x = b.r; b.vx = Math.abs(b.vx) * this.BALL_BOUNCE; }
         if (b.x + b.r >= this.W) { b.x = this.W - b.r; b.vx = -Math.abs(b.vx) * this.BALL_BOUNCE; }
-        // Entity collision (local prediction — same circle-vs-circle as host)
-        this.checkBallEntityCollision();
+        // Entity collision (local prediction — guarded to prevent game loop crash)
+        if (this.ballGameStarted) { try { this.checkBallEntityCollision(); } catch(e) {} }
         // Smooth server correction (position 10%/frame, velocity 25%/frame)
         if (b._serverX !== undefined) {
             b.x += (b._serverX - b.x) * 0.10;

@@ -279,12 +279,13 @@
             <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('inventory')">🎒 인벤토리</button>
             <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('editor')">✏️ 캐릭터 편집</button>
         </div>
-        <!-- Chat bar (PC: 텍스트 입력, 모바일: 커스텀 키보드 열기) -->
+        <!-- Chat bar (PC only) -->
         <div class="wr-chat-bar">
             <input type="text" id="wr-chat-input" maxlength="30" placeholder="Enter로 채팅..." autocomplete="off">
-            <button id="wr-chat-mobile-btn" class="btn sm purple wr-chat-mobile-btn" onclick="WaitingRoom.openMobileChat()">💬</button>
             <button class="btn sm purple wr-test-btn hidden" id="wr-test-start" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
         </div>
+        <!-- Mobile: standalone chat icon (no text selection issues on Samsung) -->
+        <button id="wr-chat-mobile-btn" class="wr-chat-icon" onclick="WaitingRoom.openMobileChat()">💬</button>
         <!-- 모바일 전용 커스텀 한글 키보드 -->
         <div id="game-keyboard" class="game-keyboard hidden">
             <div class="gk-display-bar">

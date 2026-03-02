@@ -174,6 +174,7 @@ export const Teacher = {
             const entry = this._rtChannels.get(className);
             if (entry && entry.channel) {
                 entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
+                await new Promise(r => setTimeout(r, 600)); // 브로드캐스트 전달 대기
             }
         }
         // UI는 에러와 무관하게 반영 (로컬 상태 우선)
