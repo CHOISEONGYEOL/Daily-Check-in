@@ -118,9 +118,19 @@ export const Teacher = {
             this.updateToggle();
             return;
         }
-        // 최초 로드: 이전에 열려있던 세션 모두 닫기 (브라우저 닫힘/로그아웃 등으로 잔류된 세션 정리)
-        const { data } = await supabase.from('game_sessions').select('id, is_open').eq('is_open', true);
-        const staleIds = (data || []).map(r => r.id);
+        // 최초 로드: 열려있는 세션 복원 (F5 새로고침 시 학생 세션 유지)
+        const { data } = await supabase.from('game_sessions')
+            .select('id, is_open, opened_at').eq('is_open', true);
+        const openSessions = data || [];
+        // 12시간 이상 된 좀비 세션만 자동 정리
+        const STALE_MS = 12 * 60 * 60 * 1000;
+        const now = Date.now();
+        const fresh = [], staleIds = [];
+        for (const s of openSessions) {
+            const age = s.opened_at ? now - new Date(s.opened_at).getTime() : Infinity;
+            if (age > STALE_MS) staleIds.push(s.id);
+            else fresh.push(s);
+        }
         if (staleIds.length > 0) {
             await Promise.all(staleIds.map(id =>
                 supabase.from('game_sessions').update({
@@ -130,8 +140,8 @@ export const Teacher = {
                 }).eq('id', id)
             ));
         }
-        this._openClasses = [];
-        this.gameIsOpen = false;
+        this._openClasses = fresh.map(s => s.id.replace(/^class_/, ''));
+        this.gameIsOpen = this._openClasses.length > 0;
         this._gameStateLoaded = true;
         this.updateToggle();
     },
