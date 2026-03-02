@@ -279,25 +279,25 @@
             <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('inventory')">🎒 인벤토리</button>
             <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('editor')">✏️ 캐릭터 편집</button>
         </div>
-        <!-- Chat bar -->
+        <!-- Chat bar (PC: 텍스트 입력, 모바일: 커스텀 키보드 열기) -->
         <div class="wr-chat-bar">
             <input type="text" id="wr-chat-input" maxlength="30" placeholder="Enter로 채팅..." autocomplete="off">
-            <button class="btn sm purple" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
+            <button id="wr-chat-mobile-btn" class="btn sm purple wr-chat-mobile-btn" onclick="WaitingRoom.openMobileChat()">💬</button>
+            <button class="btn sm purple wr-test-btn" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
         </div>
-        <!-- Mobile controls (PUBG style: left=dpad, right=action) -->
+        <!-- 모바일 전용 커스텀 한글 키보드 -->
+        <div id="game-keyboard" class="game-keyboard hidden">
+            <div class="gk-display-bar">
+                <span id="gk-display" data-empty="true"></span>
+                <button class="gk-close" onclick="GameKeyboard.hide()">✕</button>
+            </div>
+            <div class="gk-keys"></div>
+        </div>
+        <!-- Mobile controls: 좌/점프/우 3버튼 -->
         <div class="wr-mobile-controls">
-            <div class="wr-dpad">
-                <button class="wr-ctrl-btn" data-key="left">◀</button>
-                <button class="wr-ctrl-btn" data-key="right">▶</button>
-            </div>
-            <div class="wr-action-area">
-                <button class="wr-ctrl-btn jump-btn" data-key="jump">⬆ 점프</button>
-                <div class="wr-emote-controls">
-                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('flat')">납작</button>
-                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('inflate')">부풀</button>
-                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('explode')">폭발</button>
-                </div>
-            </div>
+            <button class="wr-ctrl-btn" data-key="left">◀</button>
+            <button class="wr-ctrl-btn jump-btn" data-key="jump">▲</button>
+            <button class="wr-ctrl-btn" data-key="right">▶</button>
         </div>
         <div id="wr-countdown" class="wr-countdown hidden">
             <span id="wr-countdown-num">5</span>

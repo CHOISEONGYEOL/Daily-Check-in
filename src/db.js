@@ -290,11 +290,11 @@ export const DB = {
         return data; // new balance
     },
 
-    // ── Heartbeat: last_active 갱신 (60초마다) ──
+    // ── Heartbeat: last_active 갱신 (10초마다) ──
     _startHeartbeat() {
         this._sendHeartbeat();
         clearInterval(this._heartbeatId);
-        this._heartbeatId = setInterval(() => this._sendHeartbeat(), 60000);
+        this._heartbeatId = setInterval(() => this._sendHeartbeat(), 10000);
     },
 
     stopHeartbeat() {

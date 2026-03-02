@@ -16,6 +16,7 @@ import { Vote } from './vote.js';
 import { LS } from './storage.js';
 import { Nav } from './nav.js';
 import { Marketplace, setMarketShop, setMarketNav } from './marketplace.js';
+import { GameKeyboard } from './game-keyboard.js';
 
 // ── Wire forward references ──
 setInventory(Inventory);
@@ -57,6 +58,7 @@ window.Confetti = Confetti;
 window.Teacher = Teacher;
 window.Vote = Vote;
 window.Marketplace = Marketplace;
+window.GameKeyboard = GameKeyboard;
 
 // ── Editor keyboard shortcuts ──
 function setupEditorKeys(){
@@ -74,6 +76,8 @@ setSetupEditorKeys(setupEditorKeys);
 const TEACHER_ACCOUNT = '77777';
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // 커스텀 한글 키보드 초기화 (모바일용)
+    GameKeyboard.init();
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 
     if (Player.hasProfile()) {

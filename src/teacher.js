@@ -9,7 +9,7 @@ export function setTeacherMarketplace(m) { Marketplace = m; }
 let WaitingRoom = null;
 export function setTeacherWaitingRoom(wr) { WaitingRoom = wr; }
 
-const ONLINE_THRESHOLD_MS = 3 * 60 * 1000;
+const ONLINE_THRESHOLD_MS = 30 * 1000; // 30초 (하트비트 10초 간격 기준)
 
 export const Teacher = {
     students: [],
@@ -25,7 +25,7 @@ export const Teacher = {
         this._populateGameClassSelect();
         this.render();
         clearInterval(this._pollId);
-        this._pollId = setInterval(() => this.refresh(), 30000);
+        this._pollId = setInterval(() => this.refresh(), 10000); // 10초마다 갱신
     },
 
     stop() {

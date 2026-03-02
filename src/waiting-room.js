@@ -9,6 +9,7 @@ import { WrRender } from './wr-render.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
 import { isClean } from './chat-filter.js';
+import { GameKeyboard } from './game-keyboard.js';
 
 // Forward references (set after modules are created)
 let Game = null;
@@ -223,9 +224,16 @@ export const WaitingRoom = {
         this.chatBubbles = []; this.particles = []; this._elevatorCooldown = 0; this._inSpectator = false;
         this.cvs = document.getElementById('waiting-canvas');
         this.ctx = this.cvs.getContext('2d');
+        this._needsCameraSnap = true;
+        this._onresize = null; // 리스너 재등록 허용
         this._resizeCanvas();
         this.buildMap();
-        this.camera = {x:0, y:this.H - this.VH};
+        // 카메라를 플레이어 스폰 위치에 중심 맞춤 (모바일에서 초기 프레임부터 보이도록)
+        const spawnX = this.W * 0.25, spawnY = this.H - 47;
+        this.camera = {
+            x: Math.max(0, Math.min(spawnX - this.VW / 2, this.W - this.VW)),
+            y: Math.max(0, Math.min(spawnY - this.VH / 2, this.H - this.VH))
+        };
         const pxData = Player.pixels || parseTemplate(Templates[0]);
         this.player = {
             x:this.W*0.25, y:this.H-47, vx:0, vy:0, w:26, h:30,
@@ -340,6 +348,7 @@ export const WaitingRoom = {
 
     stop(){
         Vote.stop();
+        GameKeyboard.hide(); // 키보드 닫기
         clearInterval(this._gameStartPollId); this._gameStartPollId = null;
         if(this.overlayActive) this.closeOverlay();
         this.overlayActive = false; this.overlayScreen = null;
@@ -873,16 +882,28 @@ export const WaitingRoom = {
     },
 
     _resizeCanvas(){
+        // resize 리스너 항상 등록 (첫 호출에서 w/h=0이어도 이후 재시도 가능)
+        if(!this._onresize){
+            this._onresize = () => { if(this.running) this._resizeCanvas(); };
+            window.addEventListener('resize', this._onresize);
+        }
         const wrap = this.cvs.parentElement;
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
-        const w = wrap.clientWidth, h = wrap.clientHeight, zoom = this.cameraZoom;
+        // CSS 회전 후 레이아웃이 아직 안 잡힌 경우 방어
+        const w = wrap.clientWidth || wrap.offsetWidth;
+        const h = wrap.clientHeight || wrap.offsetHeight;
+        if(w === 0 || h === 0) return; // 레이아웃 미완성 — 다음 resize에서 재시도
+        const zoom = this.cameraZoom;
+        const prevVW = this.VW, prevVH = this.VH;
         this.VW = w / zoom; this.VH = h / zoom;
         this.cvs.width = w * dpr; this.cvs.height = h * dpr;
         this.ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, 0, 0);
         this.dpr = dpr;
-        if(!this._onresize){
-            this._onresize = () => { if(this.running) this._resizeCanvas(); };
-            window.addEventListener('resize', this._onresize);
+        // 캔버스가 처음 유효해진 순간만 카메라 즉시 맞춤 (게임 중 리사이즈는 smooth follow에 맡김)
+        if(this._needsCameraSnap && this.player){
+            this._needsCameraSnap = false;
+            this.camera.x = Math.max(0, Math.min(this.player.x - this.VW/2, this.W - this.VW));
+            this.camera.y = Math.max(0, Math.min(this.player.y - this.VH/2, this.H - this.VH));
         }
     },
 
@@ -902,6 +923,13 @@ export const WaitingRoom = {
         if(!text || text.length > 30) return;
         if(!isClean(text)) return; // 욕설 → 조용히 무시
         this.chatBubbles.push({x:this.player.x, y:this.player.y-20, text:text, timer:180, follow:this.player, isPlayer:true});
+    },
+
+    // ── 모바일 전용: 커스텀 키보드로 채팅 ──
+    openMobileChat(){
+        GameKeyboard.show((text) => {
+            this.sendChat(text);
+        });
     },
 
     spawnNPCsGradually(){
@@ -1133,10 +1161,8 @@ export const WaitingRoom = {
         if(backBtn){ this._origBackOnclick = backBtn.getAttribute('onclick'); backBtn.setAttribute('onclick', 'WaitingRoom.closeOverlay()'); }
         const chatBar = document.querySelector('.wr-chat-bar');
         const mobileCtrl = document.querySelector('.wr-mobile-controls');
-        const emoteCtrl = document.querySelector('.wr-emote-controls');
         if(chatBar) chatBar.style.display = 'none';
         if(mobileCtrl) mobileCtrl.style.display = 'none';
-        if(emoteCtrl) emoteCtrl.style.display = 'none';
     },
 
     closeOverlay(){
@@ -1150,10 +1176,8 @@ export const WaitingRoom = {
         if(backBtn && this._origBackOnclick){ backBtn.setAttribute('onclick', this._origBackOnclick); this._origBackOnclick = null; }
         const chatBar = document.querySelector('.wr-chat-bar');
         const mobileCtrl = document.querySelector('.wr-mobile-controls');
-        const emoteCtrl = document.querySelector('.wr-emote-controls');
         if(chatBar) chatBar.style.display = '';
         if(mobileCtrl) mobileCtrl.style.display = '';
-        if(emoteCtrl) emoteCtrl.style.display = '';
         if(screenId === 'editor' || screenId === 'shop'){
             const px = Player.pixels || parseTemplate(Templates[0]);
             this.player.sprite = CharRender.toOffscreen(px, 64);

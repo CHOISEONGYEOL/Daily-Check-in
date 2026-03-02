@@ -247,16 +247,11 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .wr-chat-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:.4rem;z-index:10;align-items:center;}
 .wr-chat-bar input{width:240px;padding:.45rem .8rem;border-radius:20px;border:2px solid rgba(255,255,255,.2);background:rgba(0,0,0,.55);color:#fff;font-size:.85rem;outline:none;backdrop-filter:blur(4px);}.wr-chat-bar input:focus{border-color:var(--purple);background:rgba(0,0,0,.75);}
 .wr-chat-bar input::placeholder{color:rgba(255,255,255,.3);}
-.wr-mobile-controls{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 12px;z-index:10;pointer-events:none;}
+.wr-mobile-controls{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:12px;z-index:10;pointer-events:none;}
 .wr-mobile-controls>*{pointer-events:auto;}
-.wr-dpad{display:flex;gap:6px;align-items:center;}
-.wr-action-area{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
 .wr-ctrl-btn{width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:#fff;font-size:1.3rem;cursor:pointer;backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;touch-action:none;}
 .wr-ctrl-btn:active,.wr-ctrl-btn.pressed{background:rgba(108,92,231,.55);border-color:var(--purple);transform:scale(.92);}
 .wr-ctrl-btn.jump-btn{width:64px;height:64px;font-size:1.1rem;background:rgba(108,92,231,.35);border-color:rgba(108,92,231,.5);}
-.wr-emote-controls{display:flex;gap:5px;}
-.wr-emote-btn{padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.45);color:#fff;font-size:.65rem;cursor:pointer;backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;touch-action:none;}
-.wr-emote-btn:active{background:rgba(253,203,110,.4);border-color:#FDCB6E;}
 .wr-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;}
 
 /* ===== VOTE OVERLAY ===== */
@@ -378,12 +373,32 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 #confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;}
 
 @media(max-width:650px){.editor-layout{flex-direction:column;overflow-y:auto;overflow-x:hidden;}.editor-main{flex-shrink:0;}.canvas-frame{max-height:50vw;max-width:50vw;}.editor-tools{max-height:none;}.tmpl-sec{min-height:auto;overflow:visible;flex:none;}.template-grid{grid-template-columns:repeat(auto-fill,72px);min-height:auto;overflow-y:visible;flex:none;}.template-thumb{width:72px;height:72px;}.hud-gauge{width:120px;}.shop-tab{font-size:.75rem;padding:.5rem .3rem;}.shop-layout{flex-direction:column;}.shop-left{width:100%;min-width:unset;border-right:none;border-bottom:1px solid var(--glass-b);max-height:280px;}.shop-left .fitting-room{flex-direction:row;align-items:stretch;}.shop-left #fitting-canvas{width:200px;height:auto;aspect-ratio:400/520;}.otp-code{font-size:1.6rem;letter-spacing:5px;}.two-track-info{flex-direction:column;align-items:center;}.track-card{max-width:100%;}.inv-layout{flex-direction:column;}.inv-left{width:100%;min-width:unset;flex-direction:row;flex-wrap:wrap;justify-content:center;border-right:none;border-bottom:1px solid var(--glass-b);padding:.6rem;gap:.6rem;overflow-y:visible;}.inv-left canvas{width:64px;height:64px;}.inv-equip-summary{text-align:left;}.inv-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));}}
-@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}.wr-emote-controls{display:flex;}
+@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}
 .btn.sm{min-height:44px;min-width:44px;padding:.5rem 1rem;font-size:.85rem;}
 }
-@media(hover:hover){.mobile-controls{display:none;}.wr-mobile-controls{display:none;}.wr-emote-controls{display:none;}}
+@media(hover:hover){.mobile-controls{display:none;}.wr-mobile-controls{display:none;}}
 /* Fallback: JS-detected touch device (hover 미디어쿼리 미지원 기기) */
-body.touch-device .mobile-controls,body.touch-device .wr-mobile-controls,body.touch-device .wr-emote-controls{display:flex;}
+body.touch-device .mobile-controls,body.touch-device .wr-mobile-controls{display:flex;}
+
+/* ── 모바일 채팅 버튼: PC에서 숨김, 터치에서만 표시 ── */
+.wr-chat-mobile-btn{display:none;}
+body.touch-device .wr-chat-mobile-btn{display:inline-flex;}
+body.touch-device #wr-chat-input{display:none;} /* 모바일: 네이티브 입력 숨김 */
+
+/* ── 커스텀 한글 키보드 ── */
+.game-keyboard{position:absolute;bottom:0;left:0;right:0;z-index:50;background:rgba(20,20,35,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.15);padding:4px 2px;display:flex;flex-direction:column;gap:3px;}
+.gk-display-bar{display:flex;align-items:center;padding:2px 8px;gap:6px;}
+#gk-display{flex:1;min-height:28px;padding:4px 10px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff;font-size:.85rem;border:1px solid rgba(255,255,255,.15);word-break:break-all;}
+#gk-display[data-empty="true"]::before{content:'메시지를 입력하세요...';color:rgba(255,255,255,.3);}
+.gk-close{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,60,60,.3);color:#fff;font-size:.7rem;cursor:pointer;flex-shrink:0;}
+.gk-keys{display:flex;flex-direction:column;gap:3px;align-items:center;}
+.gk-row{display:flex;gap:3px;justify-content:center;}
+.gk-key{min-width:30px;height:36px;border-radius:6px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:.8rem;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:none;padding:0 4px;}
+.gk-key:active{background:rgba(108,92,231,.5);border-color:var(--purple);transform:scale(.95);}
+.gk-space{min-width:140px;}
+.gk-special{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-size:.7rem;min-width:40px;}
+.gk-enter{min-width:60px;background:rgba(108,92,231,.4);color:#fff;font-weight:700;}
+.gk-shift.active{background:rgba(108,92,231,.5);border-color:var(--purple);}
 
 /* ── 게임 화면 강제 가로 회전 (세로 모드 터치 기기) ── */
 @media(orientation:portrait){

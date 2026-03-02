@@ -136,9 +136,13 @@ export const Nav = {
         if (id !== 'teacher') Teacher.stop();
         if (id !== 'game-setup') OTP.stop();
         if (id !== 'waiting-room') WaitingRoom.stop();
-        // 게임 화면: CSS 강제 회전 후 캔버스 리사이즈 트리거
+        // 게임 화면: CSS 강제 회전 후 캔버스 리사이즈 트리거 (모바일 타이밍 보장)
         if (id === 'waiting-room' || id === 'game') {
-            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 500);
+            // 터치 기기: 풀스크린 진입
+            this._tryFullscreen();
         }
     },
     // ── 게임 버튼 상태 폴링 ──
@@ -174,6 +178,15 @@ export const Nav = {
             btn.classList.add('disabled');
             btn.textContent = '🔒 출석 게임';
         }
+    },
+
+    // ── 터치 기기 전용: 풀스크린 진입 ──
+    _tryFullscreen() {
+        if (!document.body.classList.contains('touch-device')) return;
+        if (document.fullscreenElement) return;
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+        if (req) req.call(el).catch(() => {});
     },
 
     renderCharSlots() {
