@@ -962,15 +962,7 @@ export const WaitingRoom = {
             const nn = this.npcs[this.npcs.length-1];
             const arrivals=['왔어!','안녕~','ㅋㅋ 나 왔다','여기 어디야?','출석!','하이~'];
             this.chatBubbles.push({x:nn.x,y:nn.y-20,text:arrivals[Math.floor(Math.random()*arrivals.length)],timer:100,follow:nn});
-            // 테스트 계정(99999)만 NPC 다 모이면 자동 투표 시작
-            // 일반 학생은 교사의 game_started 신호로 투표 시작
-            if(this.readyCount >= this.totalStudents && !this.countdown && !this.voteStarted && !this.godMode && Player.studentId === '99999') {
-                this.voteStarted = true;
-                Vote.start(this.totalStudents, () => {
-                    this.selectedGameId = Vote.selectedGame.id;
-                    this.startCountdown();
-                });
-            }
+            // 투표/게임 시작은 교사만 컨트롤 (자동 시작 없음)
             setTimeout(spawnOne, 800+Math.random()*2000);
         };
         setTimeout(spawnOne, 1500);
