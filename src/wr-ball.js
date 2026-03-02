@@ -79,37 +79,63 @@ export const WrBall = {
         if(!b||this.ballResetTimer>0) return;
         if(!this._ballTouchers) this._ballTouchers = [];
         const remotes = this._rtGetRemoteArray();
-        const all= (this.overlayActive || !this.player) ? [...remotes] : [this.player,...remotes];
+        const all = (this.overlayActive || !this.player) ? [...remotes] : [this.player,...remotes];
         for(const e of all){
             if(e.explodeTimer>0) continue;
-            // 히트박스 확장: 캐릭터 주변 여유 공간 추가 (접촉 반응성 향상)
-            const pad = 8;
-            const eL=e.x-e.w/2-pad, eR=e.x+e.w/2+pad, eT=e.y-pad, eB=e.y+e.h;
-            const cx=Math.max(eL,Math.min(b.x,eR)), cy=Math.max(eT,Math.min(b.y,eB));
-            const dx=b.x-cx, dy=b.y-cy, dist=Math.sqrt(dx*dx+dy*dy);
-            if(dist<b.r){
+            // ── Circle-vs-Circle collision (Pikachu Volleyball style) ──
+            // Character as circle: center slightly above midpoint, generous radius
+            const eCx = e.x;
+            const eCy = e.y + e.h * 0.4;
+            const eR = Math.max(e.w, e.h) * 0.65;
+            const dx = b.x - eCx;
+            const dy = b.y - eCy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const minDist = b.r + eR;
+            if(dist < minDist){
+                // Collision normal (entity center → ball center)
+                const nx = dist > 0.01 ? dx/dist : 0;
+                const ny = dist > 0.01 ? dy/dist : -1;
+                // 1. Full separation — push ball completely outside
+                b.x = eCx + nx * (minDist + 2);
+                b.y = eCy + ny * (minDist + 2);
+                // Record toucher
                 this.ballLastContactFrame = this.frameCount;
-                // 접촉자 기록 (최근 60프레임 내)
                 const name = e===this.player ? (Player.nickname||'나') : (e.displayName||'?');
                 const team = e===this.player ? this.player.team : e.team;
                 const existing = this._ballTouchers.find(t=>t.name===name);
                 if(existing){ existing.frame=this.frameCount; existing.team=team; }
                 else this._ballTouchers.push({name, frame:this.frameCount, team});
-                const ov=b.r-dist, nx=dist>0?dx/dist:0, ny=dist>0?dy/dist:-1;
-                b.x+=nx*ov; b.y+=ny*ov;
-                let kick=e===this.player?1.8:1.0;
-                if(e===this.player&&this.sizeChange==='giant') kick=2.5;
-                if(e===this.player&&this.sizeChange==='tiny') kick=0.7;
-                const boost=e.emote==='inflate'?1.5:1.0;
-                // 킥 힘 강화: 기본 밀어내기 + 속도 반영
-                b.vx+=e.vx*kick*boost+nx*4.5;
-                b.vy+=e.vy*kick*boost+ny*3.5;
-                const spd=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
-                if(spd>20){b.vx*=20/spd;b.vy*=20/spd;}
-                if(e===this.player&&ny<-0.5&&e.vy>0){e.vy=this.JUMP_FORCE*0.6;e.jumpCount=1;}
+                // 2. Reflect velocity off collision normal
+                const dot = b.vx*nx + b.vy*ny;
+                if(dot < 0){
+                    b.vx -= 2 * dot * nx;
+                    b.vy -= 2 * dot * ny;
+                }
+                // Bounce damping
+                b.vx *= 0.8;
+                b.vy *= 0.8;
+                // 3. Kick from character velocity
+                let kick = e===this.player ? 1.8 : 1.0;
+                if(e===this.player && this.sizeChange==='giant') kick = 2.5;
+                if(e===this.player && this.sizeChange==='tiny') kick = 0.7;
+                const boost = e.emote==='inflate' ? 1.5 : 1.0;
+                b.vx += e.vx * kick * boost;
+                b.vy += e.vy * kick * boost;
+                // 4. Push force along normal (ensures ball always flies away)
+                b.vx += nx * 5;
+                b.vy += ny * 4;
+                // 5. Minimum bounce speed for satisfying impact
+                const spd = Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+                if(spd < 4 && spd > 0.01){ b.vx = b.vx/spd*4; b.vy = b.vy/spd*4; }
+                // Cap max speed
+                if(spd > 22){ b.vx *= 22/spd; b.vy *= 22/spd; }
+                // Juggle: player under ball + jumping → bounce player
+                if(e===this.player && ny < -0.5 && e.vy > 0){
+                    e.vy = this.JUMP_FORCE * 0.6; e.jumpCount = 1;
+                }
             }
         }
-        // 오래된 접촉 기록 제거 (60프레임 = 1초)
+        // Clean old toucher records (60 frames = ~1 second)
         this._ballTouchers = this._ballTouchers.filter(t=>this.frameCount - t.frame < 60);
     },
 

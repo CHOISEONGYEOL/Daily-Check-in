@@ -7,7 +7,7 @@ import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 
 const SEND_INTERVAL = 125;   // 위치 전송 주기 (ms) = 8Hz
-const BALL_INTERVAL = 125;   // 공 상태 전송 주기 (ms)
+const BALL_INTERVAL = 80;    // 공 상태 전송 주기 (ms) — 12.5Hz for smoother sync
 const INTERP_MS = SEND_INTERVAL; // 보간 시간
 
 export const WrRealtime = {
@@ -226,11 +226,11 @@ export const WrRealtime = {
             if (!this.ball) {
                 this.ball = { x: data.bx, y: data.by, vx: data.bvx, vy: data.bvy, r: this.BALL_R };
             } else {
-                // 부드러운 보정: 위치는 보간, 속도는 즉시 동기화
+                // Smooth correction: position via interpolation, velocity via blending
                 this.ball._serverX = data.bx;
                 this.ball._serverY = data.by;
-                this.ball.vx = data.bvx;
-                this.ball.vy = data.bvy;
+                this.ball._serverVx = data.bvx;
+                this.ball._serverVy = data.bvy;
             }
             this.ballAngle = data.angle;
             this.score = data.score;
@@ -238,11 +238,11 @@ export const WrRealtime = {
         }
     },
 
-    // 비호스트 공 로컬 물리 예측 (매 프레임 호출)
+    // Non-host local ball physics prediction (called every frame)
     _rtPredictBall() {
         const b = this.ball;
         if (!b || this._isHost || this.ballResetTimer > 0) return;
-        // 로컬 물리 시뮬레이션
+        // Local physics simulation
         b.vy += this.gravityReversed ? -this.BALL_GRAVITY : this.BALL_GRAVITY;
         if (this.gravityReversed ? b.vy < -this.BALL_MAX_VY : b.vy > this.BALL_MAX_VY)
             b.vy = this.gravityReversed ? -this.BALL_MAX_VY : this.BALL_MAX_VY;
@@ -250,7 +250,7 @@ export const WrRealtime = {
         if (Math.abs(b.vx) < 0.1) b.vx = 0;
         b.x += b.vx; b.y += b.vy;
         this.ballAngle += b.vx * 0.03;
-        // 바닥/천장/벽 충돌
+        // Ground/ceiling/wall collision
         const gY = this.H - 30 - b.r;
         if (!this.gravityReversed && b.y >= gY) { b.y = gY; b.vy = -b.vy * this.BALL_BOUNCE; if (Math.abs(b.vy) < 1) b.vy = 0; b.vx *= 0.97; }
         if (this.gravityReversed && b.y <= b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * this.BALL_BOUNCE; if (Math.abs(b.vy) < 1) b.vy = 0; b.vx *= 0.97; }
@@ -258,13 +258,20 @@ export const WrRealtime = {
         if (this.gravityReversed && b.y >= gY) { b.y = gY; b.vy = -Math.abs(b.vy) * this.BALL_BOUNCE; }
         if (b.x - b.r <= 0) { b.x = b.r; b.vx = Math.abs(b.vx) * this.BALL_BOUNCE; }
         if (b.x + b.r >= this.W) { b.x = this.W - b.r; b.vx = -Math.abs(b.vx) * this.BALL_BOUNCE; }
-        // 서버 위치로 부드럽게 보정 (매 프레임 20%씩)
+        // Entity collision (local prediction — same circle-vs-circle as host)
+        this.checkBallEntityCollision();
+        // Smooth server correction (position 10%/frame, velocity 25%/frame)
         if (b._serverX !== undefined) {
-            b.x += (b._serverX - b.x) * 0.2;
-            b.y += (b._serverY - b.y) * 0.2;
-            // 충분히 가까우면 보정 해제
+            b.x += (b._serverX - b.x) * 0.10;
+            b.y += (b._serverY - b.y) * 0.10;
             const dx = b._serverX - b.x, dy = b._serverY - b.y;
-            if (dx * dx + dy * dy < 4) { b._serverX = undefined; b._serverY = undefined; }
+            if (dx*dx + dy*dy < 1) { b._serverX = undefined; b._serverY = undefined; }
+        }
+        if (b._serverVx !== undefined) {
+            b.vx += (b._serverVx - b.vx) * 0.25;
+            b.vy += (b._serverVy - b.vy) * 0.25;
+            const dvx = b._serverVx - b.vx, dvy = b._serverVy - b.vy;
+            if (dvx*dvx + dvy*dvy < 0.5) { b._serverVx = undefined; b._serverVy = undefined; }
         }
     },
 

@@ -550,20 +550,37 @@ export const WrRender = {
         this.renderZones(ctx);
         // Obstacles
         this.renderObstacles(ctx);
-        // Ball
+        // Ball (moon design, cached to offscreen canvas for performance)
         if(this.ball&&this.ballResetTimer<=0){
             const b=this.ball;
             if(b.x>camX-60&&b.x<camX+VW+60){
-                ctx.fillStyle='rgba(0,0,0,.2)';
-                ctx.beginPath();ctx.ellipse(b.x,this.H-13,b.r*.7,6,0,0,Math.PI*2);ctx.fill();
+                // Cache moon sprite once
+                if(!this._moonCache || this._moonCache._r !== b.r){
+                    const pad=22, sz=(b.r+pad)*2;
+                    const mc=document.createElement('canvas'); mc.width=sz; mc.height=sz;
+                    const m=mc.getContext('2d'), c=sz/2;
+                    m.shadowColor='rgba(255,255,200,0.5)';m.shadowBlur=18;
+                    const gr=m.createRadialGradient(c-b.r*.2,c-b.r*.2,b.r*.05,c,c,b.r);
+                    gr.addColorStop(0,'#FFFDE7');gr.addColorStop(0.3,'#FFF9C4');gr.addColorStop(0.7,'#F0E68C');gr.addColorStop(1,'#D4AA00');
+                    m.fillStyle=gr;m.beginPath();m.arc(c,c,b.r,0,Math.PI*2);m.fill();
+                    m.shadowBlur=0;
+                    m.fillStyle='rgba(180,160,60,0.35)';
+                    m.beginPath();m.arc(c-b.r*.3,c-b.r*.15,b.r*.2,0,Math.PI*2);m.fill();
+                    m.beginPath();m.arc(c+b.r*.3,c+b.r*.2,b.r*.15,0,Math.PI*2);m.fill();
+                    m.beginPath();m.arc(c-b.r*.05,c+b.r*.4,b.r*.12,0,Math.PI*2);m.fill();
+                    m.fillStyle='rgba(180,160,60,0.25)';
+                    m.beginPath();m.arc(c+b.r*.15,c-b.r*.4,b.r*.08,0,Math.PI*2);m.fill();
+                    m.beginPath();m.arc(c+b.r*.42,c-b.r*.2,b.r*.06,0,Math.PI*2);m.fill();
+                    m.beginPath();m.arc(c-b.r*.4,c+b.r*.25,b.r*.07,0,Math.PI*2);m.fill();
+                    m.strokeStyle='rgba(200,180,60,0.4)';m.lineWidth=1.5;m.beginPath();m.arc(c,c,b.r,0,Math.PI*2);m.stroke();
+                    mc._r=b.r; this._moonCache=mc;
+                }
+                // Shadow
+                ctx.fillStyle='rgba(0,0,0,.15)';
+                ctx.beginPath();ctx.ellipse(b.x,this.H-13,b.r*.7,5,0,0,Math.PI*2);ctx.fill();
+                // Stamp cached moon with rotation
                 ctx.save();ctx.translate(b.x,b.y);ctx.rotate(this.ballAngle);
-                const gr=ctx.createRadialGradient(-b.r*.3,-b.r*.3,b.r*.1,0,0,b.r);
-                gr.addColorStop(0,'#fff');gr.addColorStop(0.4,'#f0f0f0');gr.addColorStop(1,'#ccc');
-                ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,b.r,0,Math.PI*2);ctx.fill();
-                ctx.fillStyle='rgba(40,40,40,.5)';
-                for(let i=0;i<5;i++){const a=i*Math.PI*2/5;ctx.beginPath();ctx.arc(Math.cos(a)*b.r*.55,Math.sin(a)*b.r*.55,b.r*.15,0,Math.PI*2);ctx.fill();}
-                ctx.beginPath();ctx.arc(0,0,b.r*.18,0,Math.PI*2);ctx.fill();
-                ctx.strokeStyle='rgba(0,0,0,.3)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(0,0,b.r,0,Math.PI*2);ctx.stroke();
+                ctx.drawImage(this._moonCache,-this._moonCache.width/2,-this._moonCache.height/2);
                 ctx.restore();
             }
         }
@@ -995,7 +1012,7 @@ export const WrRender = {
         const vx=mx+this.camera.x*scale, vw=this.VW*scale;
         ctx.strokeRect(vx, my, vw, mh);
         if(this.ball&&this.ballResetTimer<=0){
-            ctx.fillStyle='#fff';
+            ctx.fillStyle='#FFE082';
             ctx.beginPath();ctx.arc(mx+this.ball.x*scale, my+mh/2, 3, 0, Math.PI*2);ctx.fill();
         }
         if(this.player){
