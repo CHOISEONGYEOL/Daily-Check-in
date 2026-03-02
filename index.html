@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <meta name="screen-orientation" content="landscape">
+    <title>🎮 출석 체크인</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 0. 프로필 설정 (첫 방문) -->
+<div id="profile-setup" class="screen active">
+    <div class="profile-wrap">
+        <h1 class="logo">🎮 출석 체크인</h1>
+        <p class="sub">프로필을 설정해주세요</p>
+        <div class="profile-form">
+            <label class="profile-label">📛 닉네임 <span class="required">*</span>
+                <input type="text" id="ps-nickname" maxlength="12" placeholder="게임에서 사용할 이름" class="profile-input">
+                <div class="ps-nick-warning">한 번 정한 닉네임은 바꿀 수 없으니 신중하게 작성하세요!</div>
+            </label>
+            <label class="profile-label">🔢 학번 <span class="required">*</span>
+                <input type="text" id="ps-studentid" maxlength="10" placeholder="예: 10215" class="profile-input">
+            </label>
+            <label class="profile-label">✏️ 이름 <span class="required">*</span>
+                <input type="text" id="ps-name" maxlength="10" placeholder="실명" class="profile-input">
+            </label>
+            <div id="ps-error" class="otp-error hidden"></div>
+            <button id="ps-submit-btn" class="btn big purple" onclick="ProfileSetup.submit()" style="margin-top:1rem;width:100%">✨ 시작하기!</button>
+        </div>
+    </div>
+</div>
+
+<!-- 1. 로비 -->
+<div id="lobby" class="screen">
+    <div class="lobby-wrap">
+        <div class="lobby-header">
+            <h1 class="logo">🎮 출석 체크인</h1>
+            <p class="sub">우리 반 친구들과 함께하는 협동 미니게임 출석!</p>
+        </div>
+        <div class="lobby-body">
+            <div class="lobby-left">
+                <div class="lobby-nickname" id="L-nickname"></div>
+                <div class="lobby-char">
+                    <canvas id="lobby-preview" width="128" height="128"></canvas>
+                </div>
+                <div class="char-slots" id="char-slots"></div>
+                <div id="L-title" class="lobby-title hidden"></div>
+                <div class="lobby-stats">
+                    <span class="pill">🪙 <span id="L-coins">0</span></span>
+                    <span class="pill">🔥 <span id="L-streak">0</span>일</span>
+                </div>
+                <button class="btn-edit-profile" onclick="Nav.go('profile-edit')">⚙️ 프로필 수정</button>
+                <button class="btn-logout" onclick="Nav.logout()">로그아웃</button>
+            </div>
+            <div class="lobby-right">
+                <button id="btn-editor" class="btn big purple" onclick="Nav.go('editor')">🎨 캐릭터 만들기</button>
+                <button class="btn big orange" onclick="Nav.go('inventory')">🎒 인벤토리</button>
+                <button class="btn big teal" onclick="Nav.go('shop')">🏪 상점</button>
+                <button class="btn big gold hidden" onclick="Nav.go('auction')">🏛️ 경매장</button>
+                <button class="btn big gold" onclick="Nav.go('marketplace-submit')">🖼️ 작품 제출하기</button>
+                <button id="btn-game" class="btn big pink disabled" onclick="Nav.go('waiting-room')" disabled>🔒 출석 게임</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 1-1. 프로필 수정 -->
+<div id="profile-edit" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2>⚙️ 프로필 수정</h2><div></div></header>
+    <div class="profile-edit-wrap">
+        <div class="pe-section">
+            <div class="pe-title">👤 내 정보 (자유 수정)</div>
+            <label class="profile-label">📛 닉네임
+                <input type="text" id="pe-nickname" maxlength="12" class="profile-input">
+            </label>
+            <label class="profile-label">🔢 학번
+                <input type="text" id="pe-studentid" maxlength="10" class="profile-input">
+            </label>
+            <label class="profile-label">✏️ 이름
+                <input type="text" id="pe-name" maxlength="10" class="profile-input">
+            </label>
+            <button class="btn big purple" onclick="ProfileSetup.saveProfile()" style="width:100%;margin-top:.5rem">💾 저장</button>
+            <div id="pe-profile-msg" class="pe-msg hidden"></div>
+        </div>
+        <div class="pe-section">
+            <div class="pe-title">🐾 캐릭터 이름 변경 <span class="pe-hint">(이름변경권 필요)</span></div>
+            <div id="pe-char-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. 에디터 -->
+<div id="editor" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2 id="editor-title">🎨 캐릭터 만들기</h2><div></div></header>
+    <div class="editor-layout">
+        <div class="editor-main">
+            <div class="canvas-frame"><canvas id="pixel-canvas"></canvas></div>
+            <div class="ed-prev-row"><span class="prev-lbl">미리보기</span><canvas id="editor-preview" width="64" height="64"></canvas></div>
+        </div>
+        <div class="editor-tools">
+            <div class="tool-sec tmpl-sec">
+                <div class="tool-title">📦 템플릿</div>
+                <div class="tmpl-tabs" id="tmpl-tabs">
+                    <button class="tmpl-tab active" onclick="Editor.switchTmplTab(this,'cute')">🐰 귀여운</button>
+                    <button class="tmpl-tab" onclick="Editor.switchTmplTab(this,'fantasy')">🧙 판타지</button>
+                    <button class="tmpl-tab" onclick="Editor.switchTmplTab(this,'cool')">😎 독특한</button>
+                </div>
+                <div class="template-grid" id="template-grid"></div>
+            </div>
+            <div class="tool-sec">
+                <div class="tool-title">↩️ 되돌리기</div>
+                <div class="tool-btns"><button class="btn sm" id="btn-undo" onclick="Editor.undo()" disabled>↩ 되돌리기</button><button class="btn sm" id="btn-redo" onclick="Editor.redo()" disabled>↪ 다시하기</button></div>
+                <div class="hint">Ctrl+Z / Ctrl+Y</div>
+            </div>
+            <div class="tool-sec">
+                <div class="tool-title">🛠️ 도구</div>
+                <div class="tool-btns">
+                    <button class="tool-btn active" data-tool="pen" onclick="Editor.setTool('pen')">✏️ 펜</button>
+                    <button class="tool-btn" data-tool="eraser" onclick="Editor.setTool('eraser')">🧹 지우개</button>
+                    <button class="tool-btn" data-tool="fill" onclick="Editor.setTool('fill')">🪣 채우기</button>
+                </div>
+            </div>
+            <div class="tool-sec"><div class="tool-title">🎨 색상</div><div class="palette" id="palette"></div>
+                <div class="custom-row"><input type="color" id="custom-color" value="#6C5CE7"><button class="btn sm" onclick="Editor.pickCustomColor()">추가</button></div>
+            </div>
+            <div class="tool-sec" id="btn-clear"><div class="tool-btns"><button class="btn sm outline" onclick="Editor.clearCanvas()">🗑️ 전체 지우기</button><button class="btn sm outline" onclick="Editor.mirror()">🪞 좌우 반전</button></div></div>
+            <button id="btn-editor-save" class="btn-save" onclick="Editor.save()">💾 저장하기</button>
+        </div>
+    </div>
+</div>
+
+<!-- 3. 상점 -->
+<div id="shop" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2>🏪 상점</h2><span class="bar-coins">🪙 <span id="S-coins">0</span></span></header>
+    <div class="shop-layout">
+        <!-- 좌측: 피팅룸 (항상 표시) -->
+        <div class="shop-left">
+            <div id="fitting-room" class="fitting-room">
+                <canvas id="fitting-canvas" width="400" height="520"></canvas>
+                <div class="fitting-side">
+                    <div class="fitting-header">
+                        <span class="fitting-item-info" id="fitting-info">아이템을 선택하세요</span>
+                    </div>
+                    <div class="fitting-price" id="fitting-price"></div>
+                    <div class="fitting-depreciation" id="fitting-depreciation"></div>
+                    <button class="btn-buy fitting-buy hidden" id="fitting-buy" onclick="Shop.buyFromFitting()">🛒 구입</button>
+                    <div class="fitting-hint">←→ 이동 · ↑ 점프</div>
+                </div>
+            </div>
+            <!-- 색상 탭 전용: 미니 에디터 -->
+            <div id="color-editor" class="color-editor hidden">
+                <canvas id="color-editor-canvas"></canvas>
+                <div class="color-editor-tools">
+                    <div class="ce-tool-row">
+                        <button class="ce-tool active" data-tool="pen" onclick="Shop.ceTool('pen',this)">✏️ 펜</button>
+                        <button class="ce-tool" data-tool="eraser" onclick="Shop.ceTool('eraser',this)">🧹 지우개</button>
+                        <button class="ce-tool" data-tool="fill" onclick="Shop.ceTool('fill',this)">🪣 채우기</button>
+                    </div>
+                    <div class="ce-palette" id="ce-palette"></div>
+                    <div class="ce-preview-row">
+                        <canvas id="ce-preview" width="64" height="64"></canvas>
+                        <div class="ce-actions">
+                            <button class="btn sm purple" onclick="Shop.ceSave()">💾 저장</button>
+                            <button class="btn sm outline" onclick="Shop.ceReset()">↩ 초기화</button>
+                        </div>
+                    </div>
+                    <div id="ce-buy-area" class="ce-buy-area hidden">
+                        <span id="ce-buy-info" class="ce-buy-info"></span>
+                        <span id="ce-buy-price" class="ce-buy-price"></span>
+                        <button id="ce-buy-btn" class="btn-buy" onclick="Shop.ceBuy()">🛒 구입</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 우측: 탭 + 아이템 목록 -->
+        <div class="shop-right">
+            <div class="shop-tabs">
+                <button class="shop-tab active" onclick="Shop.switchTab(this,'colors')">🎨 색상</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'hats')">🎩 모자</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'effects')">✨ 효과</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'pets')">🐾 펫</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'titles')">🏷️ 칭호</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'misc')">✏️ 기타</button>
+                <button class="shop-tab" onclick="Shop.switchTab(this,'student')">🎨 학생 작품</button>
+            </div>
+            <div class="shop-grid" id="shop-grid"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. 경매장 -->
+<div id="auction" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2>🏛️ 경매장</h2><span class="bar-coins">🪙 <span id="A-coins">0</span></span></header>
+    <div class="auction-tabs">
+        <button class="auction-tab active" data-tab="register" onclick="Auction.switchTab(this,'register')">📝 작품</button>
+        <button class="auction-tab" data-tab="char-register" onclick="Auction.switchTab(this,'char-register')">👤 캐릭터</button>
+        <button class="auction-tab" data-tab="buy" onclick="Auction.switchTab(this,'buy')">🛒 구매</button>
+        <button class="auction-tab" data-tab="gallery" onclick="Auction.switchTab(this,'gallery')">🖼️ 갤러리</button>
+    </div>
+    <div class="auction-inner" id="auction-inner"></div>
+</div>
+
+<!-- 5. 인벤토리 -->
+<div id="inventory" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2>🎒 인벤토리</h2><div></div></header>
+    <div class="inv-layout">
+        <div class="inv-left">
+            <div class="inv-fitting">
+                <canvas id="inv-fitting-canvas" width="600" height="780"></canvas>
+                <div class="fitting-hint">←→ 이동 · ↑ 점프</div>
+            </div>
+            <div class="inv-char-slots" id="inv-char-slots"></div>
+            <div class="inv-equip-summary" id="inv-equip-summary"></div>
+        </div>
+        <div class="inv-right">
+            <div class="inv-tabs">
+                <button class="inv-tab active" onclick="Inventory.switchTab(this,'hats')">🎩 모자</button>
+                <button class="inv-tab" onclick="Inventory.switchTab(this,'effects')">✨ 효과</button>
+                <button class="inv-tab" onclick="Inventory.switchTab(this,'pets')">🐾 펫</button>
+                <button class="inv-tab" onclick="Inventory.switchTab(this,'titles')">🏷️ 칭호</button>
+            </div>
+            <div class="inv-grid" id="inv-grid"></div>
+            <div class="inv-empty hidden" id="inv-empty">보유한 아이템이 없습니다.<br>상점에서 구매해보세요!</div>
+        </div>
+    </div>
+</div>
+
+<!-- 6. 게임 설정 -->
+<div id="game-setup" class="screen">
+    <header class="bar"><button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button><h2>🚀 출석 게임</h2><div></div></header>
+    <div class="setup-inner">
+        <canvas id="setup-preview" width="96" height="96"></canvas>
+        <div class="setup-profile" id="setup-profile"></div>
+        <div class="two-track-info">
+            <div class="track-card track-1"><span class="track-icon">✅</span><h3>1단계: 출석</h3><p>OTP 코드 입력으로 출석!</p></div>
+            <div class="track-card track-2"><span class="track-icon">🎮</span><h3>2단계: 피코파크</h3><p>대기실 → 25인 협동 퍼즐 → 보상!</p></div>
+        </div>
+        <div class="form-row">
+            <label>👥 학생 수<input type="number" id="s-total" value="25" min="2" max="50"></label>
+        </div>
+        <!-- OTP Section -->
+        <div class="otp-section">
+            <div class="otp-label">선생님이 보여주는 코드를 입력하세요</div>
+            <div class="otp-display">
+                <div class="otp-code-box">
+                    <span class="otp-code-label">현재 코드</span>
+                    <span class="otp-code" id="otp-code">----</span>
+                </div>
+                <div class="otp-timer-box">
+                    <div class="otp-bar-wrap"><div class="otp-bar" id="otp-bar" style="width:100%"></div></div>
+                    <span class="otp-timer" id="otp-timer">15초</span>
+                </div>
+            </div>
+            <div class="otp-input-row">
+                <input type="text" id="otp-input" maxlength="4" placeholder="4자리 코드" autocomplete="off">
+                <button class="btn big pink" onclick="Game.verifyAndEnter()">🚀 입장!</button>
+            </div>
+            <div id="otp-error" class="otp-error hidden">코드가 틀렸습니다!</div>
+        </div>
+        <p class="hint">코드는 15초마다 바뀝니다. 선생님 화면의 코드를 입력하세요!</p>
+    </div>
+</div>
+
+<!-- 5. 대기실 (MapleStory-style) -->
+<div id="waiting-room" class="screen">
+    <div class="waiting-wrap">
+        <canvas id="waiting-canvas"></canvas>
+        <!-- 교사 전용: 대시보드 복귀 버튼 -->
+        <button id="wr-back-dashboard" class="wr-back-dashboard hidden" onclick="WaitingRoom.backToDashboard()">← 대시보드로 돌아가기</button>
+        <button id="wr-start-game" class="wr-start-game hidden" onclick="WaitingRoom.teacherStartGame()">▶ 게임 시작</button>
+        <!-- 교사 관전 대기 상태 -->
+        <div id="teacher-spectator-status" class="teacher-spectator-status hidden">
+            📡 학생들에게 신호를 보냈습니다... 투표를 기다리는 중
+        </div>
+        <!-- Spectator platform floating buttons -->
+        <div id="wr-spectator-btns" class="wr-spectator-btns hidden">
+            <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('shop')">🏪 상점</button>
+            <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('inventory')">🎒 인벤토리</button>
+            <button class="wr-spec-btn" onclick="WaitingRoom.openOverlay('editor')">✏️ 캐릭터 편집</button>
+        </div>
+        <!-- Chat bar -->
+        <div class="wr-chat-bar">
+            <input type="text" id="wr-chat-input" maxlength="30" placeholder="Enter로 채팅..." autocomplete="off">
+            <button class="btn sm purple" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
+        </div>
+        <!-- Mobile controls (PUBG style: left=dpad, right=action) -->
+        <div class="wr-mobile-controls">
+            <div class="wr-dpad">
+                <button class="wr-ctrl-btn" data-key="left">◀</button>
+                <button class="wr-ctrl-btn" data-key="right">▶</button>
+            </div>
+            <div class="wr-action-area">
+                <button class="wr-ctrl-btn jump-btn" data-key="jump">⬆ 점프</button>
+                <div class="wr-emote-controls">
+                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('flat')">납작</button>
+                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('inflate')">부풀</button>
+                    <button class="wr-emote-btn" onclick="WaitingRoom.triggerEmote('explode')">폭발</button>
+                </div>
+            </div>
+        </div>
+        <div id="wr-countdown" class="wr-countdown hidden">
+            <span id="wr-countdown-num">5</span>
+        </div>
+        <!-- 투표 오버레이 -->
+        <div id="wr-vote-overlay" class="wr-vote-overlay hidden">
+            <div class="vote-container">
+                <div class="vote-header">
+                    <h2>🗳️ 게임 투표!</h2>
+                    <div class="vote-timer">
+                        <span id="vote-timer-num">20</span>초
+                        <div class="vote-timer-bar"><div id="vote-timer-fill" class="vote-timer-fill"></div></div>
+                    </div>
+                </div>
+                <div class="vote-grid" id="vote-grid"></div>
+                <div class="vote-hint">투표하세요! 가장 많은 표를 받은 게임이 시작됩니다</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 6. 게임 화면 (Pico Park) -->
+<div id="game" class="screen">
+    <div class="game-wrap">
+        <canvas id="game-canvas"></canvas>
+        <!-- 관전 배지 -->
+        <div id="spectator-badge" class="spectator-badge hidden">
+            📺 관전 모드 · WASD: 카메라 · +/-: 줌
+        </div>
+        <!-- HUD -->
+        <div class="hud">
+            <div class="hud-left">
+                <div class="hud-gauge"><div class="hud-gauge-fill" id="hud-fill" style="width:0%"></div><span id="hud-stars">Stage 1/3</span></div>
+            </div>
+            <div id="hud-mode" class="hud-mode">🎮 피코파크</div>
+            <div class="hud-timer" id="hud-timer">5:00</div>
+            <div class="hud-right">
+                <span class="pill sm">🪙 <span id="G-coins">0</span></span>
+                <button class="btn-back" onclick="Game.quit()">✕</button>
+            </div>
+        </div>
+        <!-- Mobile controls (PUBG style: left=dpad, right=action) -->
+        <div class="mobile-controls" id="mobile-controls">
+            <div class="game-dpad">
+                <button class="ctrl-btn" data-key="left">◀</button>
+                <button class="ctrl-btn" data-key="right">▶</button>
+            </div>
+            <div>
+                <button class="ctrl-btn jump-btn" data-key="action">⬆ 점프</button>
+            </div>
+        </div>
+    </div>
+    <!-- Attendance confirmed overlay -->
+    <div id="attend-overlay" class="overlay hidden">
+        <div class="complete-box attend-box"><div class="complete-emoji">✅</div><h2>출석 완료!</h2><p>이제 보너스 게임을 시작합니다...</p></div>
+    </div>
+    <!-- Gacha overlay -->
+    <div id="gacha-overlay" class="overlay hidden">
+        <div class="gacha-box"><div class="gacha-spinner" id="gacha-spinner"><div class="gacha-ball" id="gacha-ball">?</div></div><div id="gacha-result" class="gacha-result hidden"></div></div>
+    </div>
+    <!-- Complete overlay -->
+    <div id="complete-overlay" class="overlay hidden">
+        <div class="complete-box"><div class="complete-emoji" id="complete-emoji">🎉</div><h2 id="complete-title"></h2><p id="complete-sub"></p><button class="btn big purple" onclick="Game.quit()" style="margin-top:1rem">돌아가기</button></div>
+    </div>
+</div>
+
+<!-- 7-0. 학생 마켓 등록 화면 -->
+<div id="marketplace-submit" class="screen">
+    <header class="bar">
+        <button class="btn-back" onclick="Nav.go('lobby')">← 돌아가기</button>
+        <h2>🎨 작품 제출하기</h2>
+        <div></div>
+    </header>
+    <div class="mks-wrap" id="market-submit-inner"></div>
+</div>
+
+<!-- 7. 교사 대시보드 -->
+<div id="teacher" class="screen">
+    <header class="bar">
+        <button class="btn-back" onclick="Nav.go('lobby')">← 로비</button>
+        <h2>📋 교사 대시보드</h2>
+        <button class="btn-logout" onclick="Nav.logout()">로그아웃</button>
+    </header>
+    <div class="teacher-wrap">
+        <div class="teacher-session">
+            <select id="teacher-game-class" class="teacher-game-class-sel" onchange="Teacher.onGameClassChange()">
+                <option value="">-- 반 선택 --</option>
+            </select>
+            <button id="teacher-game-toggle" class="teacher-toggle closed" onclick="Teacher.toggleGame()">
+                <span class="toggle-dot"></span>
+                <span id="teacher-toggle-text">🎮 반을 선택하세요</span>
+            </button>
+            <button id="teacher-enter-wr" class="teacher-enter-wr hidden" onclick="Teacher.enterWaitingRoom()">👀 대기실 입장</button>
+            <div id="teacher-game-status" class="teacher-game-status">열린 반 없음</div>
+        </div>
+        <!-- 출석부 (게임 열기 후 표시) -->
+        <div id="teacher-roster-check" class="teacher-roster-check hidden">
+            <div class="trc-header">
+                <h3>📋 출석 체크</h3>
+                <div class="trc-stats">
+                    <span class="trc-stat">출석 <strong id="trc-present">0</strong></span>
+                    <span class="trc-stat">지각 <strong id="trc-late">0</strong></span>
+                    <span class="trc-stat">조퇴 <strong id="trc-early">0</strong></span>
+                    <span class="trc-stat">결석 <strong id="trc-absent">0</strong></span>
+                </div>
+                <div class="trc-actions">
+                    <button class="trc-all-btn trc-absent-btn" onclick="Teacher.rosterAbsentAll()">전체 결석</button>
+                </div>
+            </div>
+            <div id="trc-grid" class="trc-grid"></div>
+        </div>
+        <!-- 교사 탭: 학생 관리 / 판매 요청 / 출결 기록 -->
+        <div class="teacher-tab-bar">
+            <button class="teacher-main-tab active" onclick="Teacher.switchMainTab(this,'students')">👥 학생 관리</button>
+            <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'market')">🎨 판매 요청</button>
+            <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'attendance')">📅 출결 기록</button>
+        </div>
+        <!-- 학생 관리 탭 -->
+        <div id="teacher-students-tab">
+            <div class="teacher-class-bar" id="teacher-class-bar">
+                <button class="teacher-class-btn active" onclick="Teacher.filterClass(this,'')">전체</button>
+            </div>
+            <div class="teacher-stats">
+                <div class="teacher-stat"><span class="teacher-stat-num blue" id="t-total">0</span><span class="teacher-stat-label">전체</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num green" id="t-online">0</span><span class="teacher-stat-label">접속 중</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num yellow" id="t-checked">0</span><span class="teacher-stat-label">출석</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num red" id="t-absent">0</span><span class="teacher-stat-label">미출석</span></div>
+            </div>
+            <!-- 학생 등록 폼 -->
+            <div class="t-roster-form" id="t-roster-form">
+                <div class="t-roster-title" onclick="Teacher.toggleRosterForm()">➕ 학생 등록 <span id="t-roster-arrow">▸</span></div>
+                <div class="t-roster-fields hidden" id="t-roster-fields">
+                    <input type="text" id="t-add-sid" placeholder="학번" maxlength="10" class="t-roster-input">
+                    <input type="text" id="t-add-name" placeholder="이름" maxlength="10" class="t-roster-input">
+                    <input type="text" id="t-add-class" placeholder="분반 (예: 6반)" maxlength="10" class="t-roster-input">
+                    <button class="btn sm blue" onclick="Teacher.addStudent()">등록</button>
+                    <span id="t-add-msg" class="t-add-msg"></span>
+                </div>
+            </div>
+            <div class="teacher-controls">
+                <input type="text" id="t-search" placeholder="🔍 이름/학번/닉네임 검색..." class="teacher-search" oninput="Teacher.render()">
+                <select id="t-filter-status" class="teacher-select" onchange="Teacher.render()">
+                    <option value="">전체 상태</option>
+                    <option value="online">접속 중</option>
+                    <option value="checked">출석 완료</option>
+                    <option value="offline">미접속</option>
+                </select>
+                <button class="btn sm purple" onclick="Teacher.refresh()">🔄 새로고침</button>
+            </div>
+            <div class="teacher-grid" id="teacher-grid">
+                <div class="teacher-empty">로딩 중...</div>
+            </div>
+        </div>
+        <!-- 출결 기록 탭 -->
+        <div id="teacher-attendance-tab" class="hidden">
+            <div class="teacher-controls ta-controls">
+                <div class="ta-date-wrap">
+                    <button class="ta-date-arrow" onclick="Teacher.shiftDate(-1)">&lt;</button>
+                    <input type="date" id="ta-date" class="ta-date-input" onchange="Teacher.loadAttendance()">
+                    <button class="ta-date-arrow" onclick="Teacher.shiftDate(1)">&gt;</button>
+                    <button class="btn sm blue" onclick="Teacher.setToday()">오늘</button>
+                </div>
+                <select id="ta-class-filter" class="teacher-select" onchange="Teacher.onAttendanceClassChange()">
+                    <option value="">전체 반</option>
+                </select>
+            </div>
+            <div class="teacher-stats">
+                <div class="teacher-stat"><span class="teacher-stat-num blue" id="ta-total">0</span><span class="teacher-stat-label">전체</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num green" id="ta-present">0</span><span class="teacher-stat-label">접속</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num red" id="ta-absent">0</span><span class="teacher-stat-label">미접속</span></div>
+            </div>
+            <div class="teacher-grid" id="ta-grid">
+                <div class="teacher-empty">날짜를 선택하세요</div>
+            </div>
+        </div>
+        <!-- 판매 요청 탭 -->
+        <div id="teacher-market-tab" class="hidden">
+            <div class="teacher-controls" style="margin-bottom:.6rem">
+                <button class="btn sm purple" onclick="Teacher.loadMarketItems()">🔄 새로고침</button>
+                <span id="t-market-count" style="color:rgba(255,255,255,.5);font-size:.8rem"></span>
+            </div>
+            <div id="teacher-market-grid" class="teacher-market-grid">
+                <div class="teacher-empty">로딩 중...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 게임 세션 차단 오버레이 -->
+<div id="game-closed-overlay" class="overlay hidden" style="z-index:9999;pointer-events:auto">
+    <div class="complete-box" style="text-align:center;max-width:360px">
+        <div class="complete-emoji" style="font-size:3rem">🔒</div>
+        <h2 style="margin:.5rem 0">출석 게임이 아직 열리지 않았습니다</h2>
+        <p style="color:rgba(255,255,255,.6);font-size:.9rem;line-height:1.5">선생님이 게임을 열어야 입장할 수 있어요.<br>잠시만 기다려주세요!</p>
+        <button class="btn big purple" onclick="document.getElementById('game-closed-overlay').classList.add('hidden')" style="margin-top:1rem">확인</button>
+    </div>
+</div>
+
+<!-- 가로 회전 안내 오버레이 (모바일 세로 모드 시 게임 화면 차단) -->
+<div id="rotate-overlay" class="rotate-overlay hidden">
+    <div class="rotate-content">
+        <div class="rotate-icon">📱</div>
+        <h2>화면을 가로로 돌려주세요!</h2>
+        <p>게임은 가로 모드에서만 플레이할 수 있습니다</p>
+    </div>
+</div>
+
+<!-- 세션 강제 종료 오버레이 (다른 기기 로그인 시) -->
+<div id="session-kicked-overlay" class="overlay hidden" style="z-index:99998;pointer-events:auto">
+    <div class="complete-box" style="text-align:center;max-width:360px">
+        <div class="complete-emoji" style="font-size:3rem">🔒</div>
+        <h2 style="margin:.5rem 0">다른 기기에서 로그인됨</h2>
+        <p style="color:rgba(255,255,255,.6);font-size:.9rem;line-height:1.5">
+            다른 기기에서 같은 계정으로 로그인하여<br>이 세션이 종료되었습니다.
+        </p>
+        <button class="btn big purple" onclick="location.reload()" style="margin-top:1rem">다시 로그인</button>
+    </div>
+</div>
+
+<canvas id="confetti"></canvas>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
