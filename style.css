@@ -40,6 +40,7 @@ body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:v
 .profile-label .required{color:var(--red);font-size:.7rem;}
 .profile-input{padding:.6rem .9rem;border-radius:12px;border:2px solid var(--glass-b);background:rgba(255,255,255,.08);color:#fff;font-size:1rem;outline:none;transition:var(--tr);}.profile-input:focus{border-color:var(--purple);box-shadow:0 0 15px rgba(108,92,231,.2);}
 .ps-nick-warning{color:#f0c040;font-size:.73rem;font-weight:500;margin-top:.15rem;}
+.ps-nick-error{color:var(--red);font-size:.75rem;font-weight:700;margin-top:.2rem;animation:shake .4s;}
 
 /* Lobby */
 #lobby{justify-content:center;align-items:center;background:linear-gradient(160deg,#171F26,#2D3436,#171F26);}

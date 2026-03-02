@@ -22,6 +22,8 @@ export const ProfileSetup = {
         const btn = document.getElementById('ps-submit-btn');
         if (btn) { btn.disabled = true; btn.textContent = '확인 중...'; }
         if (err) err.classList.add('hidden');
+        const nickErr = document.getElementById('ps-nick-error');
+        if (nickErr) nickErr.classList.add('hidden');
 
         try {
             // roster 검증: 학번이 등록되어 있으면 이름이 일치해야 함
@@ -45,6 +47,12 @@ export const ProfileSetup = {
             }
             if (result.error === 'nickname_mismatch') {
                 if (err) { err.textContent = '닉네임이 일치하지 않습니다! (닉네임은 최초 설정 후 변경 불가)'; err.classList.remove('hidden'); }
+                if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                return;
+            }
+            if (result.error === 'nickname_taken') {
+                const nickErr = document.getElementById('ps-nick-error');
+                if (nickErr) { nickErr.textContent = '⚠️ 이미 사용 중인 닉네임입니다. 다른 닉네임을 입력해주세요.'; nickErr.classList.remove('hidden'); }
                 if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
                 return;
             }

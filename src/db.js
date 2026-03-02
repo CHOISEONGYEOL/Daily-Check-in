@@ -80,7 +80,16 @@ export const DB = {
             return { user, isNew: false };
         }
 
-        // 2) 없으면 신규 생성
+        // 2) 없으면 신규 생성 — 닉네임 중복 체크
+        if (nickname) {
+            const { data: dup } = await supabase
+                .from('users')
+                .select('id')
+                .eq('nickname', nickname)
+                .limit(1)
+                .maybeSingle();
+            if (dup) return { user: null, isNew: false, error: 'nickname_taken' };
+        }
         const insertData = {
             student_id: studentId,
             student_name: studentName,
