@@ -257,7 +257,9 @@ body.touch-device #btn-clear{position:sticky;bottom:44px;z-index:10;background:v
 .wr-dpad{display:flex;gap:6px;align-items:center;}
 .wr-ctrl-btn{width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:#fff;font-size:1.3rem;cursor:pointer;backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;touch-action:none;}
 .wr-ctrl-btn:active,.wr-ctrl-btn.pressed{background:rgba(108,92,231,.55);border-color:var(--purple);transform:scale(.92);}
+.wr-rpad{display:flex;flex-direction:column;gap:6px;align-items:center;}
 .wr-ctrl-btn.jump-btn{width:64px;height:64px;font-size:1.1rem;background:rgba(108,92,231,.35);border-color:rgba(108,92,231,.5);}
+.wr-ctrl-btn.down-btn{width:64px;height:64px;font-size:1.1rem;background:rgba(0,0,0,.45);border-color:rgba(255,255,255,.25);}
 .wr-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;}
 
 /* ===== VOTE OVERLAY ===== */

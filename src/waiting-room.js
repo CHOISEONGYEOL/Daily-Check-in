@@ -286,12 +286,17 @@ export const WaitingRoom = {
                 if(k==='left'){this.keys['ArrowLeft']=true;this.keys['_mobileLeft']=true;}
                 if(k==='right'){this.keys['ArrowRight']=true;this.keys['_mobileRight']=true;}
                 if(k==='jump'){this.keys['_mobileJump']=true;this.playerJump();}
+                if(k==='down'){
+                    this.keys['ArrowDown']=true;this.keys['_mobileDown']=true;
+                    if(this.reversedControls && !this._inSpectator) this.playerJump();
+                }
             };
             const up=e=>{
                 btn.classList.remove('pressed');
                 if(k==='left'){this.keys['ArrowLeft']=false;this.keys['_mobileLeft']=false;}
                 if(k==='right'){this.keys['ArrowRight']=false;this.keys['_mobileRight']=false;}
                 if(k==='jump'){this.keys['_mobileJump']=false;}
+                if(k==='down'){this.keys['ArrowDown']=false;this.keys['_mobileDown']=false;}
             };
             btn.onpointerdown=down;btn.onpointerup=up;btn.onpointerleave=up;btn.onpointercancel=up;
         });

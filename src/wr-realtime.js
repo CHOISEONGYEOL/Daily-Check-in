@@ -43,6 +43,7 @@ export const WrRealtime = {
         channel.on('broadcast', { event: 'chat' }, ({ payload }) => this._rtOnRemoteChat(payload));
         channel.on('broadcast', { event: 'emote' }, ({ payload }) => this._rtOnRemoteEmote(payload));
         channel.on('broadcast', { event: 'goal' }, ({ payload }) => this._rtOnRemoteGoal(payload));
+        channel.on('broadcast', { event: 'shutdown' }, () => this._rtOnShutdown());
 
         // Presence 수신
         channel.on('presence', { event: 'sync' }, () => this._rtOnPresenceSync());
@@ -303,6 +304,13 @@ export const WrRealtime = {
             this.chatBubbles.push({ x: this.player.x, y: this.player.y - 40, text: `😱 -${this.OG_PENALTY}`, timer: 90, follow: this.player });
             this._goalRewardMsg = { text: `🫣 자책골! 🪙 -${this.OG_PENALTY} 코인 차감!`, timer: 120 };
         }
+    },
+
+    // ── 교사 shutdown 수신 → 로비로 강제 이동 ──
+    _rtOnShutdown() {
+        if (this.godMode) return; // 교사 자신은 무시
+        this.stop();
+        if (typeof Nav !== 'undefined') Nav.go('lobby');
     },
 
     // ── Presence 동기화 ──

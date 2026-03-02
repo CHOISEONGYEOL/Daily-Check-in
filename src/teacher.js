@@ -169,6 +169,13 @@ export const Teacher = {
         if (error) {
             console.error('toggleGame upsert error:', error);
         }
+        // 닫기 시: 해당 반 채널로 shutdown 브로드캐스트 → 학생 강제 퇴장
+        if (!newState) {
+            const entry = this._rtChannels.get(className);
+            if (entry && entry.channel) {
+                entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
+            }
+        }
         // UI는 에러와 무관하게 반영 (로컬 상태 우선)
         if (newState) {
             if (!this._openClasses.includes(className)) this._openClasses.push(className);
