@@ -27,6 +27,10 @@ export const DB = {
             .single();
 
         if (user) {
+            // 이름 검증 (교사/테스트 계정 제외)
+            if (!isExempt && user.student_name !== studentName) {
+                return { user: null, isNew: false, error: 'name_mismatch' };
+            }
             this.userId = user.id;
             this.sessionToken = token;
             this.ready = true;

@@ -38,6 +38,11 @@ export const ProfileSetup = {
             }
 
             const result = await Player.login(sid, sname, nick);
+            if (result.error === 'name_mismatch') {
+                if (err) { err.textContent = '이름이 일치하지 않습니다.'; err.classList.remove('hidden'); }
+                if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                return;
+            }
             // 캐릭터가 없으면 기본 슬롯 생성
             if (!Player.characters.length) {
                 Player.characters.push({ name: '캐릭터 1', pixels: null, equipped: {} });
