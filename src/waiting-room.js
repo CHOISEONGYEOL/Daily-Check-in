@@ -412,6 +412,8 @@ export const WaitingRoom = {
             const jumpReversed = this.gravityReversed && !this._inSpectator;
             this.player.vy = jumpReversed ? -this.JUMP_FORCE : this.JUMP_FORCE;
             this.player.jumpCount++; this.player.onGround = false;
+            // Event-Driven: 점프 즉시 전송 (vy 급변)
+            this._rtBroadcastPosition();
         }
     },
 
@@ -704,14 +706,16 @@ export const WaitingRoom = {
         const targetCamY = P.y - this.VH / 2;
         const clampedCamY = Math.max(0, Math.min(targetCamY, this.H - this.VH));
         this.camera.y += (clampedCamY - this.camera.y) * 0.15;
-        // 원격 플레이어 보간 (AI 봇 대신 실제 플레이어)
-        this._rtInterpolateRemotePlayers();
+        // 원격 플레이어 클라이언트 예측 (매 프레임 물리 시뮬)
+        this._rtPredictRemotePlayers();
+        // 상태 변화 시 위치 전송 (Event-Driven)
+        this._rtCheckAndSendPos();
         // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-45;} if(b.timer>0) arr[w++]=b; }
         arr.length=w; }
         this.resolveEntityCollisions();
-        if(this._isHost) this.updateBall(); else this._rtPredictBall();
+        if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall();
         this.updateObstacles();
         this.updateEmote();
         this._spawnEffectTrail();

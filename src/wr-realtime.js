@@ -7,22 +7,28 @@ import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 import { PerfMonitor } from './perf-monitor.js';
 
-const SEND_INTERVAL = 500;   // 위치 전송 주기 (ms) = 2Hz (트래픽 절감)
-const BALL_INTERVAL = 200;   // 공 상태 전송 주기 (ms) = 5Hz
-const INTERP_MS = SEND_INTERVAL; // 보간 시간 (전송 주기와 동기화)
+const POS_HEARTBEAT = 3000;   // 위치 heartbeat 주기 (3초) — 안전망
+const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
 
 export const WrRealtime = {
     remotePlayers: null,   // Map<studentId, RemotePlayerEntity>
     _rtChannel: null,
     _isHost: false,
-    _rtSendInterval: null,
-    _rtBallInterval: null,
     _rtSpriteCache: new Map(),
     _rtStatus: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'error'
     _rtRemoteArrayCache: null, // 캐시된 배열 (매 프레임 1회 갱신)
     _rtRemoteArrayDirty: true, // 캐시 무효화 플래그
-    _rtLastSentPos: null,      // delta check: 마지막 전송 위치
     _rtLastSentBall: null,     // delta check: 마지막 전송 공 상태
+    // Event-driven 전송 상태
+    _rtLastSendTime: 0,        // 마지막 위치 전송 시각
+    _rtLastMoveDir: 0,         // 마지막 전송한 moveDir
+    _rtLastOnGround: true,     // 마지막 전송한 onGround
+    _rtLastEmote: null,        // 마지막 전송한 emote
+    _rtLastExplode: false,     // 마지막 전송한 explode 상태
+    _rtCurrentMoveDir: 0,      // 현재 프레임 이동 방향
+    _rtLastBallSendTime: 0,    // 마지막 공 전송 시각
+    _rtLastBallVxSign: 0,      // 마지막 전송한 공 vx 부호
+    _rtLastBallVySign: 0,      // 마지막 전송한 공 vy 부호
 
     // ── 채널 초기화 ──
     rtInit() {
@@ -94,17 +100,11 @@ export const WrRealtime = {
         });
 
         this._rtChannel = channel;
-
-        // 위치 브로드캐스트 시작 (학생만)
-        if (!this.godMode && this.player) {
-            this._rtSendInterval = setInterval(() => this._rtBroadcastPosition(), SEND_INTERVAL);
-        }
+        // Event-driven: setInterval 없음 — 상태 변화 시 _rtCheckAndSendPos()에서 전송
     },
 
     // ── 채널 해제 ──
     rtDestroy() {
-        if (this._rtSendInterval) { clearInterval(this._rtSendInterval); this._rtSendInterval = null; }
-        if (this._rtBallInterval) { clearInterval(this._rtBallInterval); this._rtBallInterval = null; }
         if (this._rtChannel) {
             this._rtChannel.unsubscribe();
             supabase.removeChannel(this._rtChannel);
@@ -117,24 +117,20 @@ export const WrRealtime = {
         this._rtStatus = 'disconnected';
     },
 
-    // ── 위치 브로드캐스트 (2Hz, delta check) ──
+    // ── 위치 브로드캐스트 (Event-Driven: 상태 변화 시에만) ──
     _rtBroadcastPosition() {
         if (!this._rtChannel || !this.player || this.godMode) return;
         const p = this.player;
         const x = Math.round(p.x), y = Math.round(p.y);
         const vx = Math.round(p.vx * 10) / 10, vy = Math.round(p.vy * 10) / 10;
-        // Delta check: 위치·속도·방향·이모트 모두 동일하면 전송 스킵
-        const last = this._rtLastSentPos;
-        if (last && last.x === x && last.y === y && last.vx === vx && last.vy === vy
-            && last.dir === p.dir && last.emote === p.emote
-            && last.explode === (p.explodeTimer > 0)) return;
-        this._rtLastSentPos = { x, y, vx, vy, dir: p.dir, emote: p.emote, explode: p.explodeTimer > 0 };
+        const moveDir = this._rtCurrentMoveDir || 0;
         this._rtChannel.send({
             type: 'broadcast', event: 'pos',
             payload: {
                 sid: String(Player.studentId),
                 x, y, vx, vy,
                 dir: p.dir,
+                moveDir,
                 onGround: p.onGround,
                 emote: p.emote,
                 stunTimer: p.stunTimer > 0 ? p.stunTimer : 0,
@@ -146,7 +142,68 @@ export const WrRealtime = {
         PerfMonitor.logSend(150);
     },
 
-    // ── 공 상태 브로드캐스트 (호스트만, 5Hz, delta check) ──
+    // ── 상태 변화 감지 → 위치 전송 (매 프레임 update() 끝에서 호출) ──
+    _rtCheckAndSendPos() {
+        if (!this._rtChannel || !this.player || this.godMode) return;
+        const P = this.player;
+        const now = Date.now();
+
+        // moveDir 계산: 현재 누르고 있는 이동 키 방향
+        const focused = document.activeElement?.tagName;
+        let moveDir = 0;
+        if (focused !== 'INPUT' && focused !== 'TEXTAREA') {
+            const useReversed = this.reversedControls && !this._inSpectator;
+            const leftKey = useReversed ? (this.keys['ArrowRight']||this.keys['d']||this.keys['D']) : (this.keys['ArrowLeft']||this.keys['a']||this.keys['A']);
+            const rightKey = useReversed ? (this.keys['ArrowLeft']||this.keys['a']||this.keys['A']) : (this.keys['ArrowRight']||this.keys['d']||this.keys['D']);
+            if (leftKey) moveDir = -1;
+            else if (rightKey) moveDir = 1;
+        }
+        this._rtCurrentMoveDir = moveDir;
+
+        // 상태 변화 감지
+        const changed =
+            moveDir !== this._rtLastMoveDir ||
+            P.onGround !== this._rtLastOnGround ||
+            P.emote !== this._rtLastEmote ||
+            (P.explodeTimer > 0) !== this._rtLastExplode;
+
+        // heartbeat 안전망 (3초)
+        const heartbeat = (now - this._rtLastSendTime) >= POS_HEARTBEAT;
+
+        if (changed || heartbeat) {
+            this._rtLastMoveDir = moveDir;
+            this._rtLastOnGround = P.onGround;
+            this._rtLastEmote = P.emote;
+            this._rtLastExplode = P.explodeTimer > 0;
+            this._rtLastSendTime = now;
+            this._rtBroadcastPosition();
+        }
+    },
+
+    // ── 공 상태 변화 감지 → 전송 (호스트만, 매 프레임 updateBall() 후 호출) ──
+    _rtCheckAndSendBall() {
+        if (!this._rtChannel || !this._isHost || !this.ball) return;
+        const b = this.ball;
+        const now = Date.now();
+
+        const vxSign = Math.sign(b.vx);
+        const vySign = Math.sign(b.vy);
+        // 속도 방향 전환 감지 (바운스/킥)
+        const changed =
+            vxSign !== this._rtLastBallVxSign ||
+            vySign !== this._rtLastBallVySign;
+        // heartbeat 안전망 (1초)
+        const heartbeat = (now - this._rtLastBallSendTime) >= BALL_HEARTBEAT;
+
+        if (changed || heartbeat) {
+            this._rtLastBallVxSign = vxSign;
+            this._rtLastBallVySign = vySign;
+            this._rtLastBallSendTime = now;
+            this._rtBroadcastBall();
+        }
+    },
+
+    // ── 공 상태 브로드캐스트 (호스트만, Event-Driven + delta check) ──
     _rtBroadcastBall() {
         if (!this._rtChannel || !this._isHost || !this.ball) return;
         const b = this.ball;
@@ -200,27 +257,32 @@ export const WrRealtime = {
         PerfMonitor.logSend(120);
     },
 
-    // ── 원격 플레이어 위치 수신 ──
+    // ── 원격 플레이어 위치 수신 (Client Prediction + Lerp 보정) ──
     _rtOnRemotePos(data) {
         if (!data || data.sid === String(Player.studentId)) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) return;
 
         // 맵 경계 텔레포트 감지
-        const teleport = Math.abs(data.x - rp.x) > this.W * 0.5;
+        const teleport = Math.abs(data.x - rp.x) > this.W * 0.4;
 
-        // 보간 타겟 설정
-        rp._prevX = teleport ? data.x : rp.x;
-        rp._prevY = teleport ? data.y : rp.y;
-        rp._targetX = data.x;
-        rp._targetY = data.y;
-        rp._targetVx = data.vx;
-        rp._targetVy = data.vy;
-        rp._targetDir = data.dir;
-        rp._interpT = 0;
-        rp._lastUpdateTime = Date.now();
+        if (teleport) {
+            // 즉시 스냅 (맵 래핑 등)
+            rp.x = data.x;
+            rp.y = data.y;
+            rp._corrX = 0;
+            rp._corrY = 0;
+        } else {
+            // 오차를 보정 잔량에 설정 → 매 프레임 15%씩 감소
+            rp._corrX = data.x - rp.x;
+            rp._corrY = data.y - rp.y;
+        }
 
-        // 즉시 업데이트 값
+        // 상태 동기화
+        rp.vx = data.vx;
+        rp.vy = data.vy;
+        rp._moveDir = data.moveDir || 0;
+        rp.dir = data.dir;
         rp.onGround = data.onGround;
         rp.emote = data.emote;
         rp.stunTimer = data.stunTimer;
@@ -457,13 +519,10 @@ export const WrRealtime = {
             pet: presence.pet || null,
             displayName: presence.nickname || sid,
             activeTitle: presence.activeTitle || '',
-            // 보간 상태
-            _prevX: sx, _prevY: sy,
-            _targetX: sx, _targetY: sy,
-            _targetVx: 0, _targetVy: 0,
-            _targetDir: 1,
-            _interpT: 1,
-            _lastUpdateTime: Date.now(),
+            // 클라이언트 예측 상태
+            _moveDir: 0,    // 입력 방향 (-1/0/1)
+            _corrX: 0,      // lerp 보정 잔량 X
+            _corrY: 0,      // lerp 보정 잔량 Y
         };
 
         this.remotePlayers.set(sid, rp);
@@ -526,10 +585,8 @@ export const WrRealtime = {
 
         if (this._isHost && !wasHost) {
             console.log('[RT] I am now HOST');
-            if (this._rtBallInterval) clearInterval(this._rtBallInterval);
-            this._rtBallInterval = setInterval(() => this._rtBroadcastBall(), BALL_INTERVAL);
-        } else if (!this._isHost && wasHost) {
-            if (this._rtBallInterval) { clearInterval(this._rtBallInterval); this._rtBallInterval = null; }
+            // Event-driven: ball은 _rtCheckAndSendBall()로 상태 변화 시 전송
+            this._rtLastBallSendTime = 0; // 즉시 첫 전송
         }
     },
 
@@ -585,41 +642,59 @@ export const WrRealtime = {
         this.updateReadyUI();
     },
 
-    // ── 매 프레임 보간 (smoothstep + velocity extrapolation) ──
-    _rtInterpolateRemotePlayers() {
-        const now = Date.now();
+    // ── 매 프레임 클라이언트 예측 (Client-Side Prediction + Lerp 보정) ──
+    _rtPredictRemotePlayers() {
         for (const rp of this.remotePlayers.values()) {
-            const elapsed = now - rp._lastUpdateTime;
-
-            if (elapsed <= INTERP_MS) {
-                // Phase 1: Smoothstep lerp (prev → target)
-                const t = elapsed / INTERP_MS;
-                const s = t * t * (3 - 2 * t); // smoothstep: 부드러운 가감속
-                rp.x = rp._prevX + (rp._targetX - rp._prevX) * s;
-                rp.y = rp._prevY + (rp._targetY - rp._prevY) * s;
-            } else if (elapsed < INTERP_MS * 3) {
-                // Phase 2: Velocity extrapolation (target 이후 예측)
-                const extraMs = elapsed - INTERP_MS;
-                const extraFrames = extraMs / 16.67;
-                rp.x = rp._targetX + rp._targetVx * extraFrames;
-                rp.y = rp._targetY + rp._targetVy * extraFrames;
-                // 지면 클램프
-                if (this.H && rp.y + rp.h > this.H - 30) rp.y = this.H - 30 - rp.h;
-            }
-            // Phase 3: 3x 이상 지연 → 마지막 위치 유지 (텔레포트 방지)
-
-            // 맵 래핑
-            if (this.W) {
-                if (rp.x < 0) rp.x += this.W;
-                else if (rp.x > this.W) rp.x -= this.W;
+            // 1) 입력 기반 속도 적용 (로컬 플레이어와 동일한 물리)
+            if (rp.stunTimer > 0) {
+                rp.stunTimer--;
+                rp.vx *= 0.85;
+            } else if (rp.explodeTimer > 0) {
+                rp.vx = 0; rp.vy = 0;
+            } else {
+                if (rp._moveDir === -1)      rp.vx = -this.MOVE_SPD;
+                else if (rp._moveDir === 1)  rp.vx = this.MOVE_SPD;
+                else                         rp.vx *= 0.7;  // 마찰
+                if (Math.abs(rp.vx) < 0.2) rp.vx = 0;
             }
 
-            rp.dir = rp._targetDir;
+            // 2) 중력
+            const useGravReverse = this.gravityReversed && !rp._inSpectator;
+            rp.vy += useGravReverse ? -this.GRAVITY : this.GRAVITY;
+            if (useGravReverse ? rp.vy < -12 : rp.vy > 12)
+                rp.vy = useGravReverse ? -12 : 12;
 
+            // 3) 위치 업데이트
+            rp.x += rp.vx;
+            rp.y += rp.vy;
+
+            // 4) 플랫폼 충돌
+            this.checkPlatforms(rp);
+
+            // 5) 맵 래핑
+            if (rp.x < -10) rp.x = this.W + 10;
+            if (rp.x > this.W + 10) rp.x = -10;
+            if (useGravReverse) { if (rp.y < -50) { rp.y = this.H; rp.vy = 0; } }
+            else { if (rp.y > this.H + 50) { rp.y = 0; rp.vy = 0; } }
+
+            // 6) Lerp 오차 보정 (수신 시 설정된 오차를 프레임당 15%씩 감소)
+            if (rp._corrX || rp._corrY) {
+                const f = 0.15;
+                rp.x += rp._corrX * f;
+                rp.y += rp._corrY * f;
+                rp._corrX *= (1 - f);
+                rp._corrY *= (1 - f);
+                if (Math.abs(rp._corrX) < 0.5) rp._corrX = 0;
+                if (Math.abs(rp._corrY) < 0.5) rp._corrY = 0;
+            }
+
+            // 7) 방향 + 이모트
+            if (rp._moveDir !== 0) rp.dir = rp._moveDir;
             if (rp.emoteTimer > 0) {
                 rp.emoteTimer--;
                 if (rp.emoteTimer <= 0) rp.emote = null;
             }
+            if (rp.explodeTimer > 0) rp.explodeTimer--;
         }
     },
 
