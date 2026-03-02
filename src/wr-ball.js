@@ -82,7 +82,9 @@ export const WrBall = {
         const all= (this.overlayActive || !this.player) ? [...remotes] : [this.player,...remotes];
         for(const e of all){
             if(e.explodeTimer>0) continue;
-            const eL=e.x-e.w/2, eR=e.x+e.w/2, eT=e.y, eB=e.y+e.h;
+            // 히트박스 확장: 캐릭터 주변 여유 공간 추가 (접촉 반응성 향상)
+            const pad = 8;
+            const eL=e.x-e.w/2-pad, eR=e.x+e.w/2+pad, eT=e.y-pad, eB=e.y+e.h;
             const cx=Math.max(eL,Math.min(b.x,eR)), cy=Math.max(eT,Math.min(b.y,eB));
             const dx=b.x-cx, dy=b.y-cy, dist=Math.sqrt(dx*dx+dy*dy);
             if(dist<b.r){
@@ -95,14 +97,15 @@ export const WrBall = {
                 else this._ballTouchers.push({name, frame:this.frameCount, team});
                 const ov=b.r-dist, nx=dist>0?dx/dist:0, ny=dist>0?dy/dist:-1;
                 b.x+=nx*ov; b.y+=ny*ov;
-                let kick=e===this.player?1.3:0.8;
-                if(e===this.player&&this.sizeChange==='giant') kick=2.0;
-                if(e===this.player&&this.sizeChange==='tiny') kick=0.5;
+                let kick=e===this.player?1.8:1.0;
+                if(e===this.player&&this.sizeChange==='giant') kick=2.5;
+                if(e===this.player&&this.sizeChange==='tiny') kick=0.7;
                 const boost=e.emote==='inflate'?1.5:1.0;
-                b.vx+=e.vx*kick*boost+nx*2.5;
-                b.vy+=e.vy*kick*boost+ny*2;
+                // 킥 힘 강화: 기본 밀어내기 + 속도 반영
+                b.vx+=e.vx*kick*boost+nx*4.5;
+                b.vy+=e.vy*kick*boost+ny*3.5;
                 const spd=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
-                if(spd>15){b.vx*=15/spd;b.vy*=15/spd;}
+                if(spd>20){b.vx*=20/spd;b.vy*=20/spd;}
                 if(e===this.player&&ny<-0.5&&e.vy>0){e.vy=this.JUMP_FORCE*0.6;e.jumpCount=1;}
             }
         }
