@@ -8,6 +8,7 @@ import { WrGimmicks } from './wr-gimmicks.js';
 import { WrRender } from './wr-render.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
+import { isClean } from './chat-filter.js';
 
 // Forward references (set after modules are created)
 let Game = null;
@@ -899,6 +900,7 @@ export const WaitingRoom = {
     sendChat(text){
         if(!this.player) return;
         if(!text || text.length > 30) return;
+        if(!isClean(text)) return; // 욕설 → 조용히 무시
         this.chatBubbles.push({x:this.player.x, y:this.player.y-20, text:text, timer:180, follow:this.player, isPlayer:true});
     },
 

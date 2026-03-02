@@ -43,6 +43,11 @@ export const ProfileSetup = {
                 if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
                 return;
             }
+            if (result.error === 'ip_conflict') {
+                if (err) { err.textContent = '이 네트워크에서 다른 학생이 이미 접속 중입니다.'; err.classList.remove('hidden'); }
+                if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                return;
+            }
             // 캐릭터가 없으면 기본 슬롯 생성
             if (!Player.characters.length) {
                 Player.characters.push({ name: '캐릭터 1', pixels: null, equipped: {} });

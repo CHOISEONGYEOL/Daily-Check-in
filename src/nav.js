@@ -46,6 +46,7 @@ window.addEventListener('session-revoked', () => {
 
 export const Nav = {
     logout() {
+        DB.clearLoginState(); // IP 해제 (대리 출석 방지)
         Player.logout();
         DB.stopHeartbeat();
         this.go('profile-setup');

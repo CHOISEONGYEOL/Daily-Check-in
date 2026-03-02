@@ -10,7 +10,18 @@ export const DB = {
     _saveTimer: null,
     _heartbeatId: null,
     sessionToken: null,  // 단일 기기 제한용 세션 토큰
+    _currentIP: null,    // 대리 출석 방지용 IP
     _EXEMPT_IDS: ['77777', '99999'], // 교사/테스트 — 다중 기기 허용
+
+    // ── 클라이언트 IP 조회 (대리 출석 방지) ────────
+    async _getClientIP() {
+        try {
+            const r = await fetch('https://api.ipify.org?format=json',
+                { signal: AbortSignal.timeout(3000) });
+            const d = await r.json();
+            return d.ip || null;
+        } catch { return null; } // IP 조회 실패 시 제한 없이 통과
+    },
 
     // ── 로그인 / 회원가입 ──────────────────────
     // 학번으로 조회 → 있으면 로그인, 없으면 회원가입
@@ -18,6 +29,25 @@ export const DB = {
     async login(studentId, studentName, nickname, existingToken) {
         const isExempt = this._EXEMPT_IDS.includes(studentId);
         const token = isExempt ? null : (existingToken || crypto.randomUUID());
+
+        // ── IP 중복 체크 (대리 출석 방지) ──
+        if (!isExempt) {
+            const ip = await this._getClientIP();
+            this._currentIP = ip;
+            if (ip) {
+                const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+                const { data: conflicts } = await supabase
+                    .from('users')
+                    .select('student_id')
+                    .eq('login_ip', ip)
+                    .neq('student_id', studentId)
+                    .gte('last_active', cutoff)
+                    .limit(1);
+                if (conflicts && conflicts.length > 0) {
+                    return { user: null, isNew: false, error: 'ip_conflict' };
+                }
+            }
+        }
 
         // 1) 기존 유저 찾기
         let { data: user } = await supabase
@@ -34,10 +64,12 @@ export const DB = {
             this.userId = user.id;
             this.sessionToken = token;
             this.ready = true;
-            // 세션 토큰 기록 (다른 기기 세션 무효화)
+            // 세션 토큰 + IP 기록
             if (!isExempt) {
+                const upd = { session_token: token };
+                if (this._currentIP) upd.login_ip = this._currentIP;
                 await supabase.from('users')
-                    .update({ session_token: token })
+                    .update(upd)
                     .eq('id', user.id);
             }
             this._startHeartbeat();
@@ -51,7 +83,10 @@ export const DB = {
             nickname: nickname,
             coins: 0, streak: 0, max_slots: 1
         };
-        if (!isExempt) insertData.session_token = token;
+        if (!isExempt) {
+            insertData.session_token = token;
+            if (this._currentIP) insertData.login_ip = this._currentIP;
+        }
 
         const { data: newUser, error } = await supabase
             .from('users')
@@ -267,12 +302,22 @@ export const DB = {
         this._heartbeatId = null;
     },
 
+    // ── 로그아웃 시 IP 해제 (대리 출석 방지 해제) ──
+    async clearLoginState() {
+        if (!this.userId) return;
+        try {
+            await supabase.from('users')
+                .update({ login_ip: null })
+                .eq('id', this.userId);
+        } catch { /* ignore */ }
+        this._currentIP = null;
+    },
+
     async _sendHeartbeat() {
         if (!this.userId) return;
-        await supabase
-            .from('users')
-            .update({ last_active: new Date().toISOString() })
-            .eq('id', this.userId);
+        const upd = { last_active: new Date().toISOString() };
+        if (this._currentIP) upd.login_ip = this._currentIP;
+        await supabase.from('users').update(upd).eq('id', this.userId);
 
         // 세션 토큰 검증 (면제 계정 제외)
         if (this.sessionToken) {
