@@ -293,11 +293,13 @@
             </div>
             <div class="gk-keys"></div>
         </div>
-        <!-- Mobile controls: 좌/점프/우 3버튼 -->
+        <!-- Mobile controls: 왼쪽=좌우, 오른쪽=점프 (게임 내부와 동일 배치) -->
         <div class="wr-mobile-controls">
-            <button class="wr-ctrl-btn" data-key="left">◀</button>
+            <div class="wr-dpad">
+                <button class="wr-ctrl-btn" data-key="left">◀</button>
+                <button class="wr-ctrl-btn" data-key="right">▶</button>
+            </div>
             <button class="wr-ctrl-btn jump-btn" data-key="jump">▲</button>
-            <button class="wr-ctrl-btn" data-key="right">▶</button>
         </div>
         <div id="wr-countdown" class="wr-countdown hidden">
             <span id="wr-countdown-num">5</span>

@@ -247,8 +247,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .wr-chat-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:.4rem;z-index:10;align-items:center;}
 .wr-chat-bar input{width:240px;padding:.45rem .8rem;border-radius:20px;border:2px solid rgba(255,255,255,.2);background:rgba(0,0,0,.55);color:#fff;font-size:.85rem;outline:none;backdrop-filter:blur(4px);}.wr-chat-bar input:focus{border-color:var(--purple);background:rgba(0,0,0,.75);}
 .wr-chat-bar input::placeholder{color:rgba(255,255,255,.3);}
-.wr-mobile-controls{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:12px;z-index:10;pointer-events:none;}
+.wr-mobile-controls{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 12px;z-index:10;pointer-events:none;}
 .wr-mobile-controls>*{pointer-events:auto;}
+.wr-dpad{display:flex;gap:6px;align-items:center;}
 .wr-ctrl-btn{width:56px;height:56px;border-radius:50%;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.45);color:#fff;font-size:1.3rem;cursor:pointer;backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none;touch-action:none;}
 .wr-ctrl-btn:active,.wr-ctrl-btn.pressed{background:rgba(108,92,231,.55);border-color:var(--purple);transform:scale(.92);}
 .wr-ctrl-btn.jump-btn{width:64px;height:64px;font-size:1.1rem;background:rgba(108,92,231,.35);border-color:rgba(108,92,231,.5);}
