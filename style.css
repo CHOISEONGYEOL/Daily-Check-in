@@ -387,18 +387,18 @@ body.touch-device .wr-chat-mobile-btn{display:inline-flex;}
 body.touch-device #wr-chat-input{display:none;} /* 모바일: 네이티브 입력 숨김 */
 
 /* ── 커스텀 한글 키보드 ── */
-.game-keyboard{position:absolute;bottom:0;left:0;right:0;z-index:50;background:rgba(20,20,35,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.15);padding:4px 2px;display:flex;flex-direction:column;gap:3px;}
-.gk-display-bar{display:flex;align-items:center;padding:2px 8px;gap:6px;}
-#gk-display{flex:1;min-height:28px;padding:4px 10px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff;font-size:.85rem;border:1px solid rgba(255,255,255,.15);word-break:break-all;}
+.game-keyboard{position:absolute;bottom:0;left:0;right:0;z-index:50;background:rgba(20,20,35,.96);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,.15);padding:6px 4px;display:flex;flex-direction:column;gap:4px;}
+.gk-display-bar{display:flex;align-items:center;padding:3px 10px;gap:8px;}
+#gk-display{flex:1;min-height:34px;padding:6px 12px;background:rgba(0,0,0,.4);border-radius:8px;color:#fff;font-size:.95rem;border:1px solid rgba(255,255,255,.15);word-break:break-all;}
 #gk-display[data-empty="true"]::before{content:'메시지를 입력하세요...';color:rgba(255,255,255,.3);}
-.gk-close{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,60,60,.3);color:#fff;font-size:.7rem;cursor:pointer;flex-shrink:0;}
-.gk-keys{display:flex;flex-direction:column;gap:3px;align-items:center;}
-.gk-row{display:flex;gap:3px;justify-content:center;}
-.gk-key{min-width:30px;height:36px;border-radius:6px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:.8rem;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:none;padding:0 4px;}
+.gk-close{width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,60,60,.3);color:#fff;font-size:.8rem;cursor:pointer;flex-shrink:0;}
+.gk-keys{display:flex;flex-direction:column;gap:4px;align-items:center;}
+.gk-row{display:flex;gap:4px;justify-content:center;}
+.gk-key{min-width:36px;height:42px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff;font-size:.95rem;cursor:pointer;-webkit-user-select:none;user-select:none;touch-action:none;padding:0 6px;}
 .gk-key:active{background:rgba(108,92,231,.5);border-color:var(--purple);transform:scale(.95);}
-.gk-space{min-width:140px;}
-.gk-special{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-size:.7rem;min-width:40px;}
-.gk-enter{min-width:60px;background:rgba(108,92,231,.4);color:#fff;font-weight:700;}
+.gk-space{min-width:170px;}
+.gk-special{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-size:.8rem;min-width:48px;}
+.gk-enter{min-width:72px;background:rgba(108,92,231,.4);color:#fff;font-weight:700;}
 .gk-shift.active{background:rgba(108,92,231,.5);border-color:var(--purple);}
 
 /* ── 게임 화면 강제 가로 회전 (세로 모드 터치 기기) ── */
