@@ -777,7 +777,7 @@ export const WaitingRoom = {
         this._rtInterpolateRemotePlayers();
         // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
         this.updateObstacles();
-        if(this._isHost) this.updateBall();
+        if(this._isHost) this.updateBall(); else this._rtPredictBall();
         // 채팅 버블 인플레이스 업데이트
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} if(b.timer>0) arr[w++]=b; }
@@ -1242,7 +1242,7 @@ export const WaitingRoom = {
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-10;} if(b.timer>0) arr[w++]=b; }
         arr.length=w; }
         this.resolveEntityCollisions();
-        if(this._isHost) this.updateBall();
+        if(this._isHost) this.updateBall(); else this._rtPredictBall();
         this.updateObstacles();
         this.updateEmote();
         this._spawnEffectTrail();

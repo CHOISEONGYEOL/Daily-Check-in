@@ -214,7 +214,7 @@ export const WrRealtime = {
         if (wasSpec !== rp._inSpectator && this.ballGameStarted) this._rtAssignTeams();
     },
 
-    // ── 공 상태 수신 (비호스트만) ──
+    // ── 공 상태 수신 (비호스트: 로컬 물리 예측 + 서버 보정) ──
     _rtOnRemoteBall(data) {
         if (this._isHost) return;
         if (!data) return;
@@ -226,14 +226,45 @@ export const WrRealtime = {
             if (!this.ball) {
                 this.ball = { x: data.bx, y: data.by, vx: data.bvx, vy: data.bvy, r: this.BALL_R };
             } else {
-                this.ball.x = data.bx;
-                this.ball.y = data.by;
+                // 부드러운 보정: 위치는 보간, 속도는 즉시 동기화
+                this.ball._serverX = data.bx;
+                this.ball._serverY = data.by;
                 this.ball.vx = data.bvx;
                 this.ball.vy = data.bvy;
             }
             this.ballAngle = data.angle;
             this.score = data.score;
             this.ballResetTimer = data.resetTimer;
+        }
+    },
+
+    // 비호스트 공 로컬 물리 예측 (매 프레임 호출)
+    _rtPredictBall() {
+        const b = this.ball;
+        if (!b || this._isHost || this.ballResetTimer > 0) return;
+        // 로컬 물리 시뮬레이션
+        b.vy += this.gravityReversed ? -this.BALL_GRAVITY : this.BALL_GRAVITY;
+        if (this.gravityReversed ? b.vy < -this.BALL_MAX_VY : b.vy > this.BALL_MAX_VY)
+            b.vy = this.gravityReversed ? -this.BALL_MAX_VY : this.BALL_MAX_VY;
+        b.vx *= this.BALL_FRICTION;
+        if (Math.abs(b.vx) < 0.1) b.vx = 0;
+        b.x += b.vx; b.y += b.vy;
+        this.ballAngle += b.vx * 0.03;
+        // 바닥/천장/벽 충돌
+        const gY = this.H - 30 - b.r;
+        if (!this.gravityReversed && b.y >= gY) { b.y = gY; b.vy = -b.vy * this.BALL_BOUNCE; if (Math.abs(b.vy) < 1) b.vy = 0; b.vx *= 0.97; }
+        if (this.gravityReversed && b.y <= b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * this.BALL_BOUNCE; if (Math.abs(b.vy) < 1) b.vy = 0; b.vx *= 0.97; }
+        if (!this.gravityReversed && b.y <= b.r) { b.y = b.r; b.vy = Math.abs(b.vy) * this.BALL_BOUNCE; }
+        if (this.gravityReversed && b.y >= gY) { b.y = gY; b.vy = -Math.abs(b.vy) * this.BALL_BOUNCE; }
+        if (b.x - b.r <= 0) { b.x = b.r; b.vx = Math.abs(b.vx) * this.BALL_BOUNCE; }
+        if (b.x + b.r >= this.W) { b.x = this.W - b.r; b.vx = -Math.abs(b.vx) * this.BALL_BOUNCE; }
+        // 서버 위치로 부드럽게 보정 (매 프레임 20%씩)
+        if (b._serverX !== undefined) {
+            b.x += (b._serverX - b.x) * 0.2;
+            b.y += (b._serverY - b.y) * 0.2;
+            // 충분히 가까우면 보정 해제
+            const dx = b._serverX - b.x, dy = b._serverY - b.y;
+            if (dx * dx + dy * dy < 4) { b._serverX = undefined; b._serverY = undefined; }
         }
     },
 
