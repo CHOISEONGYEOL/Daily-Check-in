@@ -765,21 +765,20 @@ export const WaitingRoom = {
         const clampedCamY = Math.max(0, Math.min(targetCamY, this.H - this.VH));
         this.camera.y += (clampedCamY - this.camera.y) * 0.15;
         // 원격 플레이어 클라이언트 예측 (매 프레임 물리 시뮬)
-        this._rtPredictRemotePlayers();
+        try { this._rtPredictRemotePlayers(); } catch(e) { console.error('predict error:', e); }
         // 테스트 NPC AI 업데이트
-        if(Player.studentId === '99999') this._updateTestNPCsAI();
-        // 플레이어 간 충돌 (로컬만 밀어내기)
-        this.resolveEntityCollisions();
-        // ★ 기믹 물리력 먼저 적용 → 기믹에 밀린 최종 위치를 전송
-        this.updateObstacles();
-        // 기믹 적용된 최종 위치 전송
+        if(Player.studentId === '99999') try { this._updateTestNPCsAI(); } catch(e) { console.error('npc error:', e); }
+        // 플레이어 간 충돌 (로컬만 밀어내기) + 기믹 물리력 적용
+        try { this.resolveEntityCollisions(); } catch(e) { console.error('collision error:', e); }
+        try { this.updateObstacles(); } catch(e) { console.error('obstacles error:', e); }
+        // ★ 기믹/충돌 적용된 최종 위치 전송 (반드시 실행)
         this._rtCheckAndSendPos();
         if(this._isHost) this._rtCheckAndSendGimmick();
         // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-45;} if(b.timer>0) arr[w++]=b; }
         arr.length=w; }
-        if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall();
+        try { if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall(); } catch(e) { console.error('ball error:', e); }
         this.updateEmote();
         this._spawnEffectTrail();
         if(this.screenShake > 0) this.screenShake *= 0.85;
