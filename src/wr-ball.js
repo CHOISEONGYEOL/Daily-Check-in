@@ -15,7 +15,6 @@ export const WrBall = {
         b.vy += this.gravityReversed ? -this.BALL_GRAVITY : this.BALL_GRAVITY;
         if(this.gravityReversed ? b.vy < -this.BALL_MAX_VY : b.vy > this.BALL_MAX_VY) b.vy = this.gravityReversed ? -this.BALL_MAX_VY : this.BALL_MAX_VY;
         b.vx *= this.BALL_FRICTION;
-        if(this.activeWind) b.vx += this.activeWind.force * this.activeWind.direction * 1.5;
         if(Math.abs(b.vx) < 0.1) b.vx = 0;
         b.x += b.vx; b.y += b.vy;
         this.ballAngle += b.vx * 0.03;

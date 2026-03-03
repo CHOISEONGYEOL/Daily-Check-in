@@ -34,14 +34,6 @@ export const WrGimmicks = {
                         e.stunTimer = Math.max(e.stunTimer||0, 40);
                     }
                 });
-                if(this.ball&&this.ballResetTimer<=0){
-                    const bx=this.ball.x, by=this.ball.y;
-                    if(bx>=p.x-20&&bx<=p.x+p.w+20&&by>=p.y-this.BALL_R&&by<=p.y+p.h+this.BALL_R){
-                        const dir = obs.spinSpeed > 0 ? 1 : -1;
-                        this.ball.vx += dir * 6 + (bx-cx)*0.2;
-                        this.ball.vy = -10 - Math.random()*5;
-                    }
-                }
                 if(obs.timer<=0){ this.obstacles.splice(i,1); }
             } else if(obs.type==='meteor'){
                 if(obs.warningTimer>0){ obs.warningTimer--; }
@@ -71,11 +63,6 @@ export const WrGimmicks = {
                                 else e.stunTimer = 40;
                             }
                         });
-                        if(this.ball&&this.ballResetTimer<=0){
-                            const dx=this.ball.x-obs.x, dy=this.ball.y-(this.H-15);
-                            const dist=Math.sqrt(dx*dx+dy*dy);
-                            if(dist<550&&dist>0){const f=(550-dist)/550*28;this.ball.vx+=(dx/dist)*f;this.ball.vy-=14;}
-                        }
                         for(let j=0;j<60;j++){
                             const angle=Math.random()*Math.PI*2;
                             const spd=2+Math.random()*10;
@@ -167,14 +154,6 @@ export const WrGimmicks = {
                         }
                     }
                 });
-                if(this.ball&&this.ballResetTimer<=0){
-                    const dx=obs.x-this.ball.x,dy=obs.y-this.ball.y;
-                    const dist=Math.sqrt(dx*dx+dy*dy);
-                    if(dist<obs.radius&&dist>0){
-                        const force=obs.strength*3*(obs.radius-dist)/obs.radius;
-                        this.ball.vx+=(dx/dist)*force;this.ball.vy+=(dy/dist)*force;
-                    }
-                }
                 if(this.frameCount%2===0){
                     const angle=Math.random()*Math.PI*2,r=80+Math.random()*obs.radius;
                     this.particles.push({x:obs.x+Math.cos(angle)*r,y:obs.y+Math.sin(angle)*r,
@@ -288,9 +267,6 @@ export const WrGimmicks = {
                             e.vx+=obs.direction*1.5;
                         }
                     });
-                    if(this.ball&&this.ballResetTimer<=0){
-                        if(Math.abs(this.ball.x-obs.x)<60){this.ball.vx+=obs.direction*12;this.ball.vy=-8;}
-                    }
                     if(this.frameCount%2===0){
                         for(let p=0;p<3;p++){
                             this.particles.push({x:obs.x+(Math.random()-.5)*30,y:this.H-Math.random()*obs.waveHeight,
@@ -366,14 +342,6 @@ export const WrGimmicks = {
                         }
                     }
                 });
-                if(this.ball&&this.ballResetTimer<=0){
-                    const dx=this.ball.x-obs.x,dy=this.ball.y-obs.y;
-                    const dist=Math.sqrt(dx*dx+dy*dy);
-                    if(dist<obs.radius&&dist>0){
-                        const repel=obs.strength*3*(obs.radius-dist)/obs.radius;
-                        this.ball.vx+=(dx/dist)*repel;this.ball.vy+=(dy/dist)*repel-2;
-                    }
-                }
                 this.screenShake=Math.max(this.screenShake,4);
                 if(Math.random()<0.7){
                     const a=Math.random()*Math.PI*2,r=50+Math.random()*250;

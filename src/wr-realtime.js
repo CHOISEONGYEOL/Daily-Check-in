@@ -168,8 +168,10 @@ export const WrRealtime = {
             P.emote !== this._rtLastEmote ||
             (P.explodeTimer > 0) !== this._rtLastExplode;
 
-        // heartbeat 안전망 (3초)
-        const heartbeat = (now - this._rtLastSendTime) >= POS_HEARTBEAT;
+        // ★ 키보드 입력 없이도 기믹/충돌로 날아가는 중이면 빠른 전송
+        const isPhysicallyMoving = Math.abs(P.vx) > 0.5 || Math.abs(P.vy) > 0.5;
+        const heartbeatLimit = isPhysicallyMoving ? 100 : POS_HEARTBEAT;
+        const heartbeat = (now - this._rtLastSendTime) >= heartbeatLimit;
 
         if (changed || heartbeat) {
             this._rtLastMoveDir = moveDir;
@@ -682,9 +684,13 @@ export const WrRealtime = {
                 else if (rp._moveDir === 1)  rp.vx = this.MOVE_SPD;
                 else                         rp.vx *= 0.7;
                 if (Math.abs(rp.vx) < 0.2) rp.vx = 0;
-                // 기본 중력만 (역전 없음)
-                rp.vy += this.GRAVITY;
-                if (rp.vy > 12) rp.vy = 12;
+                // 착지 상태면 중력 스킵 (진동 방지)
+                if (!rp.onGround) {
+                    rp.vy += this.GRAVITY;
+                    if (rp.vy > 12) rp.vy = 12;
+                } else {
+                    rp.vy = 0;
+                }
                 rp.x += rp.vx; rp.y += rp.vy;
                 this.checkPlatforms(rp);
                 this.checkSpectatorWalls(rp);

@@ -39,7 +39,7 @@ export const WaitingRoom = {
     countdownTimer:null, countdown:0,
     chatting:false,
     GRAVITY: 0.55, JUMP_FORCE: -10, MOVE_SPD: 3.5,
-    BALL_R: 45, BALL_BOUNCE: 0.65, BALL_FRICTION: 0.99, BALL_GRAVITY: 0.4, BALL_MAX_VY: 14,
+    BALL_R: 45, BALL_BOUNCE: 0.5, BALL_FRICTION: 0.985, BALL_GRAVITY: 0.7, BALL_MAX_VY: 18,
     EMOTE_DURATION: 180, EMOTE_COOLDOWN: 120,
     ball: null, score:{left:0,right:0}, ballResetTimer:0, goalFlash:0, goalFlashSide:null, ballAngle:0, goalLog:[],
     camera:{x:0, y:0},
