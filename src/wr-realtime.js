@@ -799,7 +799,11 @@ export const WrRealtime = {
         this.screenFlip = data.sf || null;
         this.sizeChange = data.sc || null;
 
-        // obstacles 재구성 (기존 파티클/시각효과용 속성은 로컬 기본값)
+        // ★ 기존 시각효과 데이터 보존용 맵 (type → 기존 obstacle)
+        const oldVFX = new Map();
+        this.obstacles.forEach(o => oldVFX.set(o.type, o));
+
+        // obstacles 재구성 — 호스트 상태 + 기존 VFX 병합
         const newObs = [];
         if (data.obs) {
             for (const s of data.obs) {
@@ -829,15 +833,18 @@ export const WrRealtime = {
                     o.originalX = o.platform.x;
                     o.originalY = o.platform.y;
                 }
-                // 시각효과용 기본값
-                if (s.type === 'windGust') o.streaks = o.streaks || [];
-                if (s.type === 'typhoon') o.spiralStreaks = o.spiralStreaks || [];
-                if (s.type === 'meteor') { o.craterTimer = o.craterTimer || 0; o.shockwaveRadius = o.shockwaveRadius || 0; }
-                if (s.type === 'earthquake') { o.debris = o.debris || []; }
+                // ★ 시각효과: 기존 로컬 데이터가 있으면 살려냄 (VFX 병합)
+                const oldObj = oldVFX.get(s.type);
+                if (s.type === 'windGust') o.streaks = oldObj ? oldObj.streaks : [];
+                if (s.type === 'typhoon') o.spiralStreaks = oldObj ? oldObj.spiralStreaks : [];
+                if (s.type === 'meteor') {
+                    o.craterTimer = oldObj ? oldObj.craterTimer : (s.impacted ? 300 : 0);
+                    o.shockwaveRadius = oldObj ? oldObj.shockwaveRadius : 0;
+                }
+                if (s.type === 'earthquake') o.debris = oldObj ? oldObj.debris : [];
                 // redLightGreenLight 상태 복원
                 if (s.type === 'redLightGreenLight' && s.rlgl) {
                     if (!this.redLightGreenLight) {
-                        // 새로 생성 — 기본 구조
                         this.redLightGreenLight = {
                             phase: s.rlgl.phase, timer: s.rlgl.timer,
                             displayedChars: s.rlgl.displayedChars,

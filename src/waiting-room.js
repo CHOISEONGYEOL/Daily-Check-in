@@ -547,10 +547,10 @@ export const WaitingRoom = {
         return false;
     },
     _gimmickTargets(){
-        // 관람석(SafeZone) 원격 플레이어는 기믹 영향 제외
-        const remotes = this._rtGetRemoteArray().filter(r => !r._inSpectator);
-        if(this.overlayActive || !this.player) return remotes;
-        return this._inSpectator ? remotes : [this.player, ...remotes];
+        // 오버레이/관람석이면 아무도 영향 안 받음
+        if(this.overlayActive || !this.player || this._inSpectator) return [];
+        // ★ 자기 자신만 반환 — 남의 물리 연산은 남이 보내준 좌표로만 처리
+        return [this.player];
     },
     _rebalanceTeams(){
         const remotes = this._rtGetRemoteArray();
@@ -632,7 +632,7 @@ export const WaitingRoom = {
     // ── 테스트 계정 NPC (로컬 AI) ──
     _spawnTestNPCs(){
         const COLORS = ['#FF6B6B','#4ECDC4','#A29BFE','#FDCB6E','#6C5CE7','#FD79A8','#00CEC9','#E17055'];
-        const count = Math.min(this.totalStudents - 1, 10);
+        const count = 10; // 테스트 계정은 항상 10개 NPC
         for(let i = 0; i < count; i++){
             const sx = this.W * 0.2 + Math.random() * this.W * 0.6;
             const sy = this.H - 47;
