@@ -422,6 +422,7 @@ export const WrTeacher = {
         this._rtPredictRemotePlayers();
         // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
         this.updateObstacles();
+        if(this._isHost) this._rtCheckAndSendGimmick();
         if(this._isHost) this.updateBall(); else this._rtPredictBall();
         // 채팅 버블 인플레이스 업데이트
         { let w=0; const arr=this.chatBubbles;

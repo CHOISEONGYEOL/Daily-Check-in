@@ -4,13 +4,18 @@
 export const WrGimmicks = {
     updateObstacles(){
         if(!this.ballGameStarted) return;
-        this.obstacleSpawnTimer++;
-        // 무궁화 활성화 중에는 다른 기믹 스폰 차단
-        if(this.obstacleSpawnTimer >= this.obstacleSpawnInterval && this.obstacles.length < this.MAX_OBSTACLES && !this.redLightGreenLight){
-            this.spawnRandomObstacle();
-            this.spawnRandomObstacle(); // 2개 동시 발동
-            this.obstacleSpawnTimer = 0;
-            this.obstacleSpawnInterval = 360 + Math.random()*300; // 6~11 sec after first
+        // 기믹 스폰은 호스트만 (공과 동일한 패턴)
+        if(this._isHost){
+            this.obstacleSpawnTimer++;
+            // 무궁화 활성화 중에는 다른 기믹 스폰 차단
+            if(this.obstacleSpawnTimer >= this.obstacleSpawnInterval && this.obstacles.length < this.MAX_OBSTACLES && !this.redLightGreenLight){
+                this.spawnRandomObstacle();
+                this.spawnRandomObstacle(); // 2개 동시 발동
+                this.obstacleSpawnTimer = 0;
+                this.obstacleSpawnInterval = 360 + Math.random()*300; // 6~11 sec after first
+                // 기믹 생성 시 즉시 브로드캐스트
+                if(this._rtBroadcastGimmick) this._rtBroadcastGimmick();
+            }
         }
         for(let i=this.obstacles.length-1;i>=0;i--){
             const obs = this.obstacles[i];
@@ -382,6 +387,14 @@ export const WrGimmicks = {
                             color:['#87CEEB','#B0C4DE','#DCDCDC'][Math.floor(Math.random()*3)],
                             size:2+Math.random()*4,life:25+Math.random()*25,maxLife:50,type:'fire'});}
                 }
+            }
+        }
+        // 호스트: 기믹 소멸 시 변화 감지 → 브로드캐스트
+        if(this._isHost && this._rtBroadcastGimmick){
+            const sig = this.obstacles.map(o=>o.type+o.timer).join(',');
+            if(sig !== this._lastGimmickSig){
+                this._lastGimmickSig = sig;
+                this._rtBroadcastGimmick();
             }
         }
     },

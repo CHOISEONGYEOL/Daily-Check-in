@@ -547,9 +547,10 @@ export const WaitingRoom = {
         return false;
     },
     _gimmickTargets(){
-        const remotes = this._rtGetRemoteArray();
-        if(this.overlayActive || !this.player) return [...remotes];
-        return this._inSpectator ? [...remotes] : [this.player,...remotes];
+        // 관람석(SafeZone) 원격 플레이어는 기믹 영향 제외
+        const remotes = this._rtGetRemoteArray().filter(r => !r._inSpectator);
+        if(this.overlayActive || !this.player) return remotes;
+        return this._inSpectator ? remotes : [this.player, ...remotes];
     },
     _rebalanceTeams(){
         const remotes = this._rtGetRemoteArray();
@@ -778,6 +779,7 @@ export const WaitingRoom = {
         this.resolveEntityCollisions();
         if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall();
         this.updateObstacles();
+        if(this._isHost) this._rtCheckAndSendGimmick();
         this.updateEmote();
         this._spawnEffectTrail();
         if(this.screenShake > 0) this.screenShake *= 0.85;

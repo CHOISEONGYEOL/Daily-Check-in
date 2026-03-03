@@ -7,7 +7,7 @@ import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 import { PerfMonitor } from './perf-monitor.js';
 
-const POS_HEARTBEAT = 3000;   // 위치 heartbeat 주기 (3초) — 안전망
+const POS_HEARTBEAT = 1000;   // 위치 heartbeat 주기 (1초) — 안전망
 const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
 
 export const WrRealtime = {
@@ -53,6 +53,7 @@ export const WrRealtime = {
         channel.on('broadcast', { event: 'emote' }, ({ payload }) => { PerfMonitor.logRecv(60); this._rtOnRemoteEmote(payload); });
         channel.on('broadcast', { event: 'goal' }, ({ payload }) => { PerfMonitor.logRecv(120); this._rtOnRemoteGoal(payload); });
         channel.on('broadcast', { event: 'shutdown' }, () => { PerfMonitor.logRecv(20); this._rtOnShutdown(); });
+        channel.on('broadcast', { event: 'gimmick' }, ({ payload }) => { PerfMonitor.logRecv(300); this._rtOnRemoteGimmick(payload); });
 
         // Presence 수신
         channel.on('presence', { event: 'sync' }, () => this._rtOnPresenceSync());
@@ -645,7 +646,35 @@ export const WrRealtime = {
     // ── 매 프레임 클라이언트 예측 (Client-Side Prediction + Lerp 보정) ──
     _rtPredictRemotePlayers() {
         for (const rp of this.remotePlayers.values()) {
-            // 1) 입력 기반 속도 적용 (로컬 플레이어와 동일한 물리)
+            // ★ 관람석(SafeZone) 플레이어: 기믹 물리 완전 차단
+            if (rp._inSpectator) {
+                // 이동/마찰만 적용
+                if (rp._moveDir === -1)      rp.vx = -this.MOVE_SPD;
+                else if (rp._moveDir === 1)  rp.vx = this.MOVE_SPD;
+                else                         rp.vx *= 0.7;
+                if (Math.abs(rp.vx) < 0.2) rp.vx = 0;
+                // 기본 중력만 (역전 없음)
+                rp.vy += this.GRAVITY;
+                if (rp.vy > 12) rp.vy = 12;
+                rp.x += rp.vx; rp.y += rp.vy;
+                this.checkPlatforms(rp);
+                this.checkSpectatorWalls(rp);
+                // Lerp 보정
+                if (rp._corrX || rp._corrY) {
+                    const f = 0.25;
+                    rp.x += rp._corrX * f; rp.y += rp._corrY * f;
+                    rp._corrX *= (1 - f); rp._corrY *= (1 - f);
+                    if (Math.abs(rp._corrX) < 0.5) rp._corrX = 0;
+                    if (Math.abs(rp._corrY) < 0.5) rp._corrY = 0;
+                }
+                if (rp._moveDir !== 0) rp.dir = rp._moveDir;
+                if (rp.emoteTimer > 0) { rp.emoteTimer--; if (rp.emoteTimer <= 0) rp.emote = null; }
+                if (rp.explodeTimer > 0) rp.explodeTimer--;
+                continue;  // 아래 일반 물리 건너뜀
+            }
+
+            // ── 일반 플레이어 물리 ──
+            // 1) 입력 기반 속도 적용
             if (rp.stunTimer > 0) {
                 rp.stunTimer--;
                 rp.vx *= 0.85;
@@ -659,7 +688,7 @@ export const WrRealtime = {
             }
 
             // 2) 중력
-            const useGravReverse = this.gravityReversed && !rp._inSpectator;
+            const useGravReverse = this.gravityReversed;
             rp.vy += useGravReverse ? -this.GRAVITY : this.GRAVITY;
             if (useGravReverse ? rp.vy < -12 : rp.vy > 12)
                 rp.vy = useGravReverse ? -12 : 12;
@@ -677,9 +706,9 @@ export const WrRealtime = {
             if (useGravReverse) { if (rp.y < -50) { rp.y = this.H; rp.vy = 0; } }
             else { if (rp.y > this.H + 50) { rp.y = 0; rp.vy = 0; } }
 
-            // 6) Lerp 오차 보정 (수신 시 설정된 오차를 프레임당 15%씩 감소)
+            // 6) Lerp 오차 보정 (프레임당 25%씩 감소)
             if (rp._corrX || rp._corrY) {
-                const f = 0.15;
+                const f = 0.25;
                 rp.x += rp._corrX * f;
                 rp.y += rp._corrY * f;
                 rp._corrX *= (1 - f);
@@ -705,5 +734,152 @@ export const WrRealtime = {
             this._rtRemoteArrayDirty = false;
         }
         return this._rtRemoteArrayCache;
+    },
+
+    // ── 기믹 브로드캐스트 (호스트 → 전체) ──
+    _rtBroadcastGimmick() {
+        if (!this._rtChannel || !this._isHost) return;
+        // obstacles 직렬화 (함수·DOM 참조 제외)
+        const obsList = this.obstacles.map(o => {
+            const s = { type: o.type, timer: o.timer };
+            if (o.x !== undefined) s.x = Math.round(o.x);
+            if (o.y !== undefined) s.y = Math.round(o.y);
+            if (o.w !== undefined) s.w = o.w;
+            if (o.h !== undefined) s.h = o.h;
+            if (o.direction !== undefined) s.direction = o.direction;
+            if (o.speed !== undefined) s.speed = o.speed;
+            if (o.force !== undefined) s.force = o.force;
+            if (o.radius !== undefined) s.radius = o.radius;
+            if (o.strength !== undefined) s.strength = Math.round(o.strength * 100) / 100;
+            if (o.angle !== undefined) s.angle = Math.round(o.angle * 100) / 100;
+            if (o.spinSpeed !== undefined) s.spinSpeed = o.spinSpeed;
+            if (o.mode !== undefined) s.mode = o.mode;
+            if (o.flipType !== undefined) s.flipType = o.flipType;
+            if (o.waveHeight !== undefined) s.waveHeight = o.waveHeight;
+            if (o.warningTimer !== undefined) s.warningTimer = o.warningTimer;
+            if (o.impacted !== undefined) s.impacted = o.impacted;
+            if (o.active !== undefined) s.active = o.active;
+            if (o.moveAngle !== undefined) s.moveAngle = Math.round(o.moveAngle * 100) / 100;
+            if (o.rumblePhase !== undefined) s.rumblePhase = Math.round(o.rumblePhase * 100) / 100;
+            // rotatingPlatform: 플랫폼 인덱스로 참조
+            if (o.type === 'rotatingPlatform' && o.platform) {
+                s.platIdx = this.platforms.indexOf(o.platform);
+            }
+            // redLightGreenLight 상태
+            if (o.type === 'redLightGreenLight' && this.redLightGreenLight) {
+                s.rlgl = {
+                    phase: this.redLightGreenLight.phase,
+                    timer: this.redLightGreenLight.timer,
+                    displayedChars: this.redLightGreenLight.displayedChars || 0,
+                };
+            }
+            return s;
+        });
+        const payload = {
+            obs: obsList,
+            wind: this.activeWind ? { d: this.activeWind.direction, f: this.activeWind.force } : null,
+            grav: this.gravityReversed ? 1 : 0,
+            rev: this.reversedControls ? 1 : 0,
+            bh: this.blackHole ? { x: Math.round(this.blackHole.x), y: Math.round(this.blackHole.y), r: this.blackHole.radius, s: Math.round(this.blackHole.strength * 100) / 100 } : null,
+            sf: this.screenFlip || null,
+            sc: this.sizeChange || null,
+        };
+        this._rtChannel.send({ type: 'broadcast', event: 'gimmick', payload });
+        PerfMonitor.logSend(300);
+    },
+
+    // ── 기믹 수신 (비호스트: 호스트 상태로 교체) ──
+    _rtOnRemoteGimmick(data) {
+        if (this._isHost || !data) return;
+        // 전역 기믹 상태 동기화
+        this.activeWind = data.wind ? { direction: data.wind.d, force: data.wind.f } : null;
+        this.gravityReversed = !!data.grav;
+        this.reversedControls = !!data.rev;
+        this.blackHole = data.bh ? { x: data.bh.x, y: data.bh.y, radius: data.bh.r, strength: data.bh.s } : null;
+        this.screenFlip = data.sf || null;
+        this.sizeChange = data.sc || null;
+
+        // obstacles 재구성 (기존 파티클/시각효과용 속성은 로컬 기본값)
+        const newObs = [];
+        if (data.obs) {
+            for (const s of data.obs) {
+                const o = { type: s.type, timer: s.timer };
+                if (s.x !== undefined) o.x = s.x;
+                if (s.y !== undefined) o.y = s.y;
+                if (s.w !== undefined) o.w = s.w;
+                if (s.h !== undefined) o.h = s.h;
+                if (s.direction !== undefined) o.direction = s.direction;
+                if (s.speed !== undefined) o.speed = s.speed;
+                if (s.force !== undefined) o.force = s.force;
+                if (s.radius !== undefined) o.radius = s.radius;
+                if (s.strength !== undefined) o.strength = s.strength;
+                if (s.angle !== undefined) o.angle = s.angle;
+                if (s.spinSpeed !== undefined) o.spinSpeed = s.spinSpeed;
+                if (s.mode !== undefined) o.mode = s.mode;
+                if (s.flipType !== undefined) o.flipType = s.flipType;
+                if (s.waveHeight !== undefined) o.waveHeight = s.waveHeight;
+                if (s.warningTimer !== undefined) o.warningTimer = s.warningTimer;
+                if (s.impacted !== undefined) o.impacted = s.impacted;
+                if (s.active !== undefined) o.active = s.active;
+                if (s.moveAngle !== undefined) o.moveAngle = s.moveAngle;
+                if (s.rumblePhase !== undefined) o.rumblePhase = s.rumblePhase;
+                // rotatingPlatform: 플랫폼 인덱스로 참조 복원
+                if (s.type === 'rotatingPlatform' && s.platIdx !== undefined && this.platforms[s.platIdx]) {
+                    o.platform = this.platforms[s.platIdx];
+                    o.originalX = o.platform.x;
+                    o.originalY = o.platform.y;
+                }
+                // 시각효과용 기본값
+                if (s.type === 'windGust') o.streaks = o.streaks || [];
+                if (s.type === 'typhoon') o.spiralStreaks = o.spiralStreaks || [];
+                if (s.type === 'meteor') { o.craterTimer = o.craterTimer || 0; o.shockwaveRadius = o.shockwaveRadius || 0; }
+                if (s.type === 'earthquake') { o.debris = o.debris || []; }
+                // redLightGreenLight 상태 복원
+                if (s.type === 'redLightGreenLight' && s.rlgl) {
+                    if (!this.redLightGreenLight) {
+                        // 새로 생성 — 기본 구조
+                        this.redLightGreenLight = {
+                            phase: s.rlgl.phase, timer: s.rlgl.timer,
+                            displayedChars: s.rlgl.displayedChars,
+                            eyeX: this.W / 2, eyeY: 120,
+                            chars: '무궁화 꽃이 피었습니다'.split(''),
+                            greenDuration: 180, redDuration: 120,
+                            charInterval: 15, caughtTimer: 0,
+                        };
+                    } else {
+                        this.redLightGreenLight.phase = s.rlgl.phase;
+                        this.redLightGreenLight.timer = s.rlgl.timer;
+                        this.redLightGreenLight.displayedChars = s.rlgl.displayedChars;
+                    }
+                }
+                newObs.push(o);
+            }
+        }
+        this.obstacles = newObs;
+
+        // ghostPlatforms 동기화: ghostPlatforms obstacle이 없으면 복원
+        if (!newObs.some(o => o.type === 'ghostPlatforms')) {
+            if (this._hiddenPlatforms) {
+                this._hiddenPlatforms.forEach(p => { delete p._ghostHidden; });
+                this._hiddenPlatforms = null;
+            }
+            this.ghostPlatforms = [];
+            this.ghostLightningVisible = false;
+        }
+        // redLightGreenLight가 없으면 해제
+        if (!newObs.some(o => o.type === 'redLightGreenLight')) {
+            this.redLightGreenLight = null;
+        }
+    },
+
+    // ── 기믹 heartbeat (호스트: 1초마다 안전망 전송) ──
+    _rtCheckAndSendGimmick() {
+        if (!this._isHost || !this._rtChannel) return;
+        const now = Date.now();
+        if (!this._rtLastGimmickSendTime) this._rtLastGimmickSendTime = 0;
+        if (now - this._rtLastGimmickSendTime >= 1000) {
+            this._rtLastGimmickSendTime = now;
+            this._rtBroadcastGimmick();
+        }
     },
 };
