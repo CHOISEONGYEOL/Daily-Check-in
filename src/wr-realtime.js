@@ -179,6 +179,31 @@ export const WrRealtime = {
             this._rtLastSendTime = now;
             this._rtBroadcastPosition();
         }
+
+        // ── 호스트(99999)가 테스트 NPC 위치도 브로드캐스트 ──
+        if (this._isHost && String(Player.studentId) === '99999' && heartbeat) {
+            for (const npc of this.remotePlayers.values()) {
+                if (!npc._isTestNPC) continue;
+                this._rtChannel.send({
+                    type: 'broadcast', event: 'pos',
+                    payload: {
+                        sid: npc.studentId,
+                        x: Math.round(npc.x), y: Math.round(npc.y),
+                        vx: Math.round(npc.vx * 10) / 10,
+                        vy: Math.round(npc.vy * 10) / 10,
+                        dir: npc.dir,
+                        moveDir: npc._moveDir || 0,
+                        onGround: npc.onGround,
+                        emote: npc.emote,
+                        stunTimer: npc.stunTimer > 0 ? npc.stunTimer : 0,
+                        explodeTimer: npc.explodeTimer > 0 ? npc.explodeTimer : 0,
+                        team: npc.team,
+                        spec: 0,
+                        isNPC: true,
+                    }
+                });
+            }
+        }
     },
 
     // ── 공 상태 변화 감지 → 전송 (호스트만, 매 프레임 updateBall() 후 호출) ──
@@ -262,7 +287,11 @@ export const WrRealtime = {
     _rtOnRemotePos(data) {
         if (!data || data.sid === String(Player.studentId)) return;
         const rp = this.remotePlayers.get(data.sid);
-        if (!rp) return;
+        if (!rp) {
+            // 호스트가 보내준 NPC인데 아직 로컬에 없으면 생성
+            if (data.isNPC) this._rtCreateTestNPCLocally(data);
+            return;
+        }
 
         // 맵 경계 텔레포트 감지
         const teleport = Math.abs(data.x - rp.x) > this.W * 0.4;
@@ -877,6 +906,43 @@ export const WrRealtime = {
         if (!newObs.some(o => o.type === 'redLightGreenLight')) {
             this.redLightGreenLight = null;
         }
+    },
+
+    // ── 비호스트에서 테스트 NPC 로컬 생성 (호스트 브로드캐스트 수신 시) ──
+    _rtCreateTestNPCLocally(data) {
+        const COLORS = ['#FF6B6B','#4ECDC4','#A29BFE','#FDCB6E','#6C5CE7','#FD79A8','#00CEC9','#E17055'];
+        // npc_0 → 0, npc_3 → 3
+        const idx = parseInt(data.sid.replace('npc_', ''), 10) || 0;
+        const color = COLORS[idx % COLORS.length];
+        const size = 64;
+        // blob 스프라이트 생성
+        const c = document.createElement('canvas'); c.width = size; c.height = size;
+        const cx = c.getContext('2d'), r = size * 0.38;
+        cx.fillStyle = color;
+        cx.beginPath(); cx.ellipse(size/2, size*0.55, r, r*0.9, 0, 0, Math.PI*2); cx.fill();
+        cx.fillStyle = '#fff';
+        cx.beginPath(); cx.arc(size*0.38, size*0.48, size*0.08, 0, Math.PI*2); cx.fill();
+        cx.beginPath(); cx.arc(size*0.62, size*0.48, size*0.08, 0, Math.PI*2); cx.fill();
+        cx.fillStyle = '#2D3436';
+        cx.beginPath(); cx.arc(size*0.40, size*0.49, size*0.04, 0, Math.PI*2); cx.fill();
+        cx.beginPath(); cx.arc(size*0.64, size*0.49, size*0.04, 0, Math.PI*2); cx.fill();
+
+        const npc = {
+            studentId: data.sid,
+            x: data.x, y: data.y, vx: data.vx || 0, vy: data.vy || 0,
+            w: 26, h: 30,
+            dir: data.dir || 1, onGround: data.onGround !== false,
+            jumpCount: 0, maxJumps: 2,
+            emote: null, emoteTimer: 0,
+            stunTimer: data.stunTimer || 0, explodeTimer: data.explodeTimer || 0,
+            team: data.team || (idx % 2 === 0 ? 'left' : 'right'),
+            sprite: c, hat: null, effect: null, pet: null,
+            displayName: `NPC ${idx + 1}`, activeTitle: '',
+            _moveDir: data.moveDir || 0, _corrX: 0, _corrY: 0,
+            _isTestNPC: true,
+        };
+        this.remotePlayers.set(npc.studentId, npc);
+        this._rtRemoteArrayDirty = true;
     },
 
     // ── 기믹 heartbeat (호스트: 1초마다 안전망 전송) ──
