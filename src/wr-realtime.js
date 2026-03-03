@@ -312,17 +312,23 @@ export const WrRealtime = {
             return;
         }
 
-        // 맵 경계 텔레포트 감지
-        const teleport = Math.abs(data.x - rp.x) > this.W * 0.4;
+        // 텔레포트 감지: 맵 경계 래핑(X축) 또는 엘리베이터 순간이동(Y축) 또는 관전자 상태 변경
+        const wasSpec = rp._inSpectator;
+        const nowSpec = !!data.spec;
+        const specChanged = wasSpec !== nowSpec;
+        const teleport = Math.abs(data.x - rp.x) > this.W * 0.4
+                      || Math.abs(data.y - rp.y) > this.H * 0.3
+                      || specChanged;
 
         if (teleport) {
-            // 즉시 스냅 (맵 래핑 등)
+            // 즉시 스냅 (맵 래핑, 엘리베이터 순간이동, 관전자 전환)
             rp.x = data.x;
             rp.y = data.y;
             rp._corrX = 0;
             rp._corrY = 0;
+            rp._teleportFrames = 3; // 3프레임간 물리 예측 스킵, 서버 위치 신뢰
         } else {
-            // 오차를 보정 잔량에 설정 → 매 프레임 15%씩 감소
+            // 오차를 보정 잔량에 설정 → 매 프레임 25%씩 감소
             rp._corrX = data.x - rp.x;
             rp._corrY = data.y - rp.y;
         }
@@ -348,10 +354,9 @@ export const WrRealtime = {
         rp.stunTimer = data.stunTimer;
         rp.explodeTimer = data.explodeTimer;
         rp.team = data.team;
-        const wasSpec = rp._inSpectator;
-        rp._inSpectator = !!data.spec;
+        rp._inSpectator = nowSpec;
         // 관람석 진입/퇴장 시 팀 재배정
-        if (wasSpec !== rp._inSpectator && this.ballGameStarted) this._rtAssignTeams();
+        if (specChanged && this.ballGameStarted) this._rtAssignTeams();
     },
 
     // ── 공 상태 수신 (비호스트: 로컬 물리 예측 + 서버 보정) ──
@@ -705,6 +710,21 @@ export const WrRealtime = {
     // ── 매 프레임 클라이언트 예측 (Client-Side Prediction + Lerp 보정) ──
     _rtPredictRemotePlayers() {
         for (const rp of this.remotePlayers.values()) {
+            // ★ 텔레포트 직후: 물리 예측 스킵, 서버 위치 신뢰 (엘리베이터 잔상 방지)
+            if (rp._teleportFrames > 0) {
+                rp._teleportFrames--;
+                if (rp._corrX || rp._corrY) {
+                    const f = 0.25;
+                    rp.x += rp._corrX * f; rp.y += rp._corrY * f;
+                    rp._corrX *= (1 - f); rp._corrY *= (1 - f);
+                    if (Math.abs(rp._corrX) < 0.5) rp._corrX = 0;
+                    if (Math.abs(rp._corrY) < 0.5) rp._corrY = 0;
+                }
+                if (rp._moveDir !== 0) rp.dir = rp._moveDir;
+                if (rp.emoteTimer > 0) { rp.emoteTimer--; if (rp.emoteTimer <= 0) rp.emote = null; }
+                if (rp.explodeTimer > 0) rp.explodeTimer--;
+                continue; // 중력, checkPlatforms 등 물리 전부 스킵
+            }
             // ★ 관람석(SafeZone) 플레이어: 기믹 물리 완전 차단
             if (rp._inSpectator) {
                 const _dbgBefore = _specDebug ? { y: rp.y, vy: rp.vy, onGround: rp.onGround, corrY: rp._corrY } : null;
