@@ -10,6 +10,23 @@ import { PerfMonitor } from './perf-monitor.js';
 const POS_HEARTBEAT = 1000;   // 위치 heartbeat 주기 (1초) — 안전망
 const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
 
+// ── 관람석 바운스 디버그 (F9 토글) ──
+let _specDebug = false;
+let _specDebugLog = [];       // 최근 로그 (화면 오버레이용)
+const SPEC_DEBUG_MAX = 30;    // 오버레이 표시 줄 수
+window._toggleSpecDebug = () => {
+    _specDebug = !_specDebug;
+    console.log(`%c[SpecDebug] ${_specDebug ? 'ON — 관람석 디버그 활성화' : 'OFF'}`, 'color:#FFD700;font-size:14px;font-weight:bold');
+    if (_specDebug) {
+        console.log('%c  F9로 토글 | 관람석 플레이어 상태 추적 중...', 'color:#aaa');
+        _specDebugLog = [];
+    }
+};
+window.addEventListener('keydown', e => { if (e.key === 'F9') { e.preventDefault(); window._toggleSpecDebug(); } });
+// 외부 접근용
+window._specDebugLog = _specDebugLog;
+window._isSpecDebugOn = () => _specDebug;
+
 export const WrRealtime = {
     remotePlayers: null,   // Map<studentId, RemotePlayerEntity>
     _rtChannel: null,
@@ -308,6 +325,17 @@ export const WrRealtime = {
             // 오차를 보정 잔량에 설정 → 매 프레임 15%씩 감소
             rp._corrX = data.x - rp.x;
             rp._corrY = data.y - rp.y;
+        }
+
+        // ── [SpecDebug] 네트워크 수신 추적 ──
+        if (_specDebug && (!!data.spec || rp._inSpectator)) {
+            const corrY = (data.y - rp.y).toFixed(1);
+            const corrX = (data.x - rp.x).toFixed(1);
+            console.log(`%c[SpecDebug] NET_RECV [${data.sid}] ` +
+                `server(x:${data.x},y:${data.y},vy:${data.vy},gnd:${data.onGround}) ` +
+                `local(x:${rp.x.toFixed(0)},y:${rp.y.toFixed(1)},vy:${rp.vy.toFixed(2)},gnd:${rp.onGround}) ` +
+                `corr(${corrX},${corrY}) spec:${data.spec}`,
+                'color:#4FC3F7');
         }
 
         // 상태 동기화
@@ -679,6 +707,7 @@ export const WrRealtime = {
         for (const rp of this.remotePlayers.values()) {
             // ★ 관람석(SafeZone) 플레이어: 기믹 물리 완전 차단
             if (rp._inSpectator) {
+                const _dbgBefore = _specDebug ? { y: rp.y, vy: rp.vy, onGround: rp.onGround, corrY: rp._corrY } : null;
                 // 이동/마찰만 적용
                 if (rp._moveDir === -1)      rp.vx = -this.MOVE_SPD;
                 else if (rp._moveDir === 1)  rp.vx = this.MOVE_SPD;
@@ -692,8 +721,38 @@ export const WrRealtime = {
                     rp.vy = 0;
                 }
                 rp.x += rp.vx; rp.y += rp.vy;
+                const _dbgBeforePlat = _specDebug ? { y: rp.y, vy: rp.vy } : null;
                 this.checkPlatforms(rp);
                 this.checkSpectatorWalls(rp);
+                // ── [SpecDebug] checkPlatforms 결과 추적 ──
+                if (_specDebug && _dbgBefore) {
+                    const landed = rp.onGround;
+                    const platFailed = !landed && _dbgBefore.onGround;
+                    const fell = !_dbgBefore.onGround && !landed;
+                    const yDrift = Math.abs(rp.y - _dbgBefore.y);
+                    // 상태 변화 또는 주기적 로그 (60프레임마다)
+                    if (platFailed || fell || yDrift > 0.3 || (this.frameCount % 60 === 0)) {
+                        const msg = `[${rp.studentId}] grav=${this.gravityReversed?'REV':'NOR'} ` +
+                            `onGnd:${_dbgBefore.onGround}→${rp.onGround} ` +
+                            `vy:${_dbgBefore.vy.toFixed(2)}→${rp.vy.toFixed(2)} ` +
+                            `y:${_dbgBefore.y.toFixed(1)}→${rp.y.toFixed(1)} ` +
+                            `corrY:${(rp._corrY||0).toFixed(1)} ` +
+                            `platY:${_dbgBeforePlat.y.toFixed(1)}→${rp.y.toFixed(1)}`;
+                        if (platFailed) {
+                            console.warn(`%c[SpecDebug] PLAT_FAIL ${msg}`, 'color:#FF6B6B;font-weight:bold');
+                        } else if (fell) {
+                            console.log(`%c[SpecDebug] FALLING ${msg}`, 'color:#FFA500');
+                        } else if (yDrift > 0.3) {
+                            console.log(`%c[SpecDebug] Y_DRIFT ${msg}`, 'color:#87CEEB');
+                        } else {
+                            console.log(`%c[SpecDebug] STATUS ${msg}`, 'color:#888');
+                        }
+                        _specDebugLog.push(msg);
+                        if (_specDebugLog.length > SPEC_DEBUG_MAX) _specDebugLog.shift();
+                    }
+                    // rp에 디버그 상태 저장 (렌더링 오버레이용)
+                    rp._dbg = { onGround: rp.onGround, vy: rp.vy, corrY: rp._corrY || 0, gravRev: this.gravityReversed };
+                }
                 // Lerp 보정
                 if (rp._corrX || rp._corrY) {
                     const f = 0.25;

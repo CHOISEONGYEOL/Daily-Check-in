@@ -468,7 +468,9 @@ export const WaitingRoom = {
         const basePlats = this._hiddenPlatforms ? this.platforms.filter(p=>!p._ghostHidden) : this.platforms;
         const allPlats = this.ghostPlatforms.length > 0 ? [...basePlats, ...this.ghostPlatforms] : basePlats;
         // 관람석 플레이어는 중력 역전 무시 (정상 충돌 사용)
-        const useReversed = this.gravityReversed && !(e === this.player && this._inSpectator);
+        // ★ 로컬 + 리모트 관람석 플레이어 모두 면제 (리모트는 e._inSpectator로 판별)
+        const isSpectator = (e === this.player) ? this._inSpectator : !!e._inSpectator;
+        const useReversed = this.gravityReversed && !isSpectator;
         if(useReversed){
             for(const p of allPlats){
                 if(e.vy <= 0 && e.x+e.w/2 > p.x && e.x-e.w/2 < p.x+p.w && e.y <= p.y+p.h && e.y >= p.y+p.h+e.vy-2){

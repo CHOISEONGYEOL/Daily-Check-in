@@ -853,6 +853,44 @@ export const WrRender = {
         }
         // FPS overlay
         if(PerfMonitor.enabled) PerfMonitor.renderOverlay(ctx);
+        // ── [SpecDebug] 관람석 플레이어 시각 오버레이 (F9 토글) ──
+        if(window._isSpecDebugOn && window._isSpecDebugOn()){
+            ctx.save();
+            // 1) 관람석 리모트 플레이어에 상태 표시
+            const rArr = this._rtGetRemoteArray();
+            for(let i=0;i<rArr.length;i++){
+                const r=rArr[i];
+                if(!r._inSpectator || !r._dbg) continue;
+                const sx=r.x-camX, sy=r.y-camY;
+                if(sx<-40||sx>VW+40||sy<-40||sy>VH+40) continue;
+                const d=r._dbg;
+                // onGround 상태에 따라 색상
+                ctx.fillStyle = d.onGround ? 'rgba(0,255,0,0.7)' : 'rgba(255,0,0,0.7)';
+                ctx.beginPath(); ctx.arc(sx, sy - 26, 4, 0, Math.PI*2); ctx.fill();
+                // 텍스트 배경
+                ctx.fillStyle='rgba(0,0,0,0.75)';
+                ctx.fillRect(sx-50, sy-58, 100, 28);
+                // 상태 텍스트
+                ctx.fillStyle='#fff'; ctx.font='bold 9px monospace'; ctx.textAlign='center';
+                ctx.fillText(`gnd:${d.onGround?'Y':'N'} vy:${d.vy.toFixed(1)} corr:${d.corrY.toFixed(1)}`, sx, sy-47);
+                ctx.fillText(`grav:${d.gravRev?'REV':'NOR'}`, sx, sy-38);
+            }
+            // 2) 좌상단 디버그 로그 패널
+            const logs = window._specDebugLog || [];
+            if(logs.length > 0){
+                const lh = 13, pad = 6;
+                const ph = Math.min(logs.length, 15) * lh + pad*2;
+                ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(4, 60, 420, ph);
+                ctx.fillStyle='#FFD700'; ctx.font='bold 10px monospace'; ctx.textAlign='left';
+                ctx.fillText('[SpecDebug] F9 OFF | 관람석 바운스 추적', 8, 60+pad+10);
+                ctx.fillStyle='#ccc'; ctx.font='9px monospace';
+                const start = Math.max(0, logs.length - 14);
+                for(let li=start; li<logs.length; li++){
+                    ctx.fillText(logs[li].substring(0,60), 8, 60+pad+10+lh*(li-start+1));
+                }
+            }
+            ctx.restore();
+        }
     },
 
 };
