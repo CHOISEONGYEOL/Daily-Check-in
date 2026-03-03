@@ -2,6 +2,7 @@
 import { Player } from './player.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
+import { PerfMonitor } from './perf-monitor.js';
 
 // Forward reference — set by main.js via waiting-room.js re-export
 let Game = null;
@@ -53,6 +54,7 @@ export const WrTeacher = {
             }
             this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
             this.godMode = true;
+            PerfMonitor.enabled = true;
             this.chatBubbles = []; this.particles = []; this._elevatorCooldown = 0; this._inSpectator = false;
             this.cvs = document.getElementById('waiting-canvas');
             this.ctx = this.cvs.getContext('2d');
@@ -154,7 +156,7 @@ export const WrTeacher = {
                 if(!this.running) return;
                 if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
                 this._lastFrameTime = ts;
-                try { this.updateGodMode(); this.render(); } catch(e) { console.error('WR god loop error:', e); }
+                try { PerfMonitor.startFrame(); this.updateGodMode(); PerfMonitor.endUpdate(); this.render(); PerfMonitor.endFrame(); } catch(e) { PerfMonitor.logError(e.message); console.error('WR god loop error:', e); }
                 this.animRef = requestAnimationFrame(loop);
             };
             this.animRef=requestAnimationFrame(loop);

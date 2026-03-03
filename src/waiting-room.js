@@ -442,25 +442,23 @@ export const WaitingRoom = {
     },
 
     resolveEntityCollisions(){
+        if(!this.player || this.player.explodeTimer > 0 || this.overlayActive) return;
+        const P = this.player;
         const remotes = this._rtGetRemoteArray();
-        const all = (this.player.explodeTimer > 0 || this.overlayActive) ? [...remotes] : [this.player, ...remotes];
-        const len = all.length;
-        for(let i=0;i<len;i++){
-            for(let j=i+1;j<len;j++){
-                const a=all[i], b=all[j];
-                const aL=a.x-a.w/2, aR=a.x+a.w/2, aT=a.y, aB=a.y+a.h;
-                const bL=b.x-b.w/2, bR=b.x+b.w/2, bT=b.y, bB=b.y+b.h;
-                if(aR<=bL||aL>=bR||aB<=bT||aT>=bB) continue;
-                const overlapX = Math.min(aR-bL, bR-aL);
-                const overlapY = Math.min(aB-bT, bB-aT);
-                if(overlapY < overlapX){
-                    if(aB - bT < bB - aT){ if(a.vy >= 0){a.y = bT - a.h;a.vy = 0;a.onGround = true;a.jumpCount = 0;} }
-                    else { if(b.vy >= 0){b.y = aT - b.h;b.vy = 0;b.onGround = true;b.jumpCount = 0;} }
-                } else {
-                    const half = overlapX / 2;
-                    if(a.x < b.x){a.x -= half; b.x += half;} else {a.x += half; b.x -= half;}
-                    a.vx = 0; b.vx = 0;
-                }
+        // ★ 로컬 플레이어(P)와 원격 플레이어(R)의 충돌만 계산. R은 벽 취급(위치 불변).
+        for(const R of remotes){
+            if(R._inSpectator) continue;
+            const pL=P.x-P.w/2,pR=P.x+P.w/2,pT=P.y,pB=P.y+P.h;
+            const rL=R.x-R.w/2,rR=R.x+R.w/2,rT=R.y,rB=R.y+R.h;
+            if(pR<=rL||pL>=rR||pB<=rT||pT>=rB) continue;
+            const overlapX=Math.min(pR-rL,rR-pL);
+            const overlapY=Math.min(pB-rT,rB-pT);
+            if(overlapY<overlapX){
+                if(pB-rT<rB-pT){ if(P.vy>=0){P.y=rT-P.h;P.vy=0;P.onGround=true;P.jumpCount=0;} }
+                else { if(P.vy<0){P.y=rB;P.vy=0;} }
+            } else {
+                if(P.x<R.x) P.x-=overlapX; else P.x+=overlapX;
+                P.vx=0;
             }
         }
     },
@@ -770,16 +768,18 @@ export const WaitingRoom = {
         this._rtPredictRemotePlayers();
         // 테스트 NPC AI 업데이트
         if(Player.studentId === '99999') this._updateTestNPCsAI();
-        // 상태 변화 시 위치 전송 (Event-Driven)
+        // 플레이어 간 충돌 (로컬만 밀어내기)
+        this.resolveEntityCollisions();
+        // ★ 기믹 물리력 먼저 적용 → 기믹에 밀린 최종 위치를 전송
+        this.updateObstacles();
+        // 기믹 적용된 최종 위치 전송
         this._rtCheckAndSendPos();
+        if(this._isHost) this._rtCheckAndSendGimmick();
         // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-45;} if(b.timer>0) arr[w++]=b; }
         arr.length=w; }
-        this.resolveEntityCollisions();
         if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall();
-        this.updateObstacles();
-        if(this._isHost) this._rtCheckAndSendGimmick();
         this.updateEmote();
         this._spawnEffectTrail();
         if(this.screenShake > 0) this.screenShake *= 0.85;

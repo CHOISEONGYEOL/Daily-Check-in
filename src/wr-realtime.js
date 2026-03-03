@@ -834,9 +834,12 @@ export const WrRealtime = {
         this.screenFlip = data.sf || null;
         this.sizeChange = data.sc || null;
 
-        // ★ 기존 시각효과 데이터 보존용 맵 (type → 기존 obstacle)
-        const oldVFX = new Map();
-        this.obstacles.forEach(o => oldVFX.set(o.type, o));
+        // ★ 기존 시각효과 데이터 보존용 (type → 배열, 같은 타입 여러 개 지원)
+        const oldVFXByType = {};
+        this.obstacles.forEach(o => {
+            if (!oldVFXByType[o.type]) oldVFXByType[o.type] = [];
+            oldVFXByType[o.type].push(o);
+        });
 
         // obstacles 재구성 — 호스트 상태 + 기존 VFX 병합
         const newObs = [];
@@ -868,8 +871,8 @@ export const WrRealtime = {
                     o.originalX = o.platform.x;
                     o.originalY = o.platform.y;
                 }
-                // ★ 시각효과: 기존 로컬 데이터가 있으면 살려냄 (VFX 병합)
-                const oldObj = oldVFX.get(s.type);
+                // ★ 시각효과: 기존 로컬 데이터가 있으면 살려냄 (VFX 병합, 같은 타입 순서대로 매칭)
+                const oldObj = oldVFXByType[s.type]?.shift() || null;
                 if (s.type === 'windGust') o.streaks = oldObj ? oldObj.streaks : [];
                 if (s.type === 'typhoon') o.spiralStreaks = oldObj ? oldObj.spiralStreaks : [];
                 if (s.type === 'meteor') {
