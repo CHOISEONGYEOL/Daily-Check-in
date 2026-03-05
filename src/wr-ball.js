@@ -210,6 +210,7 @@ export const WrBall = {
     },
 
     spawnBallFirstTime(){
+        if (this.battleMode) return; // 배틀 모드 중 공 스폰 차단
         this.ballGameStarted = true;
         this.ball = {x:this.W/2, y:this.H/2, vx:0, vy:0, r:this.BALL_R};
         this.ballLastContactFrame = this.frameCount;

@@ -702,6 +702,17 @@ export const WrRealtime = {
     _rtOnPresenceLeave(key) {
         console.log('[RT] leave:', key);
         if (String(key) === String(Player.studentId)) return;
+        // 배틀 모드: 퇴장 플레이어의 투사체 제거
+        if (this.battleMode && this._battleProjectiles) {
+            const leaveSid = String(key);
+            for (let i = this._battleProjectiles.length - 1; i >= 0; i--) {
+                if (this._battleProjectiles[i].ownerSid === leaveSid) {
+                    this._battleProjectiles[i].active = false;
+                    this._battleProjectiles.splice(i, 1);
+                }
+            }
+        }
+
         this.remotePlayers.delete(String(key));
         this._rtRemoteArrayDirty = true;
         this._rtElectHost();

@@ -150,7 +150,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleUpdate() {
-        if (!this.battleMode) return;
+        if (!this.battleMode || !this.player) return;
 
         // Cooldowns
         if (this._battleBulletCD > 0) this._battleBulletCD--;
@@ -202,7 +202,7 @@ export const WrBattle = {
 
     _battleShoot() {
         if (!this.battleMode || this._battleIsDead || this.overlayActive) return;
-        if (this._inSpectator) return;
+        if (this._inSpectator || !this.player) return;
 
         if (this._battleWeapon === 'bullet') {
             if (this._battleBulletCD > 0) return;
