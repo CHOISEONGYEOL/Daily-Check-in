@@ -655,8 +655,12 @@ export const WrRender = {
                 ctx.fillStyle='#FFD700';
                 ctx.fillText(e.displayName,e.x,e.y-20);
             }
+            // Battle mode: HP bar above name
+            if(this.battleMode && !(e.isDead || (e._isPlayer && this._battleIsDead))){
+                this._battleRenderHP(ctx, e, e.x, e.y - 38, !!e._isPlayer);
+            }
             // Team indicator
-            if(this.ballGameStarted){
+            if(this.ballGameStarted || this.battleMode){
                 const eTeam = e._isPlayer ? this.player.team : e.team;
                 if(eTeam){
                     ctx.fillStyle = eTeam === 'left' ? 'rgba(78,205,196,0.7)' : 'rgba(255,107,107,0.7)';
@@ -697,6 +701,12 @@ export const WrRender = {
         }
         // Particles
         this._renderParticles(ctx);
+        // Battle: projectiles, pickups, battle particles (world space)
+        if(this.battleMode){
+            this._battleRenderProjectiles(ctx, camX, camY);
+            this._battleRenderPickups(ctx, camX, camY);
+            this._battleRenderParticles(ctx, camX, camY);
+        }
         // Chat bubbles
         this.chatBubbles.forEach(b=>{
             if(b.x < camX - 100 || b.x > camX + VW + 100) return;
@@ -937,6 +947,10 @@ export const WrRender = {
             ctx.fillStyle='rgba(255,215,0,.6)';
             ctx.font='bold 10px "Segoe UI",sans-serif';ctx.textAlign='center';
             ctx.fillText(label, px, py);
+        }
+        // Battle mode HUD
+        if(this.battleMode){
+            this._battleRenderHUD(ctx, VW, VH);
         }
         // Minimap
         this._renderMinimap(ctx);

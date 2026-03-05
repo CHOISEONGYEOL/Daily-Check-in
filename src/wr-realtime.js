@@ -77,6 +77,9 @@ export const WrRealtime = {
         channel.on('broadcast', { event: 'goal' }, ({ payload }) => { PerfMonitor.logRecv(120); this._rtOnRemoteGoal(payload); });
         channel.on('broadcast', { event: 'shutdown' }, () => { PerfMonitor.logRecv(20); this._rtOnShutdown(); });
         channel.on('broadcast', { event: 'gimmick' }, ({ payload }) => { PerfMonitor.logRecv(300); this._rtOnRemoteGimmick(payload); });
+        // ★ 배틀 모드 이벤트
+        channel.on('broadcast', { event: 'shoot' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnRemoteShoot(payload); });
+        channel.on('broadcast', { event: 'hit' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnRemoteHit(payload); });
         // ★ 게임 런치 동기화 (투표 후 공통 채널로 합류)
         channel.on('broadcast', { event: 'game_launch' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnGameLaunch(payload); });
         // ★ 게임 중 위치 동기화 (게임 모드에서만 활성)
@@ -1057,7 +1060,31 @@ export const WrRealtime = {
 
     // ── 기믹 수신 (비호스트: 호스트 상태로 교체) ──
     _rtOnRemoteGimmick(data) {
-        if (this._isHost || !data) return;
+        if (!data) return;
+        // ★ 배틀 모드 전환 수신
+        if (data.battleMode !== undefined) {
+            if (data.battleMode && !this.battleMode) this._battleStart();
+            else if (!data.battleMode && this.battleMode) this._battleStop();
+            return;
+        }
+        // ★ 폭탄 픽업 이벤트
+        if (data.pickupTaken && this._battlePickups) {
+            for (const pk of this._battlePickups) {
+                if (Math.abs(pk.x - data.pickupTaken.x) < 5 && Math.abs(pk.y - data.pickupTaken.y) < 5) {
+                    pk.active = false; pk.respawnTimer = 600; break;
+                }
+            }
+            return;
+        }
+        if (data.pickupRespawn && this._battlePickups) {
+            for (const pk of this._battlePickups) {
+                if (Math.abs(pk.x - data.pickupRespawn.x) < 5 && Math.abs(pk.y - data.pickupRespawn.y) < 5) {
+                    pk.active = true; break;
+                }
+            }
+            return;
+        }
+        if (this._isHost) return;
         // 전역 기믹 상태 동기화
         this.activeWind = data.wind ? { direction: data.wind.d, force: data.wind.f } : null;
         this.gravityReversed = !!data.grav;

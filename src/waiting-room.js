@@ -9,6 +9,7 @@ import { WrParticles } from './wr-particles.js';
 import { WrEmote } from './wr-emote.js';
 import { WrRealtime } from './wr-realtime.js';
 import { WrTeacher, setGame } from './wr-teacher.js';
+import { WrBattle } from './wr-battle.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
 import { isClean } from './chat-filter.js';
@@ -275,6 +276,11 @@ export const WaitingRoom = {
             if(e.key==='1') this.triggerEmote('flat');
             if(e.key==='2') this.triggerEmote('inflate');
             if(e.key==='3') this.triggerEmote('explode');
+            // Battle mode controls
+            if(this.battleMode){
+                if(e.key===' '||e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
+                if(e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
+            }
         };
         this._onkeyup = e => { this.keys[e.key]=false; };
         window.addEventListener('keydown', this._onkeydown);
@@ -295,6 +301,7 @@ export const WaitingRoom = {
                 if(k==='left'){this.keys['ArrowLeft']=true;this.keys['_mobileLeft']=true;}
                 if(k==='right'){this.keys['ArrowRight']=true;this.keys['_mobileRight']=true;}
                 if(k==='jump'){this.keys['_mobileJump']=true;this.playerJump();}
+                if(k==='attack'){if(this.battleMode) this._battleShoot();}
                 if(k==='down'){
                     this.keys['ArrowDown']=true;this.keys['_mobileDown']=true;
                     if(this.reversedControls && !this._inSpectator) this.playerJump();
@@ -361,6 +368,7 @@ export const WaitingRoom = {
         clearInterval(this.countdownTimer);
         if(this._onkeydown) { window.removeEventListener('keydown',this._onkeydown); window.removeEventListener('keyup',this._onkeyup); }
         if(this._onresize) window.removeEventListener('resize', this._onresize);
+        if(this.battleMode) this._battleStop();
         this.obstacles = []; this.gimmickDeck = []; this.petTrail = [];
         this.activeWind = null; this.reversedControls = false; this.screenFlip = null;
         this.blackout = false; this.gravityReversed = false; this.sizeChange = null;
@@ -786,6 +794,8 @@ export const WaitingRoom = {
         try { if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall(); } catch(e) { console.error('ball error:', e); }
         this.updateEmote();
         this._spawnEffectTrail();
+        // Battle mode update
+        if(this.battleMode) { this._battleUpdate(); this._battleCheckPickup(); }
         if(this.screenShake > 0) this.screenShake *= 0.85;
         if(this.screenShake < 0.5) this.screenShake = 0;
         // particles 인플레이스 업데이트 (새 배열 생성 안 함)
@@ -793,7 +803,19 @@ export const WaitingRoom = {
         for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
         arr.length=w; }
     },
+
+    toggleBattleMode(){
+        if(this.battleMode){
+            this._battleStop();
+            this.spawnBallFirstTime();
+        } else {
+            this._battleStart();
+        }
+        // Update UI
+        const btn = document.getElementById('wr-mode-toggle');
+        if(btn) btn.textContent = this.battleMode ? 'BATTLE' : 'SOCCER';
+    },
 };
 
 // ── Mixin: merge ball, gimmick, render, and realtime methods into WaitingRoom ──
-Object.assign(WaitingRoom, WrBall, WrGimmicks, WrRender, WrParticles, WrEmote, WrRealtime, WrTeacher);
+Object.assign(WaitingRoom, WrBall, WrGimmicks, WrRender, WrParticles, WrEmote, WrRealtime, WrTeacher, WrBattle);
