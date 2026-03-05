@@ -575,10 +575,23 @@ export const WrTeacher = {
                 if(Player.className && Player.studentId !== '99999') {
                     DB.setGamePhase(Player.className, 'playing').catch(()=>{});
                 }
-                // ★ 공통 게임 채널로 전환 (WR 채널 → game:{class}_{mode})
-                this.rtSwitchToGameChannel();
-                this.stop(true); // 실시간 채널 유지 (게임 중 동기화용)
-                Game.enterFromWaitingRoom(this.selectedGameId || 'picopark');
+                // ★ 공통 게임 채널로 전환 (게임 채널 ready 대기 후 진입)
+                const tryEnter = (retries) => {
+                    this.rtSwitchToGameChannel();
+                    if(this._rtChannel === this._gameChannel || !this._gameChannel){
+                        // 전환 성공 또는 이미 전환됨
+                        this.stop(true);
+                        Game.enterFromWaitingRoom(this.selectedGameId || 'picopark');
+                    } else if(retries > 0){
+                        setTimeout(() => tryEnter(retries - 1), 500);
+                    } else {
+                        // 최대 재시도 초과 → WR 채널로라도 진입
+                        console.warn('[RT] game channel failed, entering with WR channel');
+                        this.stop(true);
+                        Game.enterFromWaitingRoom(this.selectedGameId || 'picopark');
+                    }
+                };
+                tryEnter(6); // 최대 3초 대기 (500ms × 6)
             }
         },1000);
     },

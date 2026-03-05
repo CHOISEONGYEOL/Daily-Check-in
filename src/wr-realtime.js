@@ -297,7 +297,6 @@ export const WrRealtime = {
                 emote: p.emote,
                 stunTimer: p.stunTimer > 0 ? p.stunTimer : 0,
                 explodeTimer: p.explodeTimer > 0 ? p.explodeTimer : 0,
-                team: p.team,
                 spec: this._inSpectator ? 1 : 0,
             }
         });
@@ -497,7 +496,7 @@ export const WrRealtime = {
         rp.emote = data.emote;
         rp.stunTimer = data.stunTimer;
         rp.explodeTimer = data.explodeTimer;
-        rp.team = data.team;
+        // 팀은 로컬에서 _rtAssignTeams()로만 결정 (브로드캐스트로 덮어쓰지 않음)
         rp._inSpectator = nowSpec;
         // 관람석 진입/퇴장 시 팀 재배정
         if (specChanged && this.ballGameStarted) this._rtAssignTeams();

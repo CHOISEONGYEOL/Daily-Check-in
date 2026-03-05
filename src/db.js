@@ -380,6 +380,16 @@ export const DB = {
         return data?.is_open === true;
     },
 
+    async getWrMode(className) {
+        const sessionId = className ? 'class_' + className : 'main';
+        const { data } = await supabase
+            .from('game_sessions')
+            .select('wr_mode')
+            .eq('id', sessionId)
+            .single();
+        return data?.wr_mode || 'soccer';
+    },
+
     // ── 접속 로그 기록 ───────────────────────────
     async recordLogin(studentId, studentName) {
         if (!this.userId) return;

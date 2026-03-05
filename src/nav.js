@@ -17,7 +17,11 @@ const TEST_ACCOUNT = '99999';
 const TEACHER_ACCOUNT = '77777';
 
 // ── 터치 기기 감지 → CSS 강제 가로 회전 활성화 ──
-if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+// 크롬북은 터치스크린이 있지만 키보드도 있으므로 모바일 컨트롤 불필요
+const _isCrOS = /CrOS/.test(navigator.userAgent);
+const _hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const _smallScreen = window.innerWidth < 1024 && window.innerHeight < 768;
+if (_hasTouch && !_isCrOS && _smallScreen) {
     document.body.classList.add('touch-device');
 }
 

@@ -167,7 +167,8 @@ export const Teacher = {
                 game_started: false,
                 phase: 'waiting',
                 vote_data: null,
-                selected_game: null
+                selected_game: null,
+                wr_mode: document.getElementById('teacher-wr-mode')?.value || 'soccer'
             } : {
                 closed_at: new Date().toISOString(),
                 game_started: false,

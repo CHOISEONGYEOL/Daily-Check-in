@@ -138,10 +138,10 @@ export const WaitingRoom = {
             {x:1200, y:20, w:120, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
             {x:1500, y:40, w:140, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
             {x:1750, y:18, w:130, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
-            // ── 관람석: 3구간 (구멍 2개로 내려갈 수 있음) ──
-            {x:0,        y:250, w:W*0.3,      h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
+            // ── 관람석: 3구간 (구멍 2개로 내려갈 수 있음, 양쪽 골대 40px 확보) ──
+            {x:40,       y:250, w:W*0.3-40,   h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
             {x:W*0.37,   y:250, w:W*0.26,     h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
-            {x:W*0.7,    y:250, w:W*0.3,      h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
+            {x:W*0.7,    y:250, w:W*0.3-40,   h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
         ];
         const goalTop = H-15-120; // 골대 꼭대기 y (765)
         // 골대 히트박스: 터널링 방지를 위해 시각적 크기보다 y축으로 넉넉하게 설정
@@ -172,9 +172,9 @@ export const WaitingRoom = {
         ];
         // 관람석 박스 (완전 밀폐 사각형 — 침투 감지 + 강제 밀어내기)
         this.spectatorBoxes = [
-            {x:0,       y:250-120, w:W*0.3,  h:120+14},   // 왼쪽 (y=130~264)
-            {x:W*0.37,  y:250-120, w:W*0.26, h:120+14},   // 가운데
-            {x:W*0.7,   y:250-120, w:W*0.3,  h:120+14},   // 오른쪽
+            {x:40,      y:250-120, w:W*0.3-40,  h:120+14},   // 왼쪽 (골대 40px 확보)
+            {x:W*0.37,  y:250-120, w:W*0.26,    h:120+14},   // 가운데
+            {x:W*0.7,   y:250-120, w:W*0.3-40,  h:120+14},   // 오른쪽 (골대 40px 확보)
         ];
         this.decorations=[
             {type:'tree', x:60, y:H-15},{type:'tree', x:350, y:H-15},{type:'lamp', x:250, y:H-15},{type:'sign', x:180, y:H-30, text:'대기실'},
@@ -247,6 +247,10 @@ export const WaitingRoom = {
         this.npcs = [];
         this.remotePlayers = new Map();
         this.rtInit();
+        // DB에서 대기실 모드 로드 (교사가 설정한 모드)
+        DB.getWrMode(Player.className).then(mode => {
+            if(mode === 'battle' && !this.battleMode) this._battleStart();
+        }).catch(()=>{});
         // 테스트 계정: 로컬 NPC 생성 (테스트용)
         if(Player.studentId === '99999') this._spawnTestNPCs();
         this.keys = {};
@@ -805,15 +809,13 @@ export const WaitingRoom = {
     },
 
     toggleBattleMode(){
+        if(Player.studentId !== '77777') return; // 교사만 전환 가능
         if(this.battleMode){
             this._battleStop();
             this.spawnBallFirstTime();
         } else {
             this._battleStart();
         }
-        // Update UI
-        const btn = document.getElementById('wr-mode-toggle');
-        if(btn) btn.textContent = this.battleMode ? 'BATTLE' : 'SOCCER';
     },
 };
 
