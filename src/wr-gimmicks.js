@@ -383,7 +383,7 @@ export const WrGimmicks = {
     _shuffleDeck(){
         const allTypes = [
             'rotatingPlatform','meteor','bouncyZone','windGust',
-            'frogCurse','gravityReverse',
+            'frogCurse','gravityReverse','screenFlip','sizeChange',
             'blackHole','ghostPlatforms','redLightGreenLight',
             'tsunami','earthquake','typhoon',
         ];
@@ -504,6 +504,7 @@ export const WrGimmicks = {
             this.obstacles.push({type:'ghostPlatforms',timer:600,lightningInterval:180});
             this.chatBubbles.push({x:this.W/2,y:this.H/2,text:'👻 발판이 사라졌다!',timer:150,follow:null});
         } else if(type==='redLightGreenLight'){
+            if(!this.player) return;
             const eyeX = this.W/2, eyeY = this.H/2 - 40;
             const chars = ['무','궁','화','꽃','이','피','었','습','니','다'];
             const charInterval = 18; // 글자당 18프레임 (약 0.3초)

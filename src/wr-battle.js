@@ -557,10 +557,12 @@ export const WrBattle = {
             timer: KILLFEED_DURATION
         });
 
-        this.chatBubbles.push({
-            x: target.x, y: target.y - 45,
-            text: 'KILL!', timer: 60, follow: null
-        });
+        if (this.chatBubbles) {
+            this.chatBubbles.push({
+                x: target.x, y: target.y - 45,
+                text: 'KILL!', timer: 60, follow: null
+            });
+        }
     },
 
     // ═══════════════════════════════════════
@@ -600,10 +602,12 @@ export const WrBattle = {
                 pk.active = false;
                 pk.respawnTimer = BOMB_PICKUP_RESPAWN;
                 this._battleBombCount = Math.min(this._battleBombCount + 1, MAX_BOMBS);
-                this.chatBubbles.push({
-                    x: P.x, y: P.y - 45,
-                    text: 'BOMB +1', timer: 60, follow: P
-                });
+                if (this.chatBubbles) {
+                    this.chatBubbles.push({
+                        x: P.x, y: P.y - 45,
+                        text: 'BOMB +1', timer: 60, follow: P
+                    });
+                }
                 // Broadcast pickup taken
                 if (this._rtChannel) {
                     this._rtChannel.send({
@@ -683,6 +687,8 @@ export const WrBattle = {
         if (data.isDeath) {
             const rp = this.remotePlayers ? this.remotePlayers.get(String(data.targetSid)) : null;
             if (rp) {
+                // 이미 로컬 예측으로 사망 처리된 경우 중복 방지
+                if (rp.isDead) return;
                 rp.isDead = true;
                 rp._respawnTimer = RESPAWN_TIME;
                 rp.deaths = (rp.deaths || 0) + 1;

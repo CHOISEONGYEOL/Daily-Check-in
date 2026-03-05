@@ -454,7 +454,7 @@ export const WrRealtime = {
         if (!this._rtChannel || !this._isHost) return;
         this._rtChannel.send({
             type: 'broadcast', event: 'goal',
-            payload: { sid: String(Player.studentId), side, scorers, hasOG, score }
+            payload: { sid: String(Player.studentId), side, scorers, hasOG, score, touchers: (this._ballTouchers || []).map(t => ({ name: t.name, team: t.team })) }
         });
         PerfMonitor.logSend(120);
     },
@@ -635,10 +635,11 @@ export const WrRealtime = {
             });
         }
 
-        // 플레이어 보상/패널티 (비호스트도 로컬에서 판정)
+        // 플레이어 보상/패널티 (호스트의 터치 목록 기반으로 판정)
         const playerName = Player.nickname || '나';
         const scoringTeam = data.side === 'left' ? 'right' : 'left';
-        const playerTouch = (this._ballTouchers || []).find(t => t.name === playerName);
+        const touchers = data.touchers || this._ballTouchers || [];
+        const playerTouch = touchers.find(t => t.name === playerName);
         if (playerTouch && playerTouch.team === scoringTeam && this.player) {
             Player.addCoins(this.GOAL_REWARD, 'goal');
             this.chatBubbles.push({ x: this.player.x, y: this.player.y - 55, text: `🪙 +${this.GOAL_REWARD}`, timer: 90, follow: this.player });
