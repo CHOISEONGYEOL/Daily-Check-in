@@ -670,6 +670,7 @@ export const WrRealtime = {
     _rtOnPresenceSync() {
         if (!this._rtChannel || !this.remotePlayers) return;
         const state = this._rtChannel.presenceState();
+        if (!state) return;
         const presentIds = new Set();
 
         for (const [key, presences] of Object.entries(state)) {
@@ -833,6 +834,7 @@ export const WrRealtime = {
     _rtElectHost() {
         if (!this._rtChannel) return;
         const state = this._rtChannel.presenceState();
+        if (!state) return;
         const studentIds = [];
 
         for (const [key, presences] of Object.entries(state)) {
@@ -1211,13 +1213,15 @@ export const WrRealtime = {
                 // redLightGreenLight 상태 복원
                 if (s.type === 'redLightGreenLight' && s.rlgl) {
                     if (!this.redLightGreenLight) {
+                        const chars = ['무','궁','화','꽃','이','피','었','습','니','다'];
+                        const charInterval = 18;
                         this.redLightGreenLight = {
                             phase: s.rlgl.phase, timer: s.rlgl.timer,
                             displayedChars: s.rlgl.displayedChars,
-                            eyeX: this.W / 2, eyeY: 120,
-                            chars: '무궁화 꽃이 피었습니다'.split(''),
-                            greenDuration: 180, redDuration: 120,
-                            charInterval: 15, caughtTimer: 0,
+                            eyeX: this.W / 2, eyeY: this.H / 2 - 40,
+                            chars, charInterval,
+                            greenDuration: chars.length * charInterval,
+                            redDuration: 180, caughtTimer: 0,
                         };
                     } else {
                         this.redLightGreenLight.phase = s.rlgl.phase;

@@ -1,6 +1,6 @@
 # 대기실 축구 게임 & 대전 게임 종합 감사 보고서
 
-**작성일**: 2026-03-05 (초판) / 2026-03-06 (2차 감사, 3차 수정)
+**작성일**: 2026-03-05 (초판) / 2026-03-06 (2차 감사, 3~4차 수정)
 **감사 범위**: 대기실(Waiting Room) 축구 게임, 대전(배틀) 게임, 공통 인프라
 **감사 파일**: `wr-ball.js`, `wr-battle.js`, `wr-render.js`, `wr-realtime.js`, `wr-particles.js`, `wr-gimmicks.js`, `wr-emote.js`, `wr-teacher.js`, `waiting-room.js`, `game-physics.js`, `game-mechanics.js`, `game-ai.js`, `game-keyboard.js`, `game-render.js`, `game-stages.js`, `game-spectator.js`, `game.js`
 
@@ -11,11 +11,11 @@
 | 심각도 | 축구 게임 | 대전 게임 | 공통/인프라 | 합계 | 수정됨 |
 |--------|:---------:|:---------:|:-----------:|:----:|:------:|
 | **Critical** | 3 | 4 | 2 | **9** | **9** |
-| **High** | 4 | 5 | 1 | **10** | **3** |
-| **Medium** | 6 | 6 | 5 | **17** | 0 |
+| **High** | 4 | 5 | 1 | **10** | **5** |
+| **Medium** | 6 | 6 | 5 | **17** | **5** |
 | **Low** | 4 | 5 | 4 | **13** | 0 |
 | **Info** | 3 | 5 | 3 | **11** | - |
-| **합계** | **20** | **25** | **15** | **60** | **12** |
+| **합계** | **20** | **25** | **15** | **60** | **19** |
 
 ---
 
@@ -93,11 +93,11 @@
 - **영향**: 호스트 전환 직후 공이 이상한 위치로 순간이동
 - **수정**: 호스트 전환 시 `ball._serverX = undefined; ball._serverY = undefined;` 초기화
 
-### [SC-H3] 축구: `_ballTouchers` 필터 60프레임(1초)으로 너무 짧음
+### [SC-H3] 축구: `_ballTouchers` 필터 60프레임(1초)으로 너무 짧음 -- ✅ 수정됨
 - **파일**: `wr-ball.js:141`
 - **문제**: 공을 1초 이상 전에 터치한 플레이어는 기록에서 제거됨. 롱슛으로 1초 이상 걸려 골이 되면 '???' 표시
-- **영향**: 먼 거리 슛 시 골 기록과 보상 부정확
-- **수정**: 필터 시간을 180프레임(3초) 이상으로 확대
+- **수정 내용**: 필터 시간을 60→180프레임(3초)으로 확대
+- **커밋**: 4차 수정
 
 ### [SC-H4] 축구: `screenFlip`/`sizeChange` 기믹이 덱에 없어 절대 스폰 안 됨 -- ✅ 수정됨
 - **파일**: `wr-gimmicks.js:384-389`
@@ -105,11 +105,11 @@
 - **수정 내용**: `allTypes`에 `'screenFlip'`, `'sizeChange'` 추가
 - **커밋**: 3차 수정
 
-### [BT-H1] 대전: 폭탄 자폭 시 `_rtBroadcastHit` 미전송
-- **파일**: `wr-battle.js:427-432`
-- **문제**: `_battleExplodeBomb()`에서 `target._isSelf` 경우 `_battleTakeDamage()`만 호출하고 네트워크 히트를 브로드캐스트하지 않음
-- **영향**: 다른 플레이어 화면에서 폭탄 발사자의 HP 감소가 보이지 않음 (사망 동기화는 됨)
-- **수정**: 자폭 데미지도 hit 이벤트로 브로드캐스트
+### [BT-H1] 대전: 폭탄 자폭 시 `_rtBroadcastHit` 미전송 -- ✅ 수정됨
+- **파일**: `wr-battle.js:429-436`
+- **문제**: `_battleExplodeBomb()`에서 자폭 시 `_battleTakeDamage()`만 호출하고 네트워크 히트를 브로드캐스트하지 않음
+- **수정 내용**: 자폭 데미지도 `_rtBroadcastHit()` 호출 추가
+- **커밋**: 4차 수정
 
 ### [BT-H2] 대전: 로컬 예측 킬과 원격 사망 이벤트 이중 처리 -- ✅ 수정됨
 - **파일**: `wr-battle.js:683-691`
@@ -151,23 +151,23 @@
 - **영향**: 진행률 바가 처음에 100%를 넘어서 표시
 - **수정**: `obs.timer/600`으로 수정하거나 `obs.maxTimer` 저장
 
-### [SC-M2] 축구: 비호스트 무궁화 `chars` 문자열 공백 포함 불일치
-- **파일**: `wr-realtime.js:1201` vs `wr-gimmicks.js:508`
-- **문제**: 호스트는 `['무','궁','화','꽃','이','피','었','습','니','다']` (10자), 비호스트는 `'무궁화 꽃이 피었습니다'.split('')` (공백 포함 11자)
-- **영향**: 비호스트 무궁화 글자 표시 타이밍 불일치
-- **수정**: 비호스트에서도 동일한 배열 사용
+### [SC-M2] 축구: 비호스트 무궁화 `chars` 문자열 공백 포함 불일치 -- ✅ 수정됨
+- **파일**: `wr-realtime.js:1218`
+- **문제**: 호스트는 10자 배열, 비호스트는 공백 포함 11자 `split('')`
+- **수정 내용**: 비호스트에서도 동일한 `['무','궁','화','꽃','이','피','었','습','니','다']` 배열 사용
+- **커밋**: 4차 수정
 
-### [SC-M3] 축구: 비호스트 무궁화 `charInterval` 불일치 (18 vs 15)
-- **파일**: `wr-realtime.js:1202-1203` vs `wr-gimmicks.js:509`
+### [SC-M3] 축구: 비호스트 무궁화 `charInterval` 불일치 (18 vs 15) -- ✅ 수정됨
+- **파일**: `wr-realtime.js:1220`
 - **문제**: 호스트 `charInterval: 18`, 비호스트 `charInterval: 15`
-- **영향**: 비호스트 텍스트 표시 속도가 다름
-- **수정**: 비호스트도 `charInterval: 18`로 통일
+- **수정 내용**: 비호스트도 `charInterval: 18`로 통일, `greenDuration`도 `chars.length * charInterval`로 계산
+- **커밋**: 4차 수정
 
-### [SC-M4] 축구: 비호스트 무궁화 `eyeY` 값 불일치 (H/2-40 vs 120)
-- **파일**: `wr-realtime.js:1200` vs `wr-gimmicks.js:507`
-- **문제**: 호스트 `eyeY: this.H/2 - 40 = 410`, 비호스트 `eyeY: 120`. 눈 위치가 완전히 다름
-- **영향**: 비호스트에서 무궁화 눈이 완전히 다른 위치에 표시
-- **수정**: `eyeY: this.H/2 - 40`으로 통일
+### [SC-M4] 축구: 비호스트 무궁화 `eyeY` 값 불일치 (H/2-40 vs 120) -- ✅ 수정됨
+- **파일**: `wr-realtime.js:1217`
+- **문제**: 호스트 `eyeY: this.H/2 - 40`, 비호스트 `eyeY: 120`
+- **수정 내용**: `eyeY: this.H / 2 - 40`으로 통일
+- **커밋**: 4차 수정
 
 ### [SC-M5] 축구: 중력 역전 시 바운시존 체크 누락
 - **파일**: `wr-ball.js:30`
@@ -235,17 +235,17 @@
 - **영향**: 게임 외부 keydown 리스너 무시
 - **수정**: `addEventListener/removeEventListener` 패턴 전환
 
-### [CM-M4] 공통: 스테이지 전환 setTimeout에서 `this.npcs` null 체크 누락 (신규)
+### [CM-M4] 공통: 스테이지 전환 setTimeout에서 `this.npcs` null 체크 누락 -- ✅ 수정됨
 - **파일**: `game.js:642, 657`
-- **문제**: `this.npcs.forEach(n=>{...})`를 null 체크 없이 호출. `npcs`가 undefined면 크래시
-- **영향**: 멀티플레이어 모드에서 NPC 없이 스테이지 전환 시 크래시 가능
-- **수정**: `(this.npcs || []).forEach(...)` 패턴 사용
+- **문제**: `this.npcs.forEach(n=>{...})`를 null 체크 없이 호출
+- **수정 내용**: `(this.npcs || []).forEach(...)` 패턴 적용 (2곳)
+- **커밋**: 4차 수정
 
-### [CM-M5] 공통: `presenceState()` 반환값 null 체크 누락 (신규)
-- **파일**: `wr-realtime.js:671, 834`
-- **문제**: `this._rtChannel.presenceState()` 결과를 바로 `Object.entries()`에 전달. 채널 연결 끊김 시 null 반환 가능
-- **영향**: 네트워크 불안정 시 presence 동기화 크래시
-- **수정**: `const state = this._rtChannel?.presenceState(); if(!state) return;`
+### [CM-M5] 공통: `presenceState()` 반환값 null 체크 누락 -- ✅ 수정됨
+- **파일**: `wr-realtime.js:672, 836`
+- **문제**: `presenceState()` 결과를 바로 `Object.entries()`에 전달. 채널 끊김 시 null 가능
+- **수정 내용**: `if (!state) return;` 가드 추가 (2곳: `_rtOnPresenceSync`, `_rtElectHost`)
+- **커밋**: 4차 수정
 
 ---
 
@@ -349,6 +349,16 @@
 
 ## 수정 이력
 
+### 2026-03-06 (4차 수정)
+7개 추가 이슈 수정 (High 2 + Medium 5):
+- **[SC-H3]** `_ballTouchers` 필터 60→180프레임 확대 (`wr-ball.js`)
+- **[BT-H1]** 폭탄 자폭 시 `_rtBroadcastHit` 추가 (`wr-battle.js`)
+- **[SC-M2]** 비호스트 무궁화 chars 배열 통일 (`wr-realtime.js`)
+- **[SC-M3]** 비호스트 무궁화 charInterval 18로 통일 (`wr-realtime.js`)
+- **[SC-M4]** 비호스트 무궁화 eyeY를 H/2-40으로 통일 (`wr-realtime.js`)
+- **[CM-M4]** `npcs.forEach` → `(this.npcs || []).forEach` (`game.js`)
+- **[CM-M5]** `presenceState()` null 체크 추가 (`wr-realtime.js`)
+
 ### 2026-03-06 (3차 수정)
 5개 추가 이슈 수정:
 - **[SC-C3]** `redLightGreenLight` 스폰 시 player null 체크 (`wr-gimmicks.js`)
@@ -375,12 +385,12 @@
 - ~~[SC-C3] redLightGreenLight 스폰 시 player null 체크~~
 - ~~[BT-C4] _battleOnKill/_battleCheckPickup chatBubbles null 체크~~
 
-### 빠른 시일 내 수정 (게임 품질)
-1. **[SC-H3]** `_ballTouchers` 필터 시간 확대 (60→180프레임)
-2. **[SC-M2~M4]** 비호스트 무궁화 상수 통일 (chars, charInterval, eyeY)
-3. **[CM-M4]** `npcs.forEach` null 체크 추가
-4. **[CM-M5]** `presenceState()` null 체크 추가
-5. **[BT-H1]** 폭탄 자폭 시 `_rtBroadcastHit` 전송
+### ~~빠른 시일 내 수정 (게임 품질)~~ ✅ 전부 수정 완료
+- ~~[SC-H3] _ballTouchers 필터 시간 확대~~
+- ~~[SC-M2~M4] 비호스트 무궁화 상수 통일~~
+- ~~[CM-M4] npcs.forEach null 체크 추가~~
+- ~~[CM-M5] presenceState() null 체크 추가~~
+- ~~[BT-H1] 폭탄 자폭 시 _rtBroadcastHit 전송~~
 
 ### 여유 있을 때 수정 (개선)
 6. 나머지 High/Medium 이슈들

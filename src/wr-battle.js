@@ -428,10 +428,10 @@ export const WrBattle = {
 
             if (target._isSelf) {
                 const selfDmg = Math.round(bomb.damage * falloff * 0.5);
-                this._battleTakeDamage(selfDmg,
-                    dist > 1 ? (dx / dist) * falloff * 6 : 0,
-                    dist > 1 ? (dy / dist) * falloff * 6 - 3 : -4,
-                    bomb.ownerSid);
+                const skx = dist > 1 ? (dx / dist) * falloff * 6 : 0;
+                const sky = dist > 1 ? (dy / dist) * falloff * 6 - 3 : -4;
+                this._rtBroadcastHit(String(Player.studentId), selfDmg, skx, sky);
+                this._battleTakeDamage(selfDmg, skx, sky, bomb.ownerSid);
             } else {
                 const damage = Math.round(bomb.damage * falloff);
                 if (damage <= 0) continue;

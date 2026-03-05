@@ -137,8 +137,8 @@ export const WrBall = {
                 }
             }
         }
-        // Clean old toucher records (60 frames = ~1 second)
-        this._ballTouchers = this._ballTouchers.filter(t=>this.frameCount - t.frame < 60);
+        // Clean old toucher records (180 frames = ~3 seconds)
+        this._ballTouchers = this._ballTouchers.filter(t=>this.frameCount - t.frame < 180);
     },
 
     GOAL_REWARD: 3,    // 골당 코인 보상

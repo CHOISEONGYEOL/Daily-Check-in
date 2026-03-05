@@ -639,7 +639,7 @@ export const Game = {
                         this.player.x = sd.spawnX; this.player.y = sd.spawnY;
                         this.player.vx=0; this.player.vy=0;
                         this.player.dead=false; this.player.atDoor=false; this.player.enteredDoor=false;
-                        this.npcs.forEach(n=>{
+                        (this.npcs || []).forEach(n=>{
                             n.x = sd.spawnX + (Math.random()*200-100);
                             n.y = sd.spawnY - Math.random()*20;
                             n.vx=0; n.vy=0;
@@ -654,7 +654,7 @@ export const Game = {
                         this.player.y = sd.spawnY;
                         this.player.vx=0; this.player.vy=0;
                         this.player.dead = false; this.player.atDoor = false; this.player.enteredDoor = false;
-                        this.npcs.forEach(n=>{
+                        (this.npcs || []).forEach(n=>{
                             n.x = sd.spawnX + (Math.random()*200-100);
                             n.y = sd.spawnY - Math.random()*20;
                             n.vx=0; n.vy=0;
