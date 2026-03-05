@@ -22,7 +22,8 @@ export const Teacher = {
     // ── 실시간 접속 상태 (Supabase Presence) ──
     _rtChannels: new Map(),      // className → Supabase channel (대기실 wr: 채널)
     _appChannels: new Map(),     // className → Supabase channel (앱 전체 app: 채널)
-    _realtimeOnline: new Set(),  // 현재 접속 중인 studentId Set
+    _realtimeOnline: new Set(),  // 앱 접속 중인 studentId Set (로비 포함)
+    _wrOnline: new Set(),        // 대기실(출석게임) 접속 중인 studentId Set
 
     async init() {
         await Promise.all([this.loadStudents(), this.loadGameState(), this._loadTodayAttendance()]);
@@ -284,6 +285,10 @@ export const Teacher = {
             }
         }
 
+        // 게임 모드 선택 잠금 (열린 반이 있으면 변경 불가)
+        const wrModeSelect = document.getElementById('teacher-wr-mode');
+        if (wrModeSelect) wrModeSelect.disabled = this._openClasses.length > 0;
+
         // 출석부 + 대기실 입장 버튼
         const rosterCheck = document.getElementById('teacher-roster-check');
         const enterBtn = document.getElementById('teacher-enter-wr');
@@ -340,24 +345,24 @@ export const Teacher = {
             supabase.removeChannel(entry.channel);
         }
         this._rtChannels.delete(className);
-        // 해당 반 학생 오프라인 처리
+        // 해당 반 학생 대기실 오프라인 처리
         const classStudentIds = new Set(this.students.filter(s => s.className === className).map(s => s.studentId));
-        for (const sid of classStudentIds) this._realtimeOnline.delete(sid);
+        for (const sid of classStudentIds) this._wrOnline.delete(sid);
     },
 
     _rtUnsubscribeAll() {
         for (const [cls] of this._rtChannels) {
             this._rtUnsubscribe(cls);
         }
-        this._realtimeOnline.clear();
+        this._wrOnline.clear();
     },
 
-    // Presence 상태 읽기 → _realtimeOnline 갱신 + UI 업데이트
+    // Presence 상태 읽기 → _wrOnline 갱신 + UI 업데이트 (대기실 접속자)
     _rtSyncFromChannel(className, channel) {
         const state = channel.presenceState();
         // 이 반에서 이전에 온라인이었던 학생 제거
         const classStudentIds = new Set(this.students.filter(s => s.className === className).map(s => s.studentId));
-        for (const sid of classStudentIds) this._realtimeOnline.delete(sid);
+        for (const sid of classStudentIds) this._wrOnline.delete(sid);
 
         // 현재 접속자 추가
         for (const [key, presences] of Object.entries(state)) {
@@ -365,7 +370,7 @@ export const Teacher = {
             const p = presences[0];
             if (p.isTeacher) continue;
             const sid = String(p.studentId);
-            if (sid) this._realtimeOnline.add(sid);
+            if (sid) this._wrOnline.add(sid);
         }
 
         // UI 즉시 갱신
@@ -407,7 +412,7 @@ export const Teacher = {
 
     _appSyncFromChannel(className, channel) {
         const state = channel.presenceState();
-        // 이 반 학생을 _realtimeOnline에서 제거 후 현재 접속자 다시 추가
+        // 이 반 학생을 _realtimeOnline에서 제거 후 현재 접속자 다시 추가 (앱 접속 상태)
         const classStudentIds = new Set(
             this.students.filter(s => (s.className || '') === (className || '')).map(s => s.studentId)
         );
@@ -420,7 +425,6 @@ export const Teacher = {
             if (sid) this._realtimeOnline.add(sid);
         }
         this.render();
-        if (this._openClasses.length > 0) this.renderRosterCheck();
     },
 
     // ── 교사 대기실 입장 (전지전능 관전 모드) ──
