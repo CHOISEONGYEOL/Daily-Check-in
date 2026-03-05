@@ -593,11 +593,29 @@ export const CrosswordGame = {
         if(this.victoryTimer > 0){
             this.victoryTimer--;
             // 파티클 업데이트
-            this.particles = this.particles.filter(p => {
-                p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--;
-                return p.life > 0;
-            });
-            this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; return b.timer > 0; });
+            {
+                let w = 0;
+                const arr = this.particles;
+                for(let i = 0; i < arr.length; i++){
+                    const p = arr[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.1;
+                    p.life--;
+                    if(p.life > 0) arr[w++] = p;
+                }
+                arr.length = w;
+            }
+            {
+                let w = 0;
+                const arr = this.chatBubbles;
+                for(let i = 0; i < arr.length; i++){
+                    const b = arr[i];
+                    b.timer--;
+                    if(b.timer > 0) arr[w++] = b;
+                }
+                arr.length = w;
+            }
             if(this.victoryTimer <= 0){
                 this.running = false;
                 this.showVictoryReward();
@@ -621,13 +639,31 @@ export const CrosswordGame = {
         if(this.cwCorrectFlash > 0) this.cwCorrectFlash--;
 
         // 파티클
-        this.particles = this.particles.filter(p => {
-            p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--;
-            return p.life > 0;
-        });
+        {
+            let w = 0;
+            const arr = this.particles;
+            for(let i = 0; i < arr.length; i++){
+                const p = arr[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1;
+                p.life--;
+                if(p.life > 0) arr[w++] = p;
+            }
+            arr.length = w;
+        }
 
         // 채팅 버블
-        this.chatBubbles = this.chatBubbles.filter(b => { b.timer--; return b.timer > 0; });
+        {
+            let w = 0;
+            const arr = this.chatBubbles;
+            for(let i = 0; i < arr.length; i++){
+                const b = arr[i];
+                b.timer--;
+                if(b.timer > 0) arr[w++] = b;
+            }
+            arr.length = w;
+        }
 
         // 멀티플레이어 진행상황 브로드캐스트
         this._cwBroadcastProgress();

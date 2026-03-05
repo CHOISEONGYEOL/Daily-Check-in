@@ -9,6 +9,7 @@ import { PerfMonitor } from './perf-monitor.js';
 import { Vote } from './vote.js';
 
 const POS_HEARTBEAT = 1000;   // 위치 heartbeat 주기 (1초) — 안전망
+const POS_MIN_INTERVAL = 100;
 const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
 
 // ── 관람석 바운스 디버그 (F9 토글) ──
@@ -43,6 +44,8 @@ export const WrRealtime = {
     _rtLastOnGround: true,     // 마지막 전송한 onGround
     _rtLastEmote: null,        // 마지막 전송한 emote
     _rtLastExplode: false,     // 마지막 전송한 explode 상태
+    _rtLastSentX: 0,
+    _rtLastSentY: 0,
     _rtCurrentMoveDir: 0,      // 현재 프레임 이동 방향
     _rtLastBallSendTime: 0,    // 마지막 공 전송 시각
     _rtLastBallVxSign: 0,      // 마지막 전송한 공 vx 부호
@@ -53,6 +56,9 @@ export const WrRealtime = {
         if (this._rtChannel) this.rtDestroy();
         this.remotePlayers = new Map();
         this._rtStatus = 'connecting';
+        this._rtLastSendTime = 0;
+        this._rtLastSentX = 0;
+        this._rtLastSentY = 0;
         // ★ 게임 런치 동기화 상태 초기화
         this._gameLaunchReceived = false;
         this._gameChannelId = null;
@@ -300,6 +306,8 @@ export const WrRealtime = {
                 spec: this._inSpectator ? 1 : 0,
             }
         });
+        this._rtLastSentX = x;
+        this._rtLastSentY = y;
         PerfMonitor.logSend(150);
     },
 
@@ -328,10 +336,16 @@ export const WrRealtime = {
             P.emote !== this._rtLastEmote ||
             (P.explodeTimer > 0) !== this._rtLastExplode;
 
+        const movedFar = Math.abs(P.x - this._rtLastSentX) >= 12 || Math.abs(P.y - this._rtLastSentY) >= 12;
+        const elapsed = now - this._rtLastSendTime;
+        const burstMinInterval = 33;
+        const minInterval = (changed || movedFar) ? burstMinInterval : POS_MIN_INTERVAL;
+        if (elapsed < minInterval) return;
+
         // ★ 키보드 입력 없이도 기믹/충돌로 날아가는 중이면 빠른 전송
         const isPhysicallyMoving = Math.abs(P.vx) > 0.5 || Math.abs(P.vy) > 0.5;
         const heartbeatLimit = isPhysicallyMoving ? 100 : POS_HEARTBEAT;
-        const heartbeat = (now - this._rtLastSendTime) >= heartbeatLimit;
+        const heartbeat = elapsed >= heartbeatLimit;
 
         if (changed || heartbeat) {
             this._rtLastMoveDir = moveDir;

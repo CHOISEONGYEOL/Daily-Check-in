@@ -456,8 +456,29 @@ export const Game = {
         // Victory celebration phase (keep rendering particles/chat)
         if(this.victoryTimer > 0){
             this.victoryTimer--;
-            this.particles = this.particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=(p.type==='fire'?0.03:0.05);p.life--;return p.life>0;});
-            this.chatBubbles = this.chatBubbles.filter(b=>{b.timer--;return b.timer>0;});
+            {
+                let w = 0;
+                const arr = this.particles;
+                for(let i = 0; i < arr.length; i++){
+                    const p = arr[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += (p.type === 'fire' ? 0.03 : 0.05);
+                    p.life--;
+                    if(p.life > 0) arr[w++] = p;
+                }
+                arr.length = w;
+            }
+            {
+                let w = 0;
+                const arr = this.chatBubbles;
+                for(let i = 0; i < arr.length; i++){
+                    const b = arr[i];
+                    b.timer--;
+                    if(b.timer > 0) arr[w++] = b;
+                }
+                arr.length = w;
+            }
             if(this.victoryTimer <= 0){
                 this.running = false;
                 this.showVictoryReward();
@@ -494,8 +515,33 @@ export const Game = {
         // Effect trail on player
         this._spawnEffectTrail();
         // Particles & chat
-        this.particles = this.particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=(p.type==='fire'?0.03:0.1);p.life--;return p.life>0;});
-        this.chatBubbles = this.chatBubbles.filter(b=>{b.timer--;if(b.follow){b.x=b.follow.x;b.y=b.follow.y-20;}return b.timer>0;});
+        {
+            let w = 0;
+            const arr = this.particles;
+            for(let i = 0; i < arr.length; i++){
+                const p = arr[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += (p.type === 'fire' ? 0.03 : 0.1);
+                p.life--;
+                if(p.life > 0) arr[w++] = p;
+            }
+            arr.length = w;
+        }
+        {
+            let w = 0;
+            const arr = this.chatBubbles;
+            for(let i = 0; i < arr.length; i++){
+                const b = arr[i];
+                b.timer--;
+                if(b.follow){
+                    b.x = b.follow.x;
+                    b.y = b.follow.y - 20;
+                }
+                if(b.timer > 0) arr[w++] = b;
+            }
+            arr.length = w;
+        }
         // Check win
         this.checkStageComplete();
         // HUD progress
