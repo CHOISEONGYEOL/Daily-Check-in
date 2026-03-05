@@ -143,6 +143,20 @@ export const WrBattle = {
         this._projPool = null;
         this._bParticlePool = null;
         this._battlePickups = null;
+        this._battleKillFeed = [];
+        this._battleIsDead = false;
+        this._battleHP = 0;
+        this._battleBulletCD = 0;
+        this._battleBombCount = 0;
+        this._battleInvincible = 0;
+        this._battleRespawnTimer = 0;
+        // 원격 플레이어 배틀 상태 초기화
+        if (this.remotePlayers) {
+            for (const rp of this.remotePlayers.values()) {
+                rp.hp = undefined; rp.isDead = false;
+                rp.kills = 0; rp.deaths = 0; rp.invincible = 0;
+            }
+        }
     },
 
     // ═══════════════════════════════════════
@@ -261,6 +275,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleUpdateProjectiles() {
+        if (!this._battleProjectiles || !this._projPool) return;
         const remotes = this._rtGetRemoteArray();
 
         for (let i = this._battleProjectiles.length - 1; i >= 0; i--) {
@@ -473,8 +488,19 @@ export const WrBattle = {
 
         if (this.player) {
             const spawnX = this.player.team === 'left' ? 200 : this.W - 200;
+            let spawnY = this.H - 60;
+            // 플랫폼 겹침 방지: 스폰 지점이 플랫폼 내부면 위로 밀어냄
+            if (this.platforms) {
+                for (const pl of this.platforms) {
+                    if (pl.type === 'ground') continue;
+                    if (spawnX >= pl.x && spawnX <= pl.x + pl.w &&
+                        spawnY >= pl.y && spawnY <= pl.y + pl.h + 30) {
+                        spawnY = pl.y - 35;
+                    }
+                }
+            }
             this.player.x = spawnX;
-            this.player.y = this.H - 60;
+            this.player.y = spawnY;
             this.player.vx = 0;
             this.player.vy = 0;
             this.player.stunTimer = 0;
@@ -579,13 +605,16 @@ export const WrBattle = {
 
     _rtBroadcastHit(targetSid, damage, kx, ky) {
         if (!this._rtChannel) return;
+        damage = Math.max(0, Math.min(damage || 0, MAX_DAMAGE));
+        kx = Math.max(-MAX_KNOCK, Math.min(kx || 0, MAX_KNOCK));
+        ky = Math.max(-MAX_KNOCK, Math.min(ky || 0, MAX_KNOCK));
         this._rtChannel.send({
             type: 'broadcast', event: 'hit',
             payload: {
                 attackerSid: String(Player.studentId),
                 targetSid, damage,
-                kx: Math.round((kx || 0) * 10) / 10,
-                ky: Math.round((ky || 0) * 10) / 10
+                kx: Math.round(kx * 10) / 10,
+                ky: Math.round(ky * 10) / 10
             }
         });
     },
@@ -676,7 +705,11 @@ export const WrBattle = {
 
     _battleReturnProj(proj, idx) {
         proj.active = false;
-        if (this._battleProjectiles) this._battleProjectiles.splice(idx, 1);
+        if (!this._battleProjectiles) return;
+        // swap-and-pop: 역순 순회 안전 + splice보다 빠름
+        const last = this._battleProjectiles.length - 1;
+        if (idx !== last) this._battleProjectiles[idx] = this._battleProjectiles[last];
+        this._battleProjectiles.pop();
     },
 
     _battleGetParticle() {

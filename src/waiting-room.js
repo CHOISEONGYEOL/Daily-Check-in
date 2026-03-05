@@ -790,7 +790,7 @@ export const WaitingRoom = {
         try { this.updateObstacles(); } catch(e) { console.error('obstacles error:', e); }
         // ★ 기믹/충돌 적용된 최종 위치 전송 (반드시 실행)
         this._rtCheckAndSendPos();
-        if(this._isHost) this._rtCheckAndSendGimmick();
+        if(this._isHost && !this.battleMode) this._rtCheckAndSendGimmick();
         // chatBubbles 인플레이스 업데이트 (새 배열 생성 안 함)
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-45;} if(b.timer>0) arr[w++]=b; }
