@@ -519,6 +519,21 @@ export const GameRender = {
         });
         ctx.globalAlpha=1;
 
+        // 플레이어 이탈 알림
+        if(this._leaveBubbles && this._leaveBubbles.length>0){
+            this._leaveBubbles = this._leaveBubbles.filter(b=>b.timer-->0);
+            this._leaveBubbles.forEach((b,i)=>{
+                ctx.globalAlpha=Math.min(1,b.timer/30);
+                ctx.font='bold 14px "Segoe UI",sans-serif';ctx.textAlign='center';
+                const tw=ctx.measureText(b.text).width+20;
+                ctx.fillStyle='rgba(180,0,0,.7)';
+                ctx.beginPath();ctx.roundRect(sw/2-tw/2,60+i*30,tw,26,8);ctx.fill();
+                ctx.fillStyle='#FFD700';
+                ctx.fillText(b.text,sw/2,60+i*30+18);
+            });
+            ctx.globalAlpha=1;
+        }
+
         // Escape room quiz/clue HUD
         if(this.gameMode === 'escaperoom' && this.escapeQuizzes){
             const quizzes = this.escapeQuizzes;

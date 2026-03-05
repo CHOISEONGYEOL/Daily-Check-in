@@ -760,10 +760,35 @@ export const Game = {
         if(data.completedAll !== undefined) entity.completedAll = data.completedAll;
     },
 
+    // ── 협동게임 중 플레이어 이탈 처리 ──
+    _onPlayerLeave(remainingCount){
+        if(!this.running || !this.isMultiplayer) return;
+        console.log('[Game] player left, remaining:', remainingCount);
+        // 화면에 알림
+        if(this.particles && this.entities && this.entities[0]){
+            const p = this.entities[0];
+            if(!this._leaveBubbles) this._leaveBubbles = [];
+            this._leaveBubbles.push({x:p.x, y:p.y-50, text:'⚠️ 플레이어가 나갔습니다!', timer:180});
+        }
+        // 남은 인원이 0명이면 (혼자만 남음) 10초 후 자동 종료
+        if(remainingCount <= 1){
+            if(this._leaveAbortTimer) clearTimeout(this._leaveAbortTimer);
+            this._leaveAbortTimer = setTimeout(()=>{
+                if(this.running && this.isMultiplayer){
+                    console.log('[Game] all players left — auto cleanup');
+                    this.forceCleanup();
+                }
+            }, 10000);
+        }
+    },
+
     // ── 교사 종료 신호 수신 시 완전한 클린업 (좀비 프로세스 방지) ──
     forceCleanup(){
         if(!this.running && !this.animRef && !this.timerRef) return; // 이미 정지됨
         console.log('[Game] forceCleanup: stopping physics/render loop');
+        // 0) 이탈 타이머 정리
+        if(this._leaveAbortTimer){ clearTimeout(this._leaveAbortTimer); this._leaveAbortTimer=null; }
+        this._leaveBubbles = null;
         // 1) 물리 엔진 + 렌더링 루프 즉시 정지
         this.running = false;
         this.completed = true; // update()에서 추가 처리 방지
@@ -810,6 +835,8 @@ export const Game = {
     },
 
     quit(){
+        if(this._leaveAbortTimer){ clearTimeout(this._leaveAbortTimer); this._leaveAbortTimer=null; }
+        this._leaveBubbles = null;
         const wasSpectator = this.spectatorMode;
         this.spectatorMode = false;
         this.running = false;

@@ -737,7 +737,7 @@ export const WrRender = {
             const fa=0.04+Math.sin((this._frameNow||Date.now())*0.005)*0.02;
             ctx.fillStyle=`rgba(0,200,50,${fa})`;ctx.fillRect(0,0,VW,VH);
         }
-        // ── 무궁화 꽃이 피었습니다 — 화면 테두리 경고 + 플레이어 추적 문구 ──
+        // ── 무궁화 꽃이 피었습니다 — 화면 전체 HUD + 테두리 경고 ──
         if(this.redLightGreenLight){
             const rl=this.redLightGreenLight;
             const isRed=rl.phase==='red';
@@ -761,23 +761,69 @@ export const WrRender = {
                 // 화면 전체 빨간 틴트
                 ctx.fillStyle=`rgba(255,0,0,${pulse*0.15})`;
                 ctx.fillRect(0,0,VW,VH);
+            } else {
+                // 초록 단계: 초록 테두리
+                const gPulse=0.15+Math.sin(this.frameCount*0.1)*0.1;
+                const bw=4;
+                ctx.fillStyle=`rgba(0,255,0,${gPulse})`;
+                ctx.fillRect(0,0,VW,bw);ctx.fillRect(0,VH-bw,VW,bw);
+                ctx.fillRect(0,0,bw,VH);ctx.fillRect(VW-bw,0,bw,VH);
             }
+            // ── 화면 상단 고정 HUD (항상 보임) ──
+            ctx.save();
+            const hudCx=VW/2, hudY=36;
+            if(isRed){
+                // 빨간 단계: 큰 STOP 경고
+                const blink=Math.sin(this.frameCount*0.3)>0;
+                if(blink){
+                    ctx.font='bold 32px "Segoe UI",sans-serif';ctx.textAlign='center';
+                    ctx.fillStyle='rgba(0,0,0,0.5)';
+                    ctx.fillRect(hudCx-120,hudY-28,240,40);
+                    ctx.fillStyle='#FF4444';
+                    ctx.shadowColor='#FF0000';ctx.shadowBlur=20;
+                    ctx.fillText('STOP!!! 멈춰!!!',hudCx,hudY);
+                }
+            } else if(rl.chars){
+                // 초록 단계: 진행률 바 + 글자 표시
+                const progress=rl.displayedChars/rl.chars.length;
+                const barW=200, barH=10, barX=hudCx-barW/2, barY=hudY+8;
+                // 배경 박스
+                ctx.fillStyle='rgba(0,0,0,0.5)';
+                ctx.fillRect(hudCx-120,hudY-24,240,50);
+                // 글자 표시
+                const shown=rl.chars.slice(0,rl.displayedChars);
+                const remaining=rl.chars.slice(rl.displayedChars);
+                const text=shown.join('.')+(shown.length>0?'.':'')+'  '+remaining.map(()=>'_').join(' ');
+                ctx.font='bold 16px "Segoe UI",sans-serif';ctx.textAlign='center';
+                ctx.fillStyle='#44FF44';
+                ctx.shadowColor='#00FF00';ctx.shadowBlur=8;
+                ctx.fillText(shown.length>0?shown.join('.')+'.':'...',hudCx,hudY);
+                ctx.shadowBlur=0;
+                // 진행률 바
+                ctx.fillStyle='rgba(255,255,255,0.2)';
+                ctx.fillRect(barX,barY,barW,barH);
+                const dangerColor=progress>0.7?`rgb(${Math.floor(255*progress)},${Math.floor(255*(1-progress))},0)`:'#44FF44';
+                ctx.fillStyle=dangerColor;
+                ctx.fillRect(barX,barY,barW*progress,barH);
+                // 바 테두리
+                ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1;
+                ctx.strokeRect(barX,barY,barW,barH);
+            }
+            ctx.restore();
             // 플레이어 머리 위 추적 문구
             if(P && !this._inSpectator){
                 const px=P.x-camX, py=P.y-camY;
                 if(isRed){
-                    // 빨간 단계: "멈춰!!!" 깜빡임
                     const blink=Math.sin(this.frameCount*0.3)>0;
                     if(blink){
                         ctx.save();
                         ctx.font='bold 22px "Segoe UI",sans-serif';ctx.textAlign='center';
                         ctx.fillStyle='#FF0000';
                         ctx.shadowColor='#FF0000';ctx.shadowBlur=15;
-                        ctx.fillText('🔴 멈춰!!!',px,py-50);
+                        ctx.fillText('멈춰!!!',px,py-50);
                         ctx.restore();
                     }
                 } else if(rl.chars && rl.displayedChars>0){
-                    // 초록 단계: 한 글자씩 나타나는 문장 (플레이어 머리 위)
                     const shown=rl.chars.slice(0,rl.displayedChars);
                     const text=shown.join('.')+'.';
                     ctx.save();
@@ -785,14 +831,6 @@ export const WrRender = {
                     ctx.fillStyle='#44FF44';
                     ctx.shadowColor='#00FF00';ctx.shadowBlur=10;
                     ctx.fillText(text,px,py-50);
-                    // 마지막 글자 강조 펄스
-                    const lc=shown[shown.length-1];
-                    const pulseS=1+Math.sin(this.frameCount*0.3)*0.2;
-                    ctx.font=`bold ${18*pulseS}px "Segoe UI",sans-serif`;
-                    ctx.fillStyle='#FFFFFF';
-                    const fullW=ctx.measureText(text).width;
-                    const lcW=ctx.measureText(lc+'.').width;
-                    ctx.fillText(lc,px+fullW/2-lcW/2,py-50);
                     ctx.restore();
                 }
             }
@@ -822,6 +860,15 @@ export const WrRender = {
         ctx.beginPath();ctx.roundRect(hudX,hudTopY,130,28,10);ctx.stroke();
         ctx.fillStyle='#fff';ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
         ctx.fillText('👥 '+this.readyCount+' / '+this.totalStudents,hudX+65,hudTopY+19);
+        // 대기 상태 안내 (투표/카운트다운 시작 전)
+        if(!this.godMode && !this.voteStarted && !this.countdown){
+            const waitPulse=0.5+0.3*Math.sin((this._frameNow||Date.now())*0.003);
+            ctx.fillStyle=`rgba(108,92,231,${waitPulse*0.7})`;
+            ctx.beginPath();ctx.roundRect(VW/2-130,hudTopY,260,26,10);ctx.fill();
+            ctx.fillStyle='#fff';ctx.font='bold 12px "Segoe UI",sans-serif';ctx.textAlign='center';
+            const dots='.'.repeat(1+Math.floor(((this._frameNow||Date.now())/500)%3));
+            ctx.fillText('선생님이 게임을 시작할 때까지 대기 중'+dots,VW/2,hudTopY+18);
+        }
         // Ball score
         if(this.ballGameStarted){
             ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.roundRect(10,40,130,26,10);ctx.fill();

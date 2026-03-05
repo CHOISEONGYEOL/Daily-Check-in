@@ -706,6 +706,12 @@ export const WrRealtime = {
         this._rtUpdateReadyCount();
 
         if (this.godMode) this._updateWrStudentList();
+
+        // 협동게임 중 플레이어 이탈 → 게임에 알림
+        if (window.Game && window.Game.running && window.Game.isMultiplayer) {
+            const remaining = this.remotePlayers.size + 1;
+            window.Game._onPlayerLeave(remaining);
+        }
     },
 
     // ── 원격 플레이어 엔티티 생성 ──
