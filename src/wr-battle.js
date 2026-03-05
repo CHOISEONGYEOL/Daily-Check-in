@@ -70,22 +70,26 @@ export const WrBattle = {
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
 
-        // Init pools
+        // Init pools (free list 스택으로 O(1) 할당/반환)
         this._projPool = [];
+        this._projFree = [];
         this._battleProjectiles = [];
         for (let i = 0; i < PROJ_POOL_SIZE; i++) {
             this._projPool.push({
                 active: false, x: 0, y: 0, vx: 0, vy: 0,
-                type: '', damage: 0, life: 0, isOwner: false, ownerSid: ''
+                type: '', damage: 0, life: 0, isOwner: false, ownerSid: '', _poolIdx: i
             });
+            this._projFree.push(i);
         }
         this._bParticlePool = [];
+        this._bParticleFree = [];
         this._battleParticles = [];
         for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
             this._bParticlePool.push({
                 active: false, x: 0, y: 0, vx: 0, vy: 0,
-                color: '', size: 0, life: 0, maxLife: 0
+                color: '', size: 0, life: 0, maxLife: 0, _poolIdx: i
             });
+            this._bParticleFree.push(i);
         }
 
         // Bomb pickups (3 locations across map)
@@ -94,13 +98,18 @@ export const WrBattle = {
             { x: this.W * 0.50, y: 0, active: true, respawnTimer: 0 },
             { x: this.W * 0.75, y: 0, active: true, respawnTimer: 0 },
         ];
-        // Set Y to nearest platform top
+        // Set Y to nearest platform top (X 중심 거리가 가장 가까운 플랫폼 위에 배치)
         this._battlePickups.forEach(pk => {
             let bestY = this.H - 60;
+            let bestDist = Infinity;
             for (const p of this.platforms) {
                 if (p.type === 'ground' || p.type === 'spectator') continue;
-                if (Math.abs(p.x + p.w / 2 - pk.x) < p.w / 2 + 30) {
-                    bestY = Math.min(bestY, p.y - 10);
+                // 픽업 X가 플랫폼 범위 안에 있어야 함
+                if (pk.x < p.x || pk.x > p.x + p.w) continue;
+                const dist = Math.abs(p.x + p.w / 2 - pk.x);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestY = p.y - 10;
                 }
             }
             pk.y = bestY;
@@ -194,8 +203,10 @@ export const WrBattle = {
         // Update battle particles
         this._battleUpdateParticles();
 
-        // Killfeed timer
-        this._battleKillFeed = this._battleKillFeed.filter(k => --k.timer > 0);
+        // Killfeed timer (in-place)
+        { let w = 0; const kf = this._battleKillFeed;
+        for (let i = 0; i < kf.length; i++) { if (--kf[i].timer > 0) kf[w++] = kf[i]; }
+        kf.length = w; }
 
         // Remote player invincible timers
         if (this.remotePlayers) {
@@ -345,8 +356,10 @@ export const WrBattle = {
                     );
 
                     if (hit) {
-                        const knockDir = Math.sign(p.vx) || 1;
-                        this._rtBroadcastHit(target.studentId, p.damage, knockDir * 4, -3);
+                        const bSpd = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 1;
+                        const kx = (p.vx / bSpd) * 4;
+                        const ky = (p.vy / bSpd) * 4 - 2; // 약간 위로 띄움
+                        this._rtBroadcastHit(target.studentId, p.damage, kx, ky);
                         // Local prediction
                         target.hp = (target.hp || MAX_HP) - p.damage;
                         target.stunTimer = Math.max(target.stunTimer || 0, 15);
@@ -388,18 +401,36 @@ export const WrBattle = {
         return { x: x0 + dx * tmin, y: y0 + dy * tmin, t: tmin };
     },
 
-    // ── Bomb Explosion (area damage) ──
+    // ── Bomb Explosion (area damage — 자신 포함 단일 루프) ──
     _battleExplodeBomb(bomb) {
         if (!bomb.isOwner) return;
         const remotes = this._rtGetRemoteArray();
+        // 자신도 동일 루프에서 처리 (중복 sqrt 제거)
+        const selfEntity = (this.player && !this._battleIsDead)
+            ? { x: this.player.x, y: this.player.y, h: this.player.h, w: this.player.w, _isSelf: true }
+            : null;
+        const targets = selfEntity ? [...remotes, selfEntity] : remotes;
 
-        for (const target of remotes) {
-            if (target._inSpectator || target.isDead || target.invincible > 0) continue;
+        for (const target of targets) {
+            if (target._isSelf) {
+                if (this._battleInvincible > 0) continue;
+            } else {
+                if (target._inSpectator || target.isDead || target.invincible > 0) continue;
+            }
             const dx = target.x - bomb.x;
             const dy = (target.y + target.h / 2) - bomb.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < BOMB_RADIUS) {
-                const falloff = 1 - dist / BOMB_RADIUS;
+            const distSq = dx * dx + dy * dy;
+            if (distSq >= BOMB_RADIUS * BOMB_RADIUS) continue;
+            const dist = Math.sqrt(distSq);
+            const falloff = 1 - dist / BOMB_RADIUS;
+
+            if (target._isSelf) {
+                const selfDmg = Math.round(bomb.damage * falloff * 0.5);
+                this._battleTakeDamage(selfDmg,
+                    dist > 1 ? (dx / dist) * falloff * 6 : 0,
+                    dist > 1 ? (dy / dist) * falloff * 6 - 3 : -4,
+                    bomb.ownerSid);
+            } else {
                 const damage = Math.round(bomb.damage * falloff);
                 if (damage <= 0) continue;
                 const knockF = falloff * 8;
@@ -409,21 +440,6 @@ export const WrBattle = {
                 target.hp = (target.hp || MAX_HP) - damage;
                 target.stunTimer = Math.max(target.stunTimer || 0, 25);
                 if (target.hp <= 0) this._battleOnKill(target);
-            }
-        }
-
-        // Self-damage if too close
-        if (this.player && !this._battleIsDead) {
-            const dx = this.player.x - bomb.x;
-            const dy = (this.player.y + this.player.h / 2) - bomb.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < BOMB_RADIUS && this._battleInvincible <= 0) {
-                const falloff = 1 - dist / BOMB_RADIUS;
-                const selfDmg = Math.round(bomb.damage * falloff * 0.5); // 50% self damage
-                this._battleTakeDamage(selfDmg,
-                    dist > 1 ? (dx / dist) * falloff * 6 : 0,
-                    dist > 1 ? (dy / dist) * falloff * 6 - 3 : -4,
-                    bomb.ownerSid);
             }
         }
 
@@ -696,14 +712,11 @@ export const WrBattle = {
 
         // Someone else got hit — show effect
         const rp = this.remotePlayers ? this.remotePlayers.get(String(data.targetSid)) : null;
-        if (rp) {
+        if (rp && !rp.isDead) {
             rp.hp = (rp.hp || MAX_HP) - data.damage;
             rp.stunTimer = Math.max(rp.stunTimer || 0, 15);
             this._battleSpawnHitParticles(rp.x, rp.y + 15);
-            if (rp.hp <= 0) {
-                rp.isDead = true;
-                rp._respawnTimer = RESPAWN_TIME;
-            }
+            // 사망 처리는 isDeath 이벤트에서만 수행 (레이스 컨디션 방지)
         }
     },
 
@@ -712,28 +725,27 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleGetProjectile() {
-        if (!this._projPool) return null;
-        for (const p of this._projPool) {
-            if (!p.active) { p.active = true; return p; }
-        }
-        return null;
+        if (!this._projFree || this._projFree.length === 0) return null;
+        const p = this._projPool[this._projFree.pop()];
+        p.active = true;
+        return p;
     },
 
     _battleReturnProj(proj, idx) {
         proj.active = false;
+        if (this._projFree) this._projFree.push(proj._poolIdx);
         if (!this._battleProjectiles) return;
-        // swap-and-pop: 역순 순회 안전 + splice보다 빠름
+        // swap-and-pop: splice보다 빠름
         const last = this._battleProjectiles.length - 1;
         if (idx !== last) this._battleProjectiles[idx] = this._battleProjectiles[last];
         this._battleProjectiles.pop();
     },
 
     _battleGetParticle() {
-        if (!this._bParticlePool) return null;
-        for (const p of this._bParticlePool) {
-            if (!p.active) { p.active = true; return p; }
-        }
-        return null;
+        if (!this._bParticleFree || this._bParticleFree.length === 0) return null;
+        const p = this._bParticlePool[this._bParticleFree.pop()];
+        p.active = true;
+        return p;
     },
 
     _battleSpawnHitParticles(x, y) {
@@ -766,14 +778,19 @@ export const WrBattle = {
 
     _battleUpdateParticles() {
         if (!this._battleParticles) return;
-        for (let i = this._battleParticles.length - 1; i >= 0; i--) {
-            const p = this._battleParticles[i];
+        let w = 0;
+        const arr = this._battleParticles;
+        for (let i = 0; i < arr.length; i++) {
+            const p = arr[i];
             p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--;
-            if (p.life <= 0) {
+            if (p.life > 0) {
+                arr[w++] = p;
+            } else {
                 p.active = false;
-                this._battleParticles.splice(i, 1);
+                if (this._bParticleFree) this._bParticleFree.push(p._poolIdx);
             }
         }
+        arr.length = w;
     },
 
     // ═══════════════════════════════════════

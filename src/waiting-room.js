@@ -271,7 +271,10 @@ export const WaitingRoom = {
             this.keys[e.key]=true;
             if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key==='ArrowDown'||e.key==='s'||e.key==='S'){
                 e.preventDefault();
-                if(this.reversedControls && !this._inSpectator){
+                // 배틀 모드: 스페이스바는 사격 전용 (점프 안 함)
+                if(this.battleMode && e.key===' '){
+                    this._battleShoot();
+                } else if(this.reversedControls && !this._inSpectator){
                     if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') this.playerJump();
                 } else {
                     if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W') this.playerJump();
@@ -280,9 +283,9 @@ export const WaitingRoom = {
             if(e.key==='1') this.triggerEmote('flat');
             if(e.key==='2') this.triggerEmote('inflate');
             if(e.key==='3') this.triggerEmote('explode');
-            // Battle mode controls
+            // Battle mode controls (f/F: shoot, q/Q: switch weapon)
             if(this.battleMode){
-                if(e.key===' '||e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
+                if(e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
                 if(e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
             }
         };
