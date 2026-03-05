@@ -156,7 +156,9 @@ export const WrBattle = {
         this._battleProjectiles = [];
         this._battleParticles = [];
         this._projPool = null;
+        this._projFree = null;
         this._bParticlePool = null;
+        this._bParticleFree = null;
         this._battlePickups = null;
         this._battleKillFeed = [];
         this._battleIsDead = false;
@@ -533,11 +535,13 @@ export const WrBattle = {
             this.player.stunTimer = 0;
         }
 
-        this.chatBubbles.push({
-            x: this.player ? this.player.x : this.W / 2,
-            y: this.player ? this.player.y - 45 : this.H / 2,
-            text: 'RESPAWN!', timer: 90, follow: this.player
-        });
+        if (this.chatBubbles) {
+            this.chatBubbles.push({
+                x: this.player ? this.player.x : this.W / 2,
+                y: this.player ? this.player.y - 45 : this.H / 2,
+                text: 'RESPAWN!', timer: 90, follow: this.player
+            });
+        }
     },
 
     _battleOnKill(target) {

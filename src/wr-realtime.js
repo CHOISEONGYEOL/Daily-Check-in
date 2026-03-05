@@ -720,8 +720,10 @@ export const WrRealtime = {
         if (this.battleMode && this._battleProjectiles) {
             const leaveSid = String(key);
             for (let i = this._battleProjectiles.length - 1; i >= 0; i--) {
-                if (this._battleProjectiles[i].ownerSid === leaveSid) {
-                    this._battleProjectiles[i].active = false;
+                const proj = this._battleProjectiles[i];
+                if (proj.ownerSid === leaveSid) {
+                    proj.active = false;
+                    if (this._projFree) this._projFree.push(proj._poolIdx);
                     this._battleProjectiles.splice(i, 1);
                 }
             }

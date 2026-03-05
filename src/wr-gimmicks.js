@@ -109,6 +109,7 @@ export const WrGimmicks = {
                 }
                 if(obs.timer<=0){this.gravityReversed=false;this.obstacles.splice(i,1);this.screenShake=10;}
             } else if(obs.type==='sizeChange'){
+                if(!this.player){if(obs.timer<=0){this.sizeChange=null;this.obstacles.splice(i,1);}continue;}
                 if(obs.mode==='tiny'&&this.activeWind&&!this.overlayActive&&!this._inSpectator){
                     this.player.vx+=this.activeWind.force*this.activeWind.direction*1.5;
                 }
@@ -197,13 +198,14 @@ export const WrGimmicks = {
                         }
                         if(rl.timer>=rl.greenDuration){
                             rl.phase='red';rl.timer=0;
-                            rl.savedPlayerPos={x:this.player.x,y:this.player.y};
+                            rl.savedPlayerPos=this.player?{x:this.player.x,y:this.player.y}:{x:0,y:0};
                             rl.caught=false;
                             rl.displayedChars = 0;
                             this.chatBubbles.push({x:rl.eyeX,y:rl.eyeY+50,text:'🔴 멈춰!!!',timer:90,follow:null});
                             this.screenShake=8;
                         }
                     } else {
+                        if(!this.player) continue;
                         const P=this.player;
                         // 키 입력만 판정 (바람 등 외부 힘으로 밀려난 건 무시)
                         const isMoving=!this.overlayActive&&(this.keys['ArrowLeft']||this.keys['a']||this.keys['A']||this.keys['ArrowRight']||this.keys['d']||this.keys['D']||this.keys['ArrowUp']||this.keys['w']||this.keys['W']);
@@ -467,6 +469,7 @@ export const WrGimmicks = {
             this._gimmickTargets().forEach(e=>{e.vy=-8;e.onGround=false;});
             // 관람석 플레이어는 역전 안 함 (이미 _gimmickTargets에서 제외되지만 안전장치)
         } else if(type==='sizeChange'){
+            if(!this.player) return;
             const mode = Math.random()>0.5?'giant':'tiny';
             this.sizeChange = mode;
             const P = this.player;

@@ -811,8 +811,8 @@ export const Game = {
         if(!this.running || !this.isMultiplayer) return;
         console.log('[Game] player left, remaining:', remainingCount);
         // 화면에 알림
-        if(this.particles && this.entities && this.entities[0]){
-            const p = this.entities[0];
+        if(this.particles && this.player){
+            const p = this.player;
             if(!this._leaveBubbles) this._leaveBubbles = [];
             this._leaveBubbles.push({x:p.x, y:p.y-50, text:'⚠️ 플레이어가 나갔습니다!', timer:180});
         }
