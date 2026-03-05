@@ -372,7 +372,7 @@ export const GameRender = {
                 ctx.strokeStyle = '#FFD700';
                 ctx.lineWidth = 2;
                 ctx.shadowColor = '#FFD700';
-                ctx.shadowBlur = 12;
+                ctx.shadowBlur = 0;
                 ctx.beginPath(); ctx.arc(e.x, e.y-4, 24, 0, Math.PI*2); ctx.stroke();
                 ctx.restore();
                 // 추적 화살표
@@ -701,7 +701,7 @@ export const GameRender = {
 
         // Glow
         ctx.shadowColor = '#FFD700';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 0;
         ctx.fill();
         ctx.shadowBlur = 0;
 

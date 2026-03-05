@@ -398,7 +398,7 @@ export const WrRender = {
             this.renderDecoration(ctx,d);
         }
         // Platforms (그라디언트 캐시 + shadow 배치)
-        ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=6;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+        ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur = 0;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
         for(let pi=0;pi<this.platforms.length;pi++){
             const p=this.platforms[pi];
             if(p._ghostHidden) continue;
@@ -408,7 +408,7 @@ export const WrRender = {
                 if(!p._grad){p._grad=ctx.createLinearGradient(0,p.y,0,p.y+p.h);p._grad.addColorStop(0,p.top);p._grad.addColorStop(0.15,p.color);p._grad.addColorStop(1,'#3a5c3a');}
                 ctx.fillStyle=p._grad;
                 ctx.fillRect(p.x,p.y,p.w,p.h);
-                ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+                ctx.shadowColor='transparent';ctx.shadowBlur = 0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
                 ctx.fillStyle=p.top;
                 ctx.fillRect(p.x,p.y,p.w,3);
                 ctx.fillStyle='rgba(255,255,255,.12)';
@@ -423,12 +423,12 @@ export const WrRender = {
                     ctx.fillStyle='#66BB6A';
                     ctx.fillRect(p.x+gx+8,p.y-2,2,3);
                 }
-                ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur=6;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
+                ctx.shadowColor='rgba(0,0,0,.35)';ctx.shadowBlur = 0;ctx.shadowOffsetX=2;ctx.shadowOffsetY=3;
             } else {
                 if(!p._grad){p._grad=ctx.createLinearGradient(0,p.y,0,p.y+p.h);p._grad.addColorStop(0,p.top);p._grad.addColorStop(0.3,p.color);p._grad.addColorStop(1,'rgba(0,0,0,.15)');}
                 ctx.fillStyle=p._grad;
                 ctx.beginPath();ctx.roundRect(p.x,p.y,p.w,p.h,5);ctx.fill();
-                ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+                ctx.shadowColor='transparent';ctx.shadowBlur = 0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
                 ctx.fillStyle='rgba(255,255,255,.15)';
                 ctx.fillRect(p.x+3,p.y+1,p.w-6,2);
                 ctx.fillStyle='rgba(0,0,0,.1)';
@@ -450,7 +450,7 @@ export const WrRender = {
                 }
             }
         }
-        ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+        ctx.shadowColor='transparent';ctx.shadowBlur = 0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
         // ── 관람석 박스 테두리 ──
         if(this.spectatorBoxes){
             this.spectatorBoxes.forEach(box=>{
@@ -567,7 +567,7 @@ export const WrRender = {
                 ctx.strokeStyle = '#FFD700';
                 ctx.lineWidth = 2;
                 ctx.shadowColor = '#FFD700';
-                ctx.shadowBlur = 12;
+                ctx.shadowBlur = 0;
                 ctx.beginPath(); ctx.arc(e.x, e.y, 22, 0, Math.PI*2); ctx.stroke();
                 ctx.restore();
                 const ay = e.y - 38 + Math.sin(now*0.005)*3;
@@ -714,10 +714,10 @@ export const WrRender = {
             ctx.font='bold 12px "Segoe UI",sans-serif';ctx.textAlign='center';
             const tw=ctx.measureText(b.text).width+18;
             const bx=b.x, by=b.y-12;
-            ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;
+            ctx.shadowColor='rgba(0,0,0,.3)';ctx.shadowBlur = 0;ctx.shadowOffsetY=2;
             ctx.fillStyle = b.isPlayer ? 'rgba(108,92,231,.9)' : 'rgba(20,20,30,.8)';
             ctx.beginPath();ctx.roundRect(bx-tw/2,by-14,tw,22,10);ctx.fill();
-            ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+            ctx.shadowColor='transparent';ctx.shadowBlur = 0;ctx.shadowOffsetY=0;
             ctx.strokeStyle = b.isPlayer ? 'rgba(140,120,255,.4)' : 'rgba(255,255,255,.12)';
             ctx.lineWidth=0.5;
             ctx.beginPath();ctx.roundRect(bx-tw/2,by-14,tw,22,10);ctx.stroke();
@@ -790,7 +790,7 @@ export const WrRender = {
                     ctx.fillStyle='rgba(0,0,0,0.5)';
                     ctx.fillRect(hudCx-120,hudY-28,240,40);
                     ctx.fillStyle='#FF4444';
-                    ctx.shadowColor='#FF0000';ctx.shadowBlur=20;
+                    ctx.shadowColor='#FF0000';ctx.shadowBlur = 0;
                     ctx.fillText('STOP!!! 멈춰!!!',hudCx,hudY);
                 }
             } else if(rl.chars){
@@ -806,9 +806,9 @@ export const WrRender = {
                 const text=shown.join('.')+(shown.length>0?'.':'')+'  '+remaining.map(()=>'_').join(' ');
                 ctx.font='bold 16px "Segoe UI",sans-serif';ctx.textAlign='center';
                 ctx.fillStyle='#44FF44';
-                ctx.shadowColor='#00FF00';ctx.shadowBlur=8;
+                ctx.shadowColor='#00FF00';ctx.shadowBlur = 0;
                 ctx.fillText(shown.length>0?shown.join('.')+'.':'...',hudCx,hudY);
-                ctx.shadowBlur=0;
+                ctx.shadowBlur = 0;
                 // 진행률 바
                 ctx.fillStyle='rgba(255,255,255,0.2)';
                 ctx.fillRect(barX,barY,barW,barH);
@@ -829,7 +829,7 @@ export const WrRender = {
                         ctx.save();
                         ctx.font='bold 22px "Segoe UI",sans-serif';ctx.textAlign='center';
                         ctx.fillStyle='#FF0000';
-                        ctx.shadowColor='#FF0000';ctx.shadowBlur=15;
+                        ctx.shadowColor='#FF0000';ctx.shadowBlur = 0;
                         ctx.fillText('멈춰!!!',px,py-50);
                         ctx.restore();
                     }
@@ -839,7 +839,7 @@ export const WrRender = {
                     ctx.save();
                     ctx.font='bold 18px "Segoe UI",sans-serif';ctx.textAlign='center';
                     ctx.fillStyle='#44FF44';
-                    ctx.shadowColor='#00FF00';ctx.shadowBlur=10;
+                    ctx.shadowColor='#00FF00';ctx.shadowBlur = 0;
                     ctx.fillText(text,px,py-50);
                     ctx.restore();
                 }
@@ -957,10 +957,10 @@ export const WrRender = {
         // Countdown
         if(this.countdown > 0){
             ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,VW,VH);
-            ctx.shadowColor='rgba(255,255,255,.3)';ctx.shadowBlur=30;
+            ctx.shadowColor='rgba(255,255,255,.3)';ctx.shadowBlur = 0;
             ctx.fillStyle='#fff';ctx.font='bold 100px "Segoe UI",sans-serif';ctx.textAlign='center';
             ctx.fillText(this.countdown,VW/2,VH/2+30);
-            ctx.shadowColor='transparent';ctx.shadowBlur=0;
+            ctx.shadowColor='transparent';ctx.shadowBlur = 0;
             ctx.font='bold 22px "Segoe UI",sans-serif';ctx.fillStyle='rgba(255,255,255,.8)';
             ctx.fillText('게임 시작!',VW/2,VH/2+70);
         }

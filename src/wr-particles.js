@@ -10,7 +10,7 @@ export const WrParticles = {
         if(!effId || !Inventory.EFFECT_COLORS[effId]) return;
         const P = this.player;
         const isMoving = Math.abs(P.vx) > 0.5 || Math.abs(P.vy) > 1;
-        const chance = isMoving ? 0.4 : 0.06;
+        const chance = isMoving ? 0.1 : 0.02;
         if(Math.random() > chance) return;
         const colors = Inventory.EFFECT_COLORS[effId];
         const c = colors[Math.floor(Math.random()*colors.length)];
@@ -51,7 +51,11 @@ export const WrParticles = {
             const alpha = p.life / p.maxLife;
             ctx.globalAlpha = alpha;
             if(p.type==='heart'){
-                ctx.font=`${10+alpha*4}px sans-serif`;ctx.textAlign='center';ctx.fillText('\u{1F496}',p.x,p.y);
+                ctx.fillStyle=p.color;
+                const s=Math.max(2,p.size+alpha*3);
+                ctx.beginPath();ctx.arc(p.x-s*0.35,p.y-s*0.25,s*0.35,0,Math.PI*2);ctx.fill();
+                ctx.beginPath();ctx.arc(p.x+s*0.35,p.y-s*0.25,s*0.35,0,Math.PI*2);ctx.fill();
+                ctx.beginPath();ctx.moveTo(p.x-s*0.7,p.y-s*0.1);ctx.lineTo(p.x,p.y+s*0.8);ctx.lineTo(p.x+s*0.7,p.y-s*0.1);ctx.closePath();ctx.fill();
             } else if(p.type==='sparkle'){
                 ctx.fillStyle=p.color;const s=p.size*alpha;
                 ctx.save();ctx.translate(p.x,p.y);ctx.rotate((this._frameNow||Date.now())*0.005+p.x);
@@ -73,8 +77,9 @@ export const WrParticles = {
                 ctx.fillStyle=p.color;const s=p.size*alpha;
                 ctx.beginPath();ctx.arc(p.x,p.y,s,0,Math.PI*2);ctx.fill();
             } else if(p.type==='music'){
-                ctx.font=`${8+alpha*5}px sans-serif`;ctx.textAlign='center';
-                const notes=['\u266A','\u266B','\u266A'];ctx.fillText(notes[Math.floor(p.x)%3],p.x,p.y);
+                ctx.strokeStyle=p.color;ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x,p.y-6);ctx.stroke();
+                ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,2.2,0,Math.PI*2);ctx.fill();
+                ctx.beginPath();ctx.arc(p.x+3,p.y-3,1.8,0,Math.PI*2);ctx.fill();
             } else if(p.type==='lightning'){
                 ctx.strokeStyle=p.color;ctx.lineWidth=1.5;ctx.globalAlpha=alpha;
                 ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+(Math.random()-.5)*8,p.y+(Math.random()-.5)*8);ctx.stroke();
