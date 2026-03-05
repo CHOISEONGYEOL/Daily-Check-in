@@ -465,13 +465,15 @@ export const WrBattle = {
             });
         }
 
-        // Killfeed
-        const killerName = this._battleGetName(killerSid);
+        // Killfeed (자폭 구분)
+        const isSuicide = killerSid === String(Player.studentId) || !killerSid;
         const myName = Player.nickname || Player.studentId;
-        this._battleKillFeed.push({
-            text: `${killerName} -> ${myName}`,
-            timer: KILLFEED_DURATION
-        });
+        if (isSuicide) {
+            this._battleKillFeed.push({ text: `${myName} (self)`, timer: KILLFEED_DURATION });
+        } else {
+            const killerName = this._battleGetName(killerSid);
+            this._battleKillFeed.push({ text: `${killerName} -> ${myName}`, timer: KILLFEED_DURATION });
+        }
 
         // Death particles
         if (this.player) {
@@ -514,6 +516,7 @@ export const WrBattle = {
     },
 
     _battleOnKill(target) {
+        if (target.isDead) return; // L2: 이중 킬 방지
         this._battleKills++;
         target.isDead = true;
         target._respawnTimer = RESPAWN_TIME;
@@ -656,19 +659,23 @@ export const WrBattle = {
                 rp.deaths = (rp.deaths || 0) + 1;
                 this._battleSpawnExplosionParticles(rp.x, rp.y);
             }
-            // Update killer stats
-            const killer = data.attackerSid === String(Player.studentId)
-                ? null // self handled in _battleOnKill
-                : this.remotePlayers?.get(String(data.attackerSid));
-            if (killer) killer.kills = (killer.kills || 0) + 1;
+            // Update killer stats (자폭은 킬 카운트 제외)
+            const isSuicide = data.attackerSid === data.targetSid || !data.attackerSid;
+            if (!isSuicide) {
+                const killer = data.attackerSid === String(Player.studentId)
+                    ? null // self handled in _battleOnKill
+                    : this.remotePlayers?.get(String(data.attackerSid));
+                if (killer) killer.kills = (killer.kills || 0) + 1;
+            }
 
             // Killfeed
-            const killerName = this._battleGetName(data.attackerSid);
             const deadName = rp ? rp.displayName : data.targetSid;
-            this._battleKillFeed.push({
-                text: `${killerName} -> ${deadName}`,
-                timer: KILLFEED_DURATION
-            });
+            if (isSuicide) {
+                this._battleKillFeed.push({ text: `${deadName} (self)`, timer: KILLFEED_DURATION });
+            } else {
+                const killerName = this._battleGetName(data.attackerSid);
+                this._battleKillFeed.push({ text: `${killerName} -> ${deadName}`, timer: KILLFEED_DURATION });
+            }
             return;
         }
 
