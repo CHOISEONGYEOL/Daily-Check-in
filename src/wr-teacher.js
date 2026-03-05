@@ -67,6 +67,8 @@ export const WrTeacher = {
             }
             this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
             this.godMode = true;
+            this.wrStartTime = Date.now(); this.wrTimeLimit = 300; this.wrElapsed = 0; this._wrTimerTriggered = false;
+            this._timerIdx = 2; // 기본 5분
             PerfMonitor.enabled = true;
             this.chatBubbles = []; this.particles = []; this._elevatorCooldown = 0; this._inSpectator = false;
             this.cvs = document.getElementById('waiting-canvas');
@@ -93,6 +95,15 @@ export const WrTeacher = {
             this.npcs = [];
             this.remotePlayers = new Map();
             this.rtInit();
+            // 초기 타이머 브로드캐스트 (학생들에게 기본 5분 알림)
+            setTimeout(() => {
+                if(this._rtChannel && this.wrTimeLimit > 0){
+                    this._rtChannel.send({
+                        type: 'broadcast', event: 'wr_timer',
+                        payload: { timeLimit: this.wrTimeLimit, startTime: this.wrStartTime }
+                    });
+                }
+            }, 2000);
         } else {
             // 재진입: 캔버스/ctx 재바인딩 (화면 전환 후 필요)
             this.cvs = document.getElementById('waiting-canvas');
@@ -107,6 +118,8 @@ export const WrTeacher = {
         if(backBtn) backBtn.classList.remove('hidden');
         const startBtn = document.getElementById('wr-start-game');
         if(startBtn) startBtn.classList.remove('hidden');
+        const timerBtn = document.getElementById('wr-set-timer');
+        if(timerBtn){ timerBtn.classList.remove('hidden'); this._updateTimerBtn(); }
 
         // 채팅바, 모바일컨트롤 숨기기
         const chatBar = document.querySelector('.wr-chat-bar');
@@ -559,6 +572,38 @@ export const WrTeacher = {
             this.selectedGameId = Vote.selectedGame.id;
             this.startCountdown();
         });
+    },
+
+    // ── 대기실 타이머 설정 (교사 전용) ──
+    _timerOptions: [0, 180, 300, 600], // 없음, 3분, 5분, 10분
+    _timerIdx: 2, // 기본값: 5분 (index 2)
+    cycleTimer(){
+        this._timerIdx = (this._timerIdx + 1) % this._timerOptions.length;
+        const sec = this._timerOptions[this._timerIdx];
+        this.wrTimeLimit = sec;
+        this.wrStartTime = Date.now();
+        this.wrElapsed = 0;
+        this._wrTimerTriggered = false;
+        this._updateTimerBtn();
+        // 전체 학생에게 브로드캐스트
+        if(this._rtChannel){
+            this._rtChannel.send({
+                type: 'broadcast', event: 'wr_timer',
+                payload: { timeLimit: sec, startTime: this.wrStartTime }
+            });
+        }
+    },
+    _updateTimerBtn(){
+        const btn = document.getElementById('wr-set-timer');
+        if(!btn) return;
+        const sec = this._timerOptions[this._timerIdx];
+        if(sec === 0){
+            btn.textContent = '⏱ 타이머 없음';
+        } else {
+            const mm = Math.floor(sec/60);
+            const ss = String(sec%60).padStart(2,'0');
+            btn.textContent = `⏱ ${mm}:${ss}`;
+        }
     },
 
     startCountdown(){

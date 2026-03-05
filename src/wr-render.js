@@ -870,6 +870,26 @@ export const WrRender = {
         ctx.beginPath();ctx.roundRect(hudX,hudTopY,130,28,10);ctx.stroke();
         ctx.fillStyle='#fff';ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
         ctx.fillText('👥 '+this.readyCount+' / '+this.totalStudents,hudX+65,hudTopY+19);
+        // ── 대기실 타이머 HUD ──
+        if(this.wrStartTime && !this.voteStarted && !this.countdown){
+            let timerSec, timerColor = '#fff', timerBlink = false;
+            if(this.wrTimeLimit > 0){
+                timerSec = Math.max(0, this.wrTimeLimit - this.wrElapsed);
+                if(timerSec <= 10){ timerColor = '#FF6B6B'; timerBlink = true; }
+                else if(timerSec <= 60){ timerColor = '#FECA57'; timerBlink = true; }
+            } else {
+                timerSec = this.wrElapsed;
+            }
+            const mm = String(Math.floor(timerSec/60)).padStart(1,'0');
+            const ss = String(timerSec%60).padStart(2,'0');
+            const timerText = (this.wrTimeLimit > 0 ? '⏱ ' : '⏱ ') + mm + ':' + ss;
+            const blinkVisible = !timerBlink || Math.sin((this._frameNow||Date.now())*0.008) > -0.3;
+            if(blinkVisible){
+                ctx.fillStyle='rgba(0,0,0,.5)';ctx.beginPath();ctx.roundRect(hudX+135,hudTopY,70,28,10);ctx.fill();
+                ctx.fillStyle=timerColor;ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
+                ctx.fillText(timerText,hudX+170,hudTopY+19);
+            }
+        }
         // 대기 상태 안내 (투표/카운트다운 시작 전)
         if(!this.godMode && !this.voteStarted && !this.countdown){
             const waitPulse=0.5+0.3*Math.sin((this._frameNow||Date.now())*0.003);

@@ -86,6 +86,15 @@ export const WrRealtime = {
         // ★ 배틀 모드 이벤트
         channel.on('broadcast', { event: 'shoot' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnRemoteShoot(payload); });
         channel.on('broadcast', { event: 'hit' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnRemoteHit(payload); });
+        // ★ 대기실 타이머 동기화
+        channel.on('broadcast', { event: 'wr_timer' }, ({ payload }) => {
+            if(payload && !this.godMode){
+                this.wrTimeLimit = payload.timeLimit || 0;
+                this.wrStartTime = payload.startTime || Date.now();
+                this.wrElapsed = 0;
+                this._wrTimerTriggered = false;
+            }
+        });
         // ★ 게임 런치 동기화 (투표 후 공통 채널로 합류)
         channel.on('broadcast', { event: 'game_launch' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnGameLaunch(payload); });
         // ★ 게임 중 위치 동기화 (게임 모드에서만 활성)
@@ -798,6 +807,14 @@ export const WrRealtime = {
             });
         }
 
+        // 호스트: 타이머 상태 전송 (늦은 입장자 동기화)
+        if (this._isHost && this.wrTimeLimit > 0 && this._rtChannel) {
+            this._rtChannel.send({
+                type: 'broadcast', event: 'wr_timer',
+                payload: { timeLimit: this.wrTimeLimit, startTime: this.wrStartTime }
+            });
+        }
+
         // 스프라이트 비동기 로드 (폴백 먼저 설정)
         rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
 
@@ -856,6 +873,13 @@ export const WrRealtime = {
 
         if (this._isHost && !wasHost) {
             console.log('[RT] I am now HOST');
+            // ★ 이전 호스트의 보정 데이터 초기화 (공 순간이동 방지)
+            if (this.ball) {
+                this.ball._serverX = undefined;
+                this.ball._serverY = undefined;
+                this.ball._serverVx = undefined;
+                this.ball._serverVy = undefined;
+            }
             // Event-driven: ball은 _rtCheckAndSendBall()로 상태 변화 시 전송
             this._rtLastBallSendTime = 0; // 즉시 첫 전송
 
@@ -1128,16 +1152,14 @@ export const WrRealtime = {
         if (data.battleMode !== undefined) {
             if (data.battleMode && !this.battleMode) this._battleStart();
             else if (!data.battleMode && this.battleMode) this._battleStop();
-            return;
         }
-        // ★ 폭탄 픽업 이벤트
+        // ★ 폭탄 픽업 이벤트 (early return 제거 — 같은 페이로드의 다른 기믹 데이터 유실 방지)
         if (data.pickupTaken && this._battlePickups) {
             for (const pk of this._battlePickups) {
                 if (Math.abs(pk.x - data.pickupTaken.x) < 5 && Math.abs(pk.y - data.pickupTaken.y) < 5) {
                     pk.active = false; pk.respawnTimer = 600; break;
                 }
             }
-            return;
         }
         if (data.pickupRespawn && this._battlePickups) {
             for (const pk of this._battlePickups) {
@@ -1145,7 +1167,6 @@ export const WrRealtime = {
                     pk.active = true; break;
                 }
             }
-            return;
         }
         // ★ 픽업 전체 상태 동기화 (늦은 입장자 + 호스트 교체 시)
         if (data.battlePickupSync && this._battlePickups) {
@@ -1153,7 +1174,6 @@ export const WrRealtime = {
                 this._battlePickups[i].active = data.battlePickupSync[i].active;
                 this._battlePickups[i].respawnTimer = data.battlePickupSync[i].rt || 0;
             }
-            return;
         }
         if (this._isHost) return;
         // 전역 기믹 상태 동기화

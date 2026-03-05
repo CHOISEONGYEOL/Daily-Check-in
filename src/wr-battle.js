@@ -220,7 +220,7 @@ export const WrBattle = {
                         rp.isDead = false;
                         rp.hp = MAX_HP;
                         rp.invincible = INVINCIBLE_TIME;
-                        const spawnX = rp.team === 'left' ? 200 : this.W - 200;
+                        const spawnX = rp.team === 'left' ? 200 : rp.team === 'right' ? this.W - 200 : this.W / 2;
                         rp.x = spawnX;
                         rp.y = this.H - 60;
                     }
@@ -516,7 +516,7 @@ export const WrBattle = {
         this._battleWeapon = 'bullet';
 
         if (this.player) {
-            const spawnX = this.player.team === 'left' ? 200 : this.W - 200;
+            const spawnX = this.player.team === 'left' ? 200 : this.player.team === 'right' ? this.W - 200 : this.W / 2;
             let spawnY = this.H - 60;
             // 플랫폼 겹침 방지: 스폰 지점이 플랫폼 내부면 위로 밀어냄
             if (this.platforms) {

@@ -801,7 +801,8 @@ export const Game = {
         entity.dir = data.dir;
         entity.onGround = data.onGround;
         entity.dead = data.dead || false;
-        entity.enteredDoor = data.enteredDoor || false;
+        // ★ enteredDoor는 로컬 충돌 판정(updateDoor)으로만 관리 — 원격 데이터 무시
+        // (스테이지 전환 시 리셋 후 원격의 stale enteredDoor:true가 덮어쓰는 버그 방지)
         if(data.currentCP !== undefined) entity.currentCP = data.currentCP;
         if(data.completedAll !== undefined) entity.completedAll = data.completedAll;
     },

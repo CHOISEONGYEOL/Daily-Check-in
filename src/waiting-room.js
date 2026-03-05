@@ -76,6 +76,10 @@ export const WaitingRoom = {
     showSpectatorBtns: false,
     voteStarted: false,
     selectedGameId: null,
+    wrStartTime: 0,       // 대기실 시작 시각 (Date.now)
+    wrTimeLimit: 0,       // 제한 시간 (초, 0이면 무제한)
+    wrElapsed: 0,         // 경과 시간 (초)
+    _wrTimerTriggered: false, // 타이머 종료 자동투표 중복 방지
 
     buildMap(){
         const W=this.W, H=this.H;
@@ -207,6 +211,7 @@ export const WaitingRoom = {
             this.totalStudents = parseInt(document.getElementById('s-total').value)||25;
         }
         this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
+        this.wrStartTime = Date.now(); this.wrElapsed = 0; this._wrTimerTriggered = false;
         // 대기실 입장 = 출석 체크 (교사/테스트 제외)
         if(Player.studentId !== '77777') {
             DB.checkIn().catch(e => console.warn('Check-in failed:', e));
@@ -271,9 +276,9 @@ export const WaitingRoom = {
             this.keys[e.key]=true;
             if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key==='ArrowDown'||e.key==='s'||e.key==='S'){
                 e.preventDefault();
-                // 배틀 모드: 스페이스바는 사격 전용 (점프 안 함)
-                if(this.battleMode && e.key===' '){
-                    this._battleShoot();
+                // 배틀 모드: 스페이스바는 사격 전용, 모든 점프 키 차단
+                if(this.battleMode){
+                    if(e.key===' ') this._battleShoot();
                 } else if(this.reversedControls && !this._inSpectator){
                     if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') this.playerJump();
                 } else {
@@ -390,6 +395,8 @@ export const WaitingRoom = {
         if(backBtn) backBtn.classList.add('hidden');
         const startBtn = document.getElementById('wr-start-game');
         if(startBtn){ startBtn.classList.add('hidden'); startBtn.disabled = false; startBtn.textContent = '▶ 게임 시작'; }
+        const timerBtn = document.getElementById('wr-set-timer');
+        if(timerBtn) timerBtn.classList.add('hidden');
         // 관전 폴링 정리
         clearInterval(this._teacherSpectatorPollId); this._teacherSpectatorPollId = null;
         clearInterval(this._teacherVoteTimerRef); this._teacherVoteTimerRef = null;
@@ -805,6 +812,17 @@ export const WaitingRoom = {
         if(this.battleMode) { this._battleUpdate(); this._battleCheckPickup(); }
         if(this.screenShake > 0) this.screenShake *= 0.85;
         if(this.screenShake < 0.5) this.screenShake = 0;
+        // ── 대기실 타이머 업데이트 (매 프레임) ──
+        if(this.wrStartTime){
+            this.wrElapsed = Math.floor((Date.now() - this.wrStartTime) / 1000);
+            if(this.wrTimeLimit > 0 && !this._wrTimerTriggered && !this.voteStarted && !this.countdown){
+                const remaining = this.wrTimeLimit - this.wrElapsed;
+                if(remaining <= 0){
+                    this._wrTimerTriggered = true;
+                    if(this.godMode) this.teacherStartGame();
+                }
+            }
+        }
         // particles 인플레이스 업데이트 (새 배열 생성 안 함)
         { let w=0; const arr=this.particles;
         for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
