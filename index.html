@@ -286,7 +286,9 @@
         <!-- Chat bar (PC only) -->
         <div class="wr-chat-bar">
             <input type="text" id="wr-chat-input" maxlength="30" placeholder="Enter로 채팅..." autocomplete="off">
-            <button class="btn sm purple wr-test-btn hidden" id="wr-test-start" onclick="WaitingRoom.testStartVote()">테스트 시작</button>
+            <select class="wr-test-btn hidden" id="wr-test-game-select" style="padding:.3rem .5rem;border-radius:12px;background:rgba(0,0,0,.6);color:#fff;border:2px solid rgba(255,255,255,.2);font-size:.8rem;"></select>
+            <button class="btn sm purple wr-test-btn hidden" id="wr-test-quick" onclick="WaitingRoom.testQuickStart()">즉시 시작</button>
+            <button class="btn sm purple wr-test-btn hidden" id="wr-test-start" onclick="WaitingRoom.testStartVote()">투표 시작</button>
         </div>
         <!-- Mobile: standalone chat icon (no text selection issues on Samsung) -->
         <button id="wr-chat-mobile-btn" class="wr-chat-icon" onclick="WaitingRoom.openMobileChat()">💬</button>

@@ -553,6 +553,47 @@ export const WrTeacher = {
         if(window.Teacher) window.Teacher.init();
     },
 
+    // 테스트 게임 선택 드롭다운 채우기
+    _populateTestGameSelect(){
+        const sel = document.getElementById('wr-test-game-select');
+        if(!sel || sel.options.length > 0) return;
+        const games = Vote.GAMES.filter(g => g.status === 'open');
+        games.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.name;
+            sel.appendChild(opt);
+        });
+    },
+
+    // 테스트 즉시 시작: 투표/카운트다운 없이 바로 게임 진입
+    testQuickStart(){
+        const sel = document.getElementById('wr-test-game-select');
+        const gameId = sel?.value || 'picopark';
+        this.selectedGameId = gameId;
+        this.voteStarted = true;
+        // 브로드캐스트 (다른 접속자가 있으면 동기화)
+        if(this._rtChannel) this.rtBroadcastGameLaunch(gameId);
+        // 게임 채널 준비 후 즉시 진입
+        const tryEnter = (retries) => {
+            this.rtSwitchToGameChannel();
+            if(this._rtChannel === this._gameChannel || !this._gameChannel){
+                this.stop(true);
+                Game.enterFromWaitingRoom(gameId);
+            } else if(retries > 0){
+                setTimeout(() => tryEnter(retries - 1), 300);
+            } else {
+                this.stop(true);
+                Game.enterFromWaitingRoom(gameId);
+            }
+        };
+        if(this._gameChannelReady){
+            tryEnter(0);
+        } else {
+            setTimeout(() => tryEnter(5), 300);
+        }
+    },
+
     // 테스트 버튼: 투표부터 시작
     testStartVote(){
         if(this.voteStarted) return;
