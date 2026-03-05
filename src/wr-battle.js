@@ -24,6 +24,8 @@ const PROJ_POOL_SIZE = 80;
 const PARTICLE_POOL_SIZE = 150;
 const BOMB_PICKUP_RESPAWN = 600; // 10s
 const KILLFEED_DURATION = 180;   // 3s
+const MAX_DAMAGE = 50;           // 수신 데미지 상한 (치트 방지)
+const MAX_KNOCK  = 15;           // 수신 넉백 상한
 
 export const WrBattle = {
 
@@ -55,6 +57,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleStart() {
+        if (this.battleMode) return; // 이중 호출 방지
         this.battleMode = true;
         this._battleHP = MAX_HP;
         this._battleKills = 0;
@@ -603,6 +606,17 @@ export const WrBattle = {
 
     _rtOnRemoteHit(data) {
         if (!this.battleMode) return;
+
+        // 데미지/넉백 값 검증 (치트 방지)
+        if (typeof data.damage === 'number') {
+            data.damage = Math.max(0, Math.min(data.damage, MAX_DAMAGE));
+        } else { data.damage = 0; }
+        if (typeof data.kx === 'number') {
+            data.kx = Math.max(-MAX_KNOCK, Math.min(data.kx, MAX_KNOCK));
+        } else { data.kx = 0; }
+        if (typeof data.ky === 'number') {
+            data.ky = Math.max(-MAX_KNOCK, Math.min(data.ky, MAX_KNOCK));
+        } else { data.ky = 0; }
 
         // Death event
         if (data.isDeath) {

@@ -746,8 +746,28 @@ export const WrRealtime = {
             _corrY: 0,      // lerp 보정 잔량 Y
         };
 
+        // 배틀 모드 중 입장 시 배틀 필드 초기화
+        if (this.battleMode) {
+            rp.hp = 100; // MAX_HP
+            rp.kills = 0;
+            rp.deaths = 0;
+            rp.isDead = false;
+            rp.invincible = 120; // INVINCIBLE_TIME (입장 직후 무적)
+        }
+
         this.remotePlayers.set(sid, rp);
         this._rtRemoteArrayDirty = true;
+
+        // 배틀 모드 중 호스트면 현재 픽업 상태 전송
+        if (this.battleMode && this._isHost && this._battlePickups && this._rtChannel) {
+            const pickupState = this._battlePickups.map(pk => ({
+                x: pk.x, y: pk.y, active: pk.active
+            }));
+            this._rtChannel.send({
+                type: 'broadcast', event: 'gimmick',
+                payload: { battlePickupSync: pickupState }
+            });
+        }
 
         // 스프라이트 비동기 로드 (폴백 먼저 설정)
         rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
@@ -808,6 +828,20 @@ export const WrRealtime = {
             console.log('[RT] I am now HOST');
             // Event-driven: ball은 _rtCheckAndSendBall()로 상태 변화 시 전송
             this._rtLastBallSendTime = 0; // 즉시 첫 전송
+
+            // 배틀 모드: 새 호스트가 픽업 상태 동기화 + 비활성 픽업 리스폰 타이머 재설정
+            if (this.battleMode && this._battlePickups && this._rtChannel) {
+                for (const pk of this._battlePickups) {
+                    if (!pk.active && pk.respawnTimer <= 0) pk.respawnTimer = 300; // 5초 후 리스폰
+                }
+                const pickupState = this._battlePickups.map(pk => ({
+                    x: pk.x, y: pk.y, active: pk.active
+                }));
+                this._rtChannel.send({
+                    type: 'broadcast', event: 'gimmick',
+                    payload: { battlePickupSync: pickupState }
+                });
+            }
         }
     },
 
@@ -1080,6 +1114,13 @@ export const WrRealtime = {
                 if (Math.abs(pk.x - data.pickupRespawn.x) < 5 && Math.abs(pk.y - data.pickupRespawn.y) < 5) {
                     pk.active = true; break;
                 }
+            }
+            return;
+        }
+        // ★ 픽업 전체 상태 동기화 (늦은 입장자 + 호스트 교체 시)
+        if (data.battlePickupSync && this._battlePickups) {
+            for (let i = 0; i < this._battlePickups.length && i < data.battlePickupSync.length; i++) {
+                this._battlePickups[i].active = data.battlePickupSync[i].active;
             }
             return;
         }
