@@ -16,6 +16,7 @@ export const WrBall = {
         if(this.gravityReversed ? b.vy < -this.BALL_MAX_VY : b.vy > this.BALL_MAX_VY) b.vy = this.gravityReversed ? -this.BALL_MAX_VY : this.BALL_MAX_VY;
         b.vx *= this.BALL_FRICTION;
         if(Math.abs(b.vx) < 0.1) b.vx = 0;
+        const prevX = b.x, prevY = b.y;
         b.x += b.vx; b.y += b.vy;
         this.ballAngle += b.vx * 0.03;
         // Ground
@@ -35,16 +36,18 @@ export const WrBall = {
             for(const obs of this.obstacles){if(obs.type==='bouncyZone'&&b.x>=obs.x&&b.x<=obs.x+obs.w){bounce*=2;break;}}
             b.vy=Math.abs(b.vy)*bounce; if(Math.abs(b.vy)<1)b.vy=0; b.vx*=0.97;
         }
-        // Walls & goals (check all goals)
-        if(b.x-b.r<=0){
+        // Walls & goals — swept collision: 이전/현재 위치 모두 검사하여 터널링 방지
+        const ballYmin = Math.min(prevY, b.y);
+        const ballYmax = Math.max(prevY, b.y);
+        if(b.x-b.r<=0 || (prevX-b.r>0 && b.x-b.r<=0)){
             let scored=false;
-            for(const g of this.goals){if(g.side==='left'&&b.y>g.y&&b.y<g.y+g.h){scored=true;break;}}
+            for(const g of this.goals){if(g.side==='left'&&ballYmax>g.y&&ballYmin<g.y+g.h){scored=true;break;}}
             if(scored){this.onGoal('left');return;}
             b.x=b.r; b.vx=Math.abs(b.vx)*this.BALL_BOUNCE;
         }
-        if(b.x+b.r>=this.W){
+        if(b.x+b.r>=this.W || (prevX+b.r<this.W && b.x+b.r>=this.W)){
             let scored=false;
-            for(const g of this.goals){if(g.side==='right'&&b.y>g.y&&b.y<g.y+g.h){scored=true;break;}}
+            for(const g of this.goals){if(g.side==='right'&&ballYmax>g.y&&ballYmin<g.y+g.h){scored=true;break;}}
             if(scored){this.onGoal('right');return;}
             b.x=this.W-b.r; b.vx=-Math.abs(b.vx)*this.BALL_BOUNCE;
         }
@@ -142,6 +145,8 @@ export const WrBall = {
     OG_PENALTY: 3,     // 자책골 코인 차감
 
     onGoal(side){
+        // 골 판정은 호스트만 실행 (비호스트는 브로드캐스트로 수신)
+        if(!this._isHost) return;
         if(side==='left') this.score.left++; else this.score.right++;
         this.goalFlash=90; this.goalFlashSide=side;
         this.ballResetTimer=120;

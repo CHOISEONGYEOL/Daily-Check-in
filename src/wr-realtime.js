@@ -6,6 +6,7 @@ import { CharRender } from './char-render.js';
 import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 import { PerfMonitor } from './perf-monitor.js';
+import { Vote } from './vote.js';
 
 const POS_HEARTBEAT = 1000;   // 위치 heartbeat 주기 (1초) — 안전망
 const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
@@ -52,6 +53,11 @@ export const WrRealtime = {
         if (this._rtChannel) this.rtDestroy();
         this.remotePlayers = new Map();
         this._rtStatus = 'connecting';
+        // ★ 게임 런치 동기화 상태 초기화
+        this._gameLaunchReceived = false;
+        this._gameChannelId = null;
+        this._gameChannel = null;
+        this._gameChannelReady = false;
 
         const className = this.godMode
             ? (this._teacherClassName || '')
@@ -71,6 +77,20 @@ export const WrRealtime = {
         channel.on('broadcast', { event: 'goal' }, ({ payload }) => { PerfMonitor.logRecv(120); this._rtOnRemoteGoal(payload); });
         channel.on('broadcast', { event: 'shutdown' }, () => { PerfMonitor.logRecv(20); this._rtOnShutdown(); });
         channel.on('broadcast', { event: 'gimmick' }, ({ payload }) => { PerfMonitor.logRecv(300); this._rtOnRemoteGimmick(payload); });
+        // ★ 게임 런치 동기화 (투표 후 공통 채널로 합류)
+        channel.on('broadcast', { event: 'game_launch' }, ({ payload }) => { PerfMonitor.logRecv(50); this._rtOnGameLaunch(payload); });
+        // ★ 게임 중 위치 동기화 (게임 모드에서만 활성)
+        channel.on('broadcast', { event: 'gamepos' }, ({ payload }) => {
+            if(window.Game && window.Game.running && window.Game.isMultiplayer){
+                window.Game._onGameRemotePos(payload);
+            }
+        });
+        // ★ 크로스워드 진행상황 동기화
+        channel.on('broadcast', { event: 'cwprogress' }, ({ payload }) => {
+            if(window.Game && window.Game.running && window.Game.gameMode === 'crossword'){
+                window.Game._onCwRemoteProgress(payload);
+            }
+        });
 
         // Presence 수신
         channel.on('presence', { event: 'sync' }, () => this._rtOnPresenceSync());
@@ -133,6 +153,127 @@ export const WrRealtime = {
         this._rtRemoteArrayDirty = true;
         this._isHost = false;
         this._rtStatus = 'disconnected';
+        // 대기 중이던 게임 채널도 정리
+        if(this._gameChannel){
+            this._gameChannel.unsubscribe();
+            supabase.removeChannel(this._gameChannel);
+            this._gameChannel = null;
+            this._gameChannelReady = false;
+        }
+        // ★ 백업 WR 채널 정리 (게임 중 shutdown 수신용)
+        if(this._wrBackupChannel){
+            this._wrBackupChannel.unsubscribe();
+            supabase.removeChannel(this._wrBackupChannel);
+            this._wrBackupChannel = null;
+        }
+    },
+
+    // ── 게임 런치 동기화 (공통 채널 합류) ──
+
+    _rtOnGameLaunch(payload) {
+        if(this._gameLaunchReceived || this.godMode) return;
+        this._gameLaunchReceived = true;
+        const { gameMode, channelId } = payload;
+        console.log('[RT] game_launch received:', gameMode, channelId);
+
+        this.selectedGameId = gameMode;
+        this._gameChannelId = channelId;
+
+        // 투표 진행 중이면 강제 종료 (오버레이 포함)
+        Vote.stop();
+        this.voteStarted = true; // DB 폴링에서 재투표 방지
+
+        // 카운트다운 아직 안 시작했으면 즉시 시작
+        if(!this.countdown || this.countdown <= 0){
+            this.startCountdown();
+        }
+
+        // 게임 채널 미리 구독 (카운트다운 동안 연결 완료)
+        this._rtPrepareGameChannel(channelId);
+    },
+
+    rtBroadcastGameLaunch(gameMode) {
+        if(!this._rtChannel) return;
+        const className = Player.className || 'main';
+        const channelId = `game:${className}_${gameMode}`;
+
+        this._gameLaunchReceived = true;
+        this.selectedGameId = gameMode;
+        this._gameChannelId = channelId;
+
+        this._rtChannel.send({
+            type: 'broadcast',
+            event: 'game_launch',
+            payload: { gameMode, channelId }
+        });
+        console.log('[RT] game_launch broadcast:', gameMode, channelId);
+
+        // 자신도 게임 채널 미리 구독
+        this._rtPrepareGameChannel(channelId);
+    },
+
+    // ★ 교사: 게임 종료 신호 브로드캐스트 (게임 채널 + WR 백업 채널 모두 전송)
+    rtBroadcastGameEnd() {
+        if(this._rtChannel){
+            this._rtChannel.send({ type: 'broadcast', event: 'game_end', payload: {} });
+            console.log('[RT] game_end broadcast on active channel');
+        }
+        if(this._wrBackupChannel){
+            this._wrBackupChannel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
+            console.log('[RT] shutdown broadcast on WR backup channel');
+        }
+    },
+
+    _rtPrepareGameChannel(channelId) {
+        if(this._gameChannel) return; // 이미 준비 중
+
+        const channel = supabase.channel(channelId, {
+            config: { broadcast: { self: false }, presence: { key: String(Player.studentId) } }
+        });
+
+        // 게임 중 사용할 이벤트 리스너만 등록
+        channel.on('broadcast', { event: 'gamepos' }, ({ payload }) => {
+            if(window.Game && window.Game.running && window.Game.isMultiplayer){
+                window.Game._onGameRemotePos(payload);
+            }
+        });
+        channel.on('broadcast', { event: 'cwprogress' }, ({ payload }) => {
+            if(window.Game && window.Game.running && window.Game.gameMode === 'crossword'){
+                window.Game._onCwRemoteProgress(payload);
+            }
+        });
+        // ★ 게임 종료 신호 수신 (교사가 게임 채널로도 전송)
+        channel.on('broadcast', { event: 'game_end' }, () => {
+            PerfMonitor.logRecv(20);
+            this._rtOnShutdown();
+        });
+
+        this._gameChannel = channel;
+        this._gameChannelReady = false;
+
+        channel.subscribe((status) => {
+            console.log('[RT] game channel subscribe:', status);
+            if(status === 'SUBSCRIBED'){
+                this._gameChannelReady = true;
+            }
+        });
+    },
+
+    rtSwitchToGameChannel() {
+        if(!this._gameChannel || !this._gameChannelReady){
+            console.warn('[RT] game channel not ready, keeping WR channel');
+            return;
+        }
+        const oldChannel = this._rtChannel;
+        this._rtChannel = this._gameChannel;
+        this._gameChannel = null;
+
+        // ★ 기존 WR 채널을 완전히 해제하지 않고 shutdown 수신용으로 유지
+        //   (교사가 게임 중 종료 신호를 WR 채널로 보내기 때문)
+        if(oldChannel && oldChannel !== this._rtChannel){
+            this._wrBackupChannel = oldChannel; // shutdown 수신용 보관
+        }
+        console.log('[RT] switched to game channel:', this._gameChannelId);
     },
 
     // ── 위치 브로드캐스트 (Event-Driven: 상태 변화 시에만) ──
@@ -200,7 +341,7 @@ export const WrRealtime = {
         }
 
         // ── 호스트(99999)가 테스트 NPC 위치도 브로드캐스트 ──
-        if (this._isHost && String(Player.studentId) === '99999' && heartbeat) {
+        if (this._isHost && String(Player.studentId) === '99999' && heartbeat && this.remotePlayers) {
             for (const npc of this.remotePlayers.values()) {
                 if (!npc._isTestNPC) continue;
                 this._rtChannel.send({
@@ -304,7 +445,7 @@ export const WrRealtime = {
 
     // ── 원격 플레이어 위치 수신 (Client Prediction + Lerp 보정) ──
     _rtOnRemotePos(data) {
-        if (!data || data.sid === String(Player.studentId)) return;
+        if (!data || data.sid === String(Player.studentId) || !this.remotePlayers) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) {
             // 호스트가 보내준 NPC인데 아직 로컬에 없으면 생성
@@ -422,7 +563,7 @@ export const WrRealtime = {
 
     // ── 원격 채팅 수신 ──
     _rtOnRemoteChat(data) {
-        if (!data || data.sid === String(Player.studentId)) return;
+        if (!data || data.sid === String(Player.studentId) || !this.remotePlayers) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) return;
         this.chatBubbles.push({
@@ -433,7 +574,7 @@ export const WrRealtime = {
 
     // ── 원격 이모트 수신 ──
     _rtOnRemoteEmote(data) {
-        if (!data || data.sid === String(Player.studentId)) return;
+        if (!data || data.sid === String(Player.studentId) || !this.remotePlayers) return;
         const rp = this.remotePlayers.get(data.sid);
         if (!rp) return;
         rp.emote = data.emoteType;
@@ -494,16 +635,23 @@ export const WrRealtime = {
         }
     },
 
-    // ── 교사 shutdown 수신 → 로비로 강제 이동 ──
+    // ── 교사 shutdown / game_end 수신 → 게임 루프 정지 + 로비 강제 이동 ──
     _rtOnShutdown() {
         if (this.godMode) return; // 교사 자신은 무시
+        console.log('[RT] shutdown received — cleaning up');
+        // ★ 게임이 실행 중이면 물리엔진/렌더링 루프 완전 정지
+        if (window.Game && (window.Game.running || window.Game.animRef)) {
+            window.Game.forceCleanup(); // cancelAnimationFrame + clearInterval + UI 정리 + lobby 이동
+            this.stop();
+            return; // forceCleanup이 이미 Nav.go('lobby') 호출함
+        }
         this.stop();
         if (typeof Nav !== 'undefined') Nav.go('lobby');
     },
 
     // ── Presence 동기화 ──
     _rtOnPresenceSync() {
-        if (!this._rtChannel) return;
+        if (!this._rtChannel || !this.remotePlayers) return;
         const state = this._rtChannel.presenceState();
         const presentIds = new Set();
 
@@ -657,38 +805,35 @@ export const WrRealtime = {
 
     // ── 팀 자동 배정 (studentId 정렬 → 교대 배정) ──
     _rtAssignTeams() {
-        if (!this._rtChannel || this.godMode) return;
-        // 관람석에 있는 플레이어 제외하고 활성 플레이어만 팀 배정
-        const spectatorIds = new Set();
-        for (const rp of this.remotePlayers.values()) {
-            if (rp._inSpectator) spectatorIds.add(rp.studentId);
-        }
-        const activeIds = [];
-        const state = this._rtChannel.presenceState();
-        for (const [key, presences] of Object.entries(state)) {
-            if (!presences || presences.length === 0) continue;
-            const p = presences[0];
-            if (p.isTeacher) continue;
-            const sid = String(p.studentId);
-            // 관람석 플레이어 또는 로컬 관람석 제외
-            if (spectatorIds.has(sid)) continue;
-            if (sid === String(Player.studentId) && this._inSpectator) continue;
-            activeIds.push(sid);
-        }
-        activeIds.sort((a, b) => parseInt(a) - parseInt(b));
-        // 짝수 인덱스 = left, 홀수 인덱스 = right
-        const myIdx = activeIds.indexOf(String(Player.studentId));
+        if (!this._rtChannel || this.godMode || !this.remotePlayers) return;
+        // 관람석 플레이어는 팀 null 처리
         if (this._inSpectator && this.player) {
             this.player.team = null;
-        } else if (myIdx >= 0 && this.player) {
-            this.player.team = myIdx % 2 === 0 ? 'left' : 'right';
         }
-        // 원격 플레이어 팀도 갱신
         for (const rp of this.remotePlayers.values()) {
-            if (rp._inSpectator) { rp.team = null; continue; }
-            const idx = activeIds.indexOf(rp.studentId);
-            if (idx >= 0) {
-                rp.team = idx % 2 === 0 ? 'left' : 'right';
+            if (rp._inSpectator) { rp.team = null; }
+        }
+        // 이미 팀이 배정된 플레이어는 유지, 팀이 없는 활성 플레이어만 새로 배정
+        // 현재 팀별 인원수 계산
+        let leftCount = 0, rightCount = 0;
+        if (this.player && !this._inSpectator && this.player.team) {
+            if (this.player.team === 'left') leftCount++; else rightCount++;
+        }
+        for (const rp of this.remotePlayers.values()) {
+            if (!rp._inSpectator && rp.team) {
+                if (rp.team === 'left') leftCount++; else rightCount++;
+            }
+        }
+        // 로컬 플레이어 팀 배정 (팀 없을 때만)
+        if (this.player && !this._inSpectator && !this.player.team) {
+            this.player.team = leftCount <= rightCount ? 'left' : 'right';
+            if (this.player.team === 'left') leftCount++; else rightCount++;
+        }
+        // 원격 플레이어 팀 배정 (팀 없을 때만)
+        for (const rp of this.remotePlayers.values()) {
+            if (!rp._inSpectator && !rp.team) {
+                rp.team = leftCount <= rightCount ? 'left' : 'right';
+                if (rp.team === 'left') leftCount++; else rightCount++;
             }
         }
     },
@@ -709,7 +854,9 @@ export const WrRealtime = {
 
     // ── 매 프레임 클라이언트 예측 (Client-Side Prediction + Lerp 보정) ──
     _rtPredictRemotePlayers() {
+        if (!this.remotePlayers) return;
         for (const rp of this.remotePlayers.values()) {
+            if (!rp) continue;
             // ★ 텔레포트 직후: 물리 예측 스킵, 서버 위치 신뢰 (엘리베이터 잔상 방지)
             if (rp._teleportFrames > 0) {
                 rp._teleportFrames--;

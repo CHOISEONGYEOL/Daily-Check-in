@@ -24,8 +24,21 @@ export const WrTeacher = {
                     clearInterval(this._gameStartPollId);
                     this._gameStartPollId = null;
                     this.voteStarted = true;
+                    // ★ 게임 결정 즉시 브로드캐스트 → 모든 학생 동기화
+                    Vote._onGameDecided = (gameMode) => {
+                        this.rtBroadcastGameLaunch(gameMode);
+                        this.selectedGameId = gameMode;
+                        // 투표 오버레이 즉시 닫고 카운트다운 시작
+                        const overlay = document.getElementById('wr-vote-overlay');
+                        if(overlay) overlay.classList.add('hidden');
+                        if(!this.countdown || this.countdown <= 0){
+                            this.startCountdown();
+                        }
+                    };
                     Vote.start(this.totalStudents, async () => {
-                        // DB에서 확정된 게임 ID 읽기 (중앙 동기화 — 모든 학생이 같은 게임)
+                        // _onGameDecided에서 이미 카운트다운 시작됐으면 스킵
+                        if(this.countdown > 0) return;
+                        // 폴백: DB에서 확정된 게임 ID 읽기
                         try {
                             const data = await DB.getSpectatorData(Player.className);
                             this.selectedGameId = data.selectedGame || Vote.selectedGame.id;
@@ -531,7 +544,18 @@ export const WrTeacher = {
     testStartVote(){
         if(this.voteStarted) return;
         this.voteStarted = true;
+        // ★ 게임 결정 즉시 브로드캐스트
+        Vote._onGameDecided = (gameMode) => {
+            if(this._rtChannel) this.rtBroadcastGameLaunch(gameMode);
+            this.selectedGameId = gameMode;
+            const overlay = document.getElementById('wr-vote-overlay');
+            if(overlay) overlay.classList.add('hidden');
+            if(!this.countdown || this.countdown <= 0){
+                this.startCountdown();
+            }
+        };
         Vote.start(this.totalStudents, () => {
+            if(this.countdown > 0) return;
             this.selectedGameId = Vote.selectedGame.id;
             this.startCountdown();
         });
@@ -551,7 +575,9 @@ export const WrTeacher = {
                 if(Player.className && Player.studentId !== '99999') {
                     DB.setGamePhase(Player.className, 'playing').catch(()=>{});
                 }
-                this.stop();
+                // ★ 공통 게임 채널로 전환 (WR 채널 → game:{class}_{mode})
+                this.rtSwitchToGameChannel();
+                this.stop(true); // 실시간 채널 유지 (게임 중 동기화용)
                 Game.enterFromWaitingRoom(this.selectedGameId || 'picopark');
             }
         },1000);

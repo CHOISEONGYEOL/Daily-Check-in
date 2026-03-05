@@ -114,7 +114,7 @@ export const GameStages = {
             plates:[
                 {x:900, y:556, w:40, h:14, linkedId:'bridge2a', type:'plate'},
                 {x:1100, y:556, w:40, h:14, linkedId:'bridge2b', type:'plate'},
-                {x:1450, y:556, w:40, h:14, linkedId:'elev2', type:'plate'},
+                {x:1450, y:556, w:40, h:14, linkedId:'elev1', type:'plate'},
             ],
             bridges:[
                 {x:990, y:300, w:70, h:10, visible:false, linkedId:'bridge2a'},
@@ -199,7 +199,7 @@ export const GameStages = {
                 {x:250, y:656, w:40, h:14, linkedId:'bridge3b', type:'plate'},
                 {x:400, y:656, w:40, h:14, linkedId:'bridge3c', type:'plate'},
                 // Elevator plate (zone C)
-                {x:1300, y:656, w:40, h:14, linkedId:'elev3a', type:'plate'},
+                {x:1300, y:656, w:40, h:14, linkedId:'elev1', type:'plate'},
             ],
             bridges:[
                 {x:160, y:400, w:70, h:10, visible:false, linkedId:'bridge3a'},
@@ -231,8 +231,8 @@ export const GameStages = {
     nmStages:[
         // ── Stage 1: 쉬운 출발! ──
         {
-            name:'🔢 쉬운 출발!',
-            desc:'자기 번호를 찾아 위에 올라서자! 전원이 맞으면 문이 열려요!',
+            name:'🔢 체크포인트 레이스!',
+            desc:'주어진 번호 순서대로 밟아라! 전원 완료하면 문이 열려요!',
             w:2000, h:800,
             spawnX:100, spawnY:700,
             platforms:[
@@ -297,7 +297,7 @@ export const GameStages = {
         // ── Stage 2: 한 단계 위로! ──
         {
             name:'🏗️ 한 단계 위로!',
-            desc:'위아래로 퍼진 번호판! 내 숫자는 어디에?',
+            desc:'위아래로 퍼진 체크포인트! 순서대로 찍어라!',
             w:2200, h:700,
             spawnX:100, spawnY:600,
             platforms:[
@@ -364,8 +364,8 @@ export const GameStages = {
         },
         // ── Stage 3: 미로 속의 숫자! ──
         {
-            name:'🌀 미로 속의 숫자!',
-            desc:'복잡한 지형 속에 숨은 번호판! 서둘러 찾아가자!',
+            name:'🌀 미로 속 체크포인트!',
+            desc:'복잡한 지형 속 체크포인트를 순서대로 돌파하라!',
             w:2400, h:800,
             spawnX:100, spawnY:700,
             platforms:[
@@ -450,22 +450,45 @@ export const GameStages = {
         },
     ],
 
-    // ── Number assignment (Fisher-Yates shuffle) ──
-    assignNumbers(){
-        const total = this.npcs.length + 1;
-        const nums = [];
-        for(let i=1; i<=total; i++) nums.push(i);
-        // Fisher-Yates shuffle
-        for(let i=nums.length-1; i>0; i--){
-            const j = Math.floor(Math.random()*(i+1));
-            [nums[i], nums[j]] = [nums[j], nums[i]];
-        }
-        this.player.assignedNumber = nums[0];
-        this.npcs.forEach((n, i) => { n.assignedNumber = nums[i+1]; });
+    // ── 오리엔티어링 체크포인트 시스템 ──
+    getSpotCount(n){
+        if(n <= 2)  return 8;
+        if(n <= 5)  return 12;
+        if(n <= 10) return 16;
+        if(n <= 15) return 20;
+        return 25;
+    },
+    getCheckpointCount(n){
+        if(n <= 2)  return 3;
+        if(n <= 5)  return 3;
+        if(n <= 10) return 4;
+        if(n <= 15) return 4;
+        return 5;
+    },
+    assignCheckpoints(){
+        const spotNums = this.numberSpots.map(s => s.number);
+        const cpCount = this.getCheckpointCount(this.totalPlayers);
+        const all = this.spectatorMode
+            ? [...this.npcs]
+            : [this.player, ...this.npcs];
+        all.forEach(e => {
+            if(e._spectatorDummy) return;
+            // Fisher-Yates로 스팟 번호 셔플 후 cpCount개 선택
+            const shuffled = [...spotNums];
+            for(let i = shuffled.length - 1; i > 0; i--){
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            e.checkpoints = shuffled.slice(0, cpCount);
+            e.currentCP = 0;
+            e.completedAll = false;
+        });
     },
 
     // ── 인원 기반 스케일링 헬퍼 ──
     getKeyCount(n){
+        if(n <= 1)  return 1;
+        if(n <= 3)  return 1;
         if(n <= 5)  return 2;
         if(n <= 10) return 3;
         if(n <= 15) return 4;
@@ -473,6 +496,8 @@ export const GameStages = {
         return 6;
     },
     getCoopRequired(base, n){
+        if(n <= 1) return 1;
+        if(n <= 3) return 1;
         return Math.max(2, Math.round(base * n / 25));
     },
     isKeyUnlocked(key){
@@ -538,14 +563,20 @@ export const GameStages = {
             const n = this.totalPlayers || 25;
             this.pushBlocks.forEach(b=>{ b.required = this.getCoopRequired(b.required, n); });
             this.elevators.forEach(e=>{ e.required = this.getCoopRequired(e.required, n); });
+
+            // ★ 소규모(3명 이하): 게이트 제거 – 협동 장치 없이 바로 수집 가능
+            if(n <= 3){
+                this.stageKeys.forEach(k=>{ k.gateType = null; k.gateId = null; });
+            }
         } else {
             this.stageKeys = (s.keys||[]).map(k=>({...k, collected:false}));
         }
-        // Number match spots
+        // Number match spots — 오리엔티어링 체크포인트용 (플레이어보다 많은 스팟)
         if(this.gameMode === 'numbermatch'){
+            const spotCount = this.getSpotCount(this.totalPlayers || 25);
             this.numberSpots = (s.numberSpots||[])
-                .filter(sp => sp.number <= (this.totalPlayers||25))
-                .map(sp => ({...sp, satisfied:false, occupant:null}));
+                .filter(sp => sp.number <= spotCount)
+                .map(sp => ({...sp, isPlayerTarget:false, isPlayerDone:false}));
             this.nmAllMatched = false;
             this.nmMatchCount = 0;
         } else {
@@ -567,15 +598,42 @@ export const GameStages = {
 
     createNPCs(){
         this.npcs = [];
-        // 관전 모드 + 0명 테스트: NPC 5개로 기본 동작 보장
+        const shuffled = [...BLOB_COLORS].sort(()=>Math.random()-.5);
+        const sd = this.stageData;
+
+        // ★ 멀티플레이어: 실제 접속 유저만 배치 (NPC 절대 없음!)
+        if(this.isMultiplayer && this._remotePlayerData && this._remotePlayerData.size > 0){
+            let idx = 0;
+            for(const [sid, rpData] of this._remotePlayerData){
+                if(idx >= 24) break;
+                this.npcs.push({
+                    x: sd.spawnX + (Math.random()*200-100),
+                    y: sd.spawnY - Math.random()*20,
+                    vx:0, vy:0, w:24, h:28,
+                    onGround:false, dir:Math.random()>.5?1:-1,
+                    sprite: rpData.sprite || makeBlobSprite(shuffled[idx%shuffled.length],64),
+                    color: shuffled[idx%shuffled.length],
+                    jumpCount:0, maxJumps:2,
+                    dead:false, ghostTimer:0, atDoor:false, enteredDoor:false,
+                    isRemote: true,
+                    studentId: sid,
+                    displayName: rpData.displayName || sid,
+                    aiTimer:0, chatTimer:99999, aiJumpCooldown:0,
+                    stuckTimer:0, lastX:0,
+                    group: Math.floor(idx/5),
+                });
+                idx++;
+            }
+            return; // ★ NPC 없음 – 실제 플레이어만!
+        }
+
+        // ── 솔로/테스트/관전 모드: AI NPC 생성 ──
         let count;
         if(this.spectatorMode && this.totalStudents <= 0){
             count = 5;
         } else {
             count = Math.min(this.totalStudents - 1, 24);
         }
-        const shuffled = [...BLOB_COLORS].sort(()=>Math.random()-.5);
-        const sd = this.stageData;
         for(let i=0;i<count;i++){
             this.npcs.push({
                 x: sd.spawnX + (Math.random()*200-100),
@@ -588,12 +646,10 @@ export const GameStages = {
                 aiTimer:Math.random()*100|0,
                 chatTimer:200+Math.random()*500|0,
                 dead:false, ghostTimer:0, atDoor:false,
-                // AI state
-                aiGoal:null, // 'key','door','plate','push','follow','climb'
-                aiTarget:null,
+                isRemote: false,
+                aiGoal:null, aiTarget:null,
                 aiJumpCooldown:0,
                 stuckTimer:0, lastX:0,
-                // Group assignment (for 5-person puzzles)
                 group: Math.floor(i/5),
             });
         }

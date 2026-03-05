@@ -6,40 +6,70 @@ import { Vote } from './vote.js';
 export const GameRender = {
 
     updateProgress(){
-        const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+        // 올라올라/크로스워드 등 자체 HUD 사용 게임은 스킵
+        if(this.gameMode === 'ollaolla') return;
+        let stageCount;
+        if(this.gameMode === 'escaperoom'){
+            stageCount = this.escapeRooms ? this.escapeRooms.length : 2;
+        } else {
+            const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+            stageCount = stageList?.length || 1;
+        }
         let stageProgress;
-        if(this.gameMode === 'numbermatch'){
+        if(this.gameMode === 'escaperoom'){
+            const totalQ = this.escapeQuizzes ? this.escapeQuizzes.length : 1;
+            const solved = this.escapeQuizzes ? this.escapeQuizzes.filter(q=>q.solved).length : 0;
+            stageProgress = this.door && this.door.open
+                ? 0.5 + 0.5 * (this.playersAtDoor / this.totalPlayers)
+                : (solved / totalQ) * 0.5;
+        } else if(this.gameMode === 'numbermatch'){
             stageProgress = this.nmAllMatched
                 ? 0.5 + 0.5 * (this.playersAtDoor / this.totalPlayers)
                 : (this.nmMatchCount / Math.max(this.totalPlayers,1)) * 0.5;
         } else {
-            const keysCollected = this.stageKeys.filter(k=>k.collected).length;
-            const keysTotal = this.stageKeys.length || 1;
+            const keysCollected = (this.stageKeys || []).filter(k=>k.collected).length;
+            const keysTotal = (this.stageKeys || []).length || 1;
             stageProgress = this.door && this.door.open
                 ? 0.5 + 0.5 * (this.playersAtDoor / this.totalPlayers)
                 : (keysCollected / keysTotal) * 0.5;
         }
-        const totalProgress = (this.stage + stageProgress) / stageList.length;
+        const totalProgress = (this.stage + stageProgress) / stageCount;
         document.getElementById('hud-fill').style.width = (totalProgress*100)+'%';
     },
 
     updateHUD(){
         this.updateProgress();
-        const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+        let stageCount;
+        if(this.gameMode === 'escaperoom'){
+            stageCount = this.escapeRooms ? this.escapeRooms.length : 2;
+        } else {
+            const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+            stageCount = stageList?.length || 1;
+        }
         const m=Math.floor(this.remaining/60), s=this.remaining%60;
         document.getElementById('hud-timer').textContent = `⏱️ ${m}:${String(s).padStart(2,'0')} / 5:00`;
         document.getElementById('G-coins').textContent = Player.coins;
         const isCleared = Player.clearedGames.includes(this.gameMode);
         const gameInfo = Vote.GAMES.find(g => g.id === this.gameMode);
         const rewardText = isCleared ? '✅ 클리어 완료' : `🪙 현상금: ${gameInfo?.bounty || this.CLEAR_REWARD}코인`;
-        if(this.gameMode === 'numbermatch'){
-            document.getElementById('hud-stars').textContent = `Stage ${this.stage+1}/${stageList.length}  🔢 매칭: ${this.nmMatchCount}/${this.totalPlayers}  ${rewardText}`;
+        if(this.gameMode === 'escaperoom'){
+            const totalQ = this.escapeQuizzes ? this.escapeQuizzes.length : 0;
+            const solved = this.escapeQuizzes ? this.escapeQuizzes.filter(q=>q.solved).length : 0;
+            const clueTotal = this.escapeClues ? this.escapeClues.length : 0;
+            const clueFound = this.escapeClues ? this.escapeClues.filter(c=>c.found).length : 0;
+            document.getElementById('hud-stars').textContent = `Room ${this.stage+1}/${stageCount}  🔍 단서: ${clueFound}/${clueTotal}  ❓ 퀴즈: ${solved}/${totalQ}  ${rewardText}`;
             const el = document.getElementById('hud-mode');
-            if(el && !el.textContent.startsWith('🔢')) el.textContent = '🔢 숫자를 찾아라!';
+            if(el && !el.textContent.startsWith('🚪')) el.textContent = '🚪 방탈출!';
+        } else if(this.gameMode === 'numbermatch'){
+            const cpCount = this.player.checkpoints ? this.player.checkpoints.length : 0;
+            const myCP = this.player.currentCP || 0;
+            document.getElementById('hud-stars').textContent = `Stage ${this.stage+1}/${stageCount}  완료: ${this.nmMatchCount}/${this.totalPlayers}  내 진행: ${myCP}/${cpCount}  ${rewardText}`;
+            const el = document.getElementById('hud-mode');
+            if(el && !el.textContent.startsWith('🔢')) el.textContent = '🔢 체크포인트 레이스!';
         } else {
-            const keysCollected = this.stageKeys.filter(k=>k.collected).length;
-            const keysTotal = this.stageKeys.length;
-            document.getElementById('hud-stars').textContent = `Stage ${this.stage+1}/${stageList.length}  🔑 ${keysCollected}/${keysTotal}  ${rewardText}`;
+            const keysCollected = (this.stageKeys || []).filter(k=>k.collected).length;
+            const keysTotal = (this.stageKeys || []).length;
+            document.getElementById('hud-stars').textContent = `Stage ${this.stage+1}/${stageCount}  🔑 ${keysCollected}/${keysTotal}  ${rewardText}`;
         }
         if(this.ghostMode){
             const el = document.getElementById('hud-mode');
@@ -51,6 +81,7 @@ export const GameRender = {
     // RENDER
     // ═══════════════════════════════════════
     render(){
+        if(!this.ctx || !this.camera) return;
         const ctx = this.ctx;
         const cam = this.camera;
         const z = this.gameZoom || 1;
@@ -78,7 +109,7 @@ export const GameRender = {
         ctx.translate(-cam.x, -cam.y);
 
         // Platforms
-        this.platforms.forEach(p=>{
+        (this.platforms || []).forEach(p=>{
             if(p.x+p.w < cam.x-50 || p.x > cam.x+this.VW+50) return;
             if(p.type==='wall'){
                 ctx.fillStyle='#636E72';
@@ -114,10 +145,15 @@ export const GameRender = {
             this._renderNumberSpots(ctx);
         }
 
+        // ── Escape Room: quizzes, clues, pads ──
+        if(this.gameMode === 'escaperoom'){
+            this.renderEscapeQuizzes(ctx);
+        }
+
         // ── Pico Park gimmicks ──
-        if(this.gameMode !== 'numbermatch'){
+        if(this.gameMode !== 'numbermatch' && this.gameMode !== 'escaperoom'){
         // Bridges (visible ones)
-        this.bridges.forEach(br=>{
+        (this.bridges || []).forEach(br=>{
             if(!br.visible) return;
             ctx.fillStyle='rgba(0,184,148,.6)';
             ctx.fillRect(br.x, br.y, br.w, br.h);
@@ -129,7 +165,7 @@ export const GameRender = {
         });
 
         // Elevators
-        this.elevators.forEach(elev=>{
+        (this.elevators || []).forEach(elev=>{
             ctx.fillStyle = elev.riders >= elev.required ? '#00B894' : '#636E72';
             ctx.fillRect(elev.x, elev.y, elev.w, elev.h);
             ctx.fillStyle = '#fff';
@@ -142,7 +178,7 @@ export const GameRender = {
         });
 
         // Push Blocks
-        this.pushBlocks.forEach(block=>{
+        (this.pushBlocks || []).forEach(block=>{
             if(block.pushed) return;
             const shaking = block.pushers.size > 0 && block.pushers.size < block.required;
             const sx = shaking ? (Math.random()-0.5)*3 : 0;
@@ -156,14 +192,14 @@ export const GameRender = {
         });
 
         // Pressure Plates + visual connection to linked keys
-        this.plates.forEach(plate=>{
+        (this.plates || []).forEach(plate=>{
             ctx.fillStyle = plate.active ? '#00B894' : '#E17055';
             ctx.fillRect(plate.x, plate.y, plate.w, plate.active?6:10);
 
             // Draw connection line from plate to linked key(s)
             const plateCX = plate.x + plate.w/2;
             const plateCY = plate.y;
-            this.stageKeys.forEach(key=>{
+            (this.stageKeys || []).forEach(key=>{
                 if(key.collected) return;
                 if(key.gateType !== 'plate' || key.gateId !== plate.linkedId) return;
                 const kt = Date.now()*0.004;
@@ -207,10 +243,10 @@ export const GameRender = {
                 ctx.beginPath();ctx.arc(plate.x+plate.w/2,plate.y,25,0,Math.PI*2);ctx.fill();
             }
         });
-        } // end picopark gimmicks
+        } // end picopark/escaperoom gimmicks
 
         // Hazards
-        this.hazards.forEach(hz=>{
+        (this.hazards || []).forEach(hz=>{
             if(hz.type==='spike'){
                 ctx.fillStyle='#636E72';
                 for(let sx=hz.x;sx<hz.x+hz.w;sx+=12){
@@ -235,8 +271,8 @@ export const GameRender = {
         });
 
         // Keys (multiple) - picopark only — 잠금/해제 시각 피드백
-        if(this.gameMode !== 'numbermatch'){
-        this.stageKeys.forEach((key,ki)=>{
+        if(this.gameMode !== 'numbermatch' && this.gameMode !== 'escaperoom'){
+        (this.stageKeys || []).forEach((key,ki)=>{
             if(key.collected) return;
             const t=Date.now()*0.004 + ki*1.5;
             const ky = key.y + Math.sin(t)*5;
@@ -313,10 +349,10 @@ export const GameRender = {
 
         // ── Entities (sorted by y for depth) ──
         const entities = [];
-        if(!this.player.enteredDoor && (!this.player.dead || this.ghostMode)){
+        if(this.player && !this.player.enteredDoor && (!this.player.dead || this.ghostMode)){
             entities.push({...this.player, isPlayer:true, ref:this.player});
         }
-        this.npcs.forEach(n=>{
+        (this.npcs || []).forEach(n=>{
             if(!n.enteredDoor && (!n.dead || this.ghostMode)){
                 entities.push({...n, isNpc:true, ref:n});
             }
@@ -369,16 +405,22 @@ export const GameRender = {
                 }
             }
 
-            // Number badge (number match mode)
-            if(this.gameMode === 'numbermatch' && !ghost && e.ref.assignedNumber){
-                const num = e.ref.assignedNumber;
+            // Checkpoint badge (number match mode)
+            if(this.gameMode === 'numbermatch' && !ghost && e.ref.checkpoints){
                 const badgeY = e.isPlayer ? e.y - 38 : e.y - 24;
                 ctx.fillStyle = 'rgba(0,0,0,0.7)';
                 ctx.beginPath(); ctx.arc(e.x, badgeY, 10, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#FDCB6E';
-                ctx.font = 'bold 11px sans-serif';
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(num, e.x, badgeY);
+                if(e.ref.completedAll){
+                    ctx.fillStyle = '#00B894';
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.fillText('\u2713', e.x, badgeY);
+                } else {
+                    const targetNum = e.ref.checkpoints[e.ref.currentCP];
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = 'bold 11px sans-serif';
+                    ctx.fillText(targetNum, e.x, badgeY);
+                }
                 ctx.textBaseline = 'alphabetic';
             }
 
@@ -477,17 +519,84 @@ export const GameRender = {
         });
         ctx.globalAlpha=1;
 
-        // Number match: player number HUD
-        if(this.gameMode === 'numbermatch' && this.player.assignedNumber){
-            const num = this.player.assignedNumber;
-            ctx.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx.beginPath(); ctx.roundRect(10, 50, 85, 38, 8); ctx.fill();
+        // Escape room quiz/clue HUD
+        if(this.gameMode === 'escaperoom' && this.escapeQuizzes){
+            const quizzes = this.escapeQuizzes;
+            const clues = this.escapeClues || [];
+            const boxW = Math.max(180, quizzes.length * 40 + 20);
+            ctx.fillStyle = 'rgba(0,0,0,0.75)';
+            ctx.beginPath(); ctx.roundRect(10, 50, boxW, 56, 8); ctx.fill();
+            // 단서 상태
+            ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
             ctx.fillStyle = '#aaa';
-            ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
-            ctx.fillText('내 번호:', 18, 65);
-            ctx.fillStyle = '#FDCB6E';
-            ctx.font = 'bold 20px sans-serif';
-            ctx.fillText(`#${num}`, 18, 84);
+            ctx.fillText(`단서: ${clues.filter(c=>c.found).length}/${clues.length}`, 16, 63);
+            // 퀴즈 상태
+            let xOff = 16;
+            ctx.fillStyle = '#aaa';
+            ctx.fillText('퀴즈:', 16, 78);
+            xOff = 52;
+            quizzes.forEach((q, i) => {
+                if(q.solved){
+                    ctx.fillStyle = 'rgba(0,184,148,0.3)';
+                    ctx.beginPath(); ctx.roundRect(xOff, 70, 30, 22, 4); ctx.fill();
+                    ctx.fillStyle = '#00B894';
+                    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText('\u2713', xOff+15, 85);
+                } else {
+                    const progress = q.currentStep || 0;
+                    const total = q.correctOrder ? q.correctOrder.length : 0;
+                    ctx.fillStyle = progress > 0 ? 'rgba(255,215,0,0.2)' : 'rgba(108,92,231,0.2)';
+                    ctx.beginPath(); ctx.roundRect(xOff, 70, 30, 22, 4); ctx.fill();
+                    ctx.strokeStyle = progress > 0 ? '#FFD700' : '#6C5CE7'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.roundRect(xOff, 70, 30, 22, 4); ctx.stroke();
+                    ctx.fillStyle = progress > 0 ? '#FFD700' : '#8e82d4';
+                    ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(`${progress}/${total}`, xOff+15, 85);
+                }
+                xOff += 36;
+            });
+            ctx.textAlign = 'left';
+        }
+
+        // Checkpoint sequence HUD
+        if(this.gameMode === 'numbermatch' && this.player.checkpoints){
+            const cps = this.player.checkpoints;
+            const cur = this.player.currentCP || 0;
+            const boxW = Math.max(120, cps.length * 32 + 20);
+            ctx.fillStyle = 'rgba(0,0,0,0.75)';
+            ctx.beginPath(); ctx.roundRect(10, 50, boxW, 42, 8); ctx.fill();
+            ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillStyle = '#aaa';
+            ctx.fillText(this.player.completedAll ? '미션 완료!' : '체크포인트:', 16, 63);
+            let xOff = 16;
+            cps.forEach((num, i) => {
+                if(i < cur){
+                    // 완료
+                    ctx.fillStyle = 'rgba(0,184,148,0.3)';
+                    ctx.beginPath(); ctx.roundRect(xOff, 68, 26, 20, 4); ctx.fill();
+                    ctx.fillStyle = '#00B894';
+                    ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText('\u2713', xOff+13, 82);
+                } else if(i === cur){
+                    // 현재 타겟
+                    ctx.fillStyle = 'rgba(255,215,0,0.3)';
+                    ctx.beginPath(); ctx.roundRect(xOff, 68, 26, 20, 4); ctx.fill();
+                    ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(xOff, 68, 26, 20, 4); ctx.stroke();
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(num, xOff+13, 82);
+                } else {
+                    // 미진행
+                    ctx.fillStyle = 'rgba(108,92,231,0.2)';
+                    ctx.beginPath(); ctx.roundRect(xOff, 68, 26, 20, 4); ctx.fill();
+                    ctx.fillStyle = '#8e82d4';
+                    ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                    ctx.fillText(num, xOff+13, 82);
+                }
+                xOff += 30;
+            });
+            ctx.textAlign = 'left';
         }
 
         // Victory celebration overlay
@@ -515,31 +624,122 @@ export const GameRender = {
             ctx.fillText('👻 유령 모드 – 죽어도 발판을 밟을 수 있어요!',sw/2,sh-12);
         }
 
+        // ── Ball off-screen indicator arrow ──
+        this._renderBallIndicator(ctx);
+
         // Minimap
         this._renderMinimap(ctx);
     },
 
+    _renderBallIndicator(ctx){
+        const b = this.ball;
+        if(!b || this.ballResetTimer > 0) return;
+        const cam = this.camera;
+        const z = this.gameZoom || 1;
+        const vw = this.VW, vh = this.VH;
+
+        // Ball position in screen space (before zoom)
+        const bsx = (b.x - cam.x) * z;
+        const bsy = (b.y - cam.y) * z;
+        const sw = this.screenW, sh = this.screenH;
+        const margin = 40; // arrow distance from edge
+
+        // Check if ball is within the visible screen
+        if(bsx >= -20 && bsx <= sw + 20 && bsy >= -20 && bsy <= sh + 20) return;
+
+        // Center of screen
+        const cx = sw / 2, cy = sh / 2;
+        // Angle from center to ball
+        const angle = Math.atan2(bsy - cy, bsx - cx);
+
+        // Clamp to screen edge with margin
+        const cosA = Math.cos(angle), sinA = Math.sin(angle);
+        const maxX = (sw / 2) - margin, maxY = (sh / 2) - margin;
+        let scale = Math.min(
+            Math.abs(cosA) > 0.001 ? maxX / Math.abs(cosA) : 1e9,
+            Math.abs(sinA) > 0.001 ? maxY / Math.abs(sinA) : 1e9
+        );
+        const ax = cx + cosA * scale;
+        const ay = cy + sinA * scale;
+
+        // Distance for opacity (farther = more opaque)
+        const dist = Math.sqrt((bsx - cx) ** 2 + (bsy - cy) ** 2);
+        const alpha = Math.min(1, 0.5 + dist / 2000);
+
+        // Pulsing effect
+        const pulse = 0.85 + Math.sin(Date.now() * 0.006) * 0.15;
+
+        ctx.save();
+        ctx.globalAlpha = alpha * pulse;
+        ctx.translate(ax, ay);
+        ctx.rotate(angle);
+
+        // Arrow triangle
+        const arrowSize = 14;
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(arrowSize, 0);
+        ctx.lineTo(-arrowSize * 0.6, -arrowSize * 0.6);
+        ctx.lineTo(-arrowSize * 0.6, arrowSize * 0.6);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glow
+        ctx.shadowColor = '#FFD700';
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Small ball icon behind arrow
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-arrowSize * 1.2, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Pentagon pattern on mini ball
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(-arrowSize * 1.2, 0, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    },
+
     _renderMinimap(ctx){
+        if(!this.screenW || !this.W || !this.H) return;
         const mw=140, mh=30, mx=this.screenW-mw-10, my=8;
         const scaleX=mw/this.W, scaleY=mh/this.H;
         ctx.fillStyle='rgba(0,0,0,.5)';
         ctx.beginPath();ctx.roundRect(mx,my,mw,mh,4);ctx.fill();
         // Platforms
         ctx.fillStyle='rgba(255,255,255,.15)';
-        this.platforms.forEach(p=>{
+        (this.platforms || []).forEach(p=>{
             if(p.type==='ground') return;
             ctx.fillRect(mx+p.x*scaleX, my+p.y*scaleY, Math.max(p.w*scaleX,1), Math.max(p.h*scaleY,1));
         });
-        // Keys / Number spots on minimap
-        if(this.gameMode === 'numbermatch'){
-            this.numberSpots.forEach(spot=>{
-                ctx.fillStyle = spot.satisfied ? '#00B894' : '#6C5CE7';
-                ctx.beginPath();ctx.arc(mx+(spot.x+spot.w/2)*scaleX, my+spot.y*scaleY, 1.5, 0, Math.PI*2);ctx.fill();
+        // Keys / Number spots / Escape room on minimap
+        if(this.gameMode === 'escaperoom'){
+            // 단서 (미발견=회색 점멸, 발견=금색)
+            if(this.escapeClues) this.escapeClues.forEach(c=>{
+                ctx.fillStyle = c.found ? '#FFD700' : '#888';
+                ctx.beginPath();ctx.arc(mx+(c.x+10)*scaleX, my+c.y*scaleY, 1.5, 0, Math.PI*2);ctx.fill();
+            });
+            // 퀴즈 (미해결=보라, 해결=초록)
+            if(this.escapeQuizzes) this.escapeQuizzes.forEach(q=>{
+                ctx.fillStyle = q.solved ? '#00B894' : '#6C5CE7';
+                ctx.beginPath();ctx.arc(mx+(q.x+q.w/2)*scaleX, my+q.y*scaleY, 2, 0, Math.PI*2);ctx.fill();
+            });
+        } else if(this.gameMode === 'numbermatch'){
+            (this.numberSpots || []).forEach(spot=>{
+                ctx.fillStyle = spot.isPlayerTarget ? '#FFD700' : (spot.isPlayerDone ? '#555' : '#6C5CE7');
+                ctx.beginPath();ctx.arc(mx+(spot.x+spot.w/2)*scaleX, my+spot.y*scaleY, spot.isPlayerTarget ? 2.5 : 1.5, 0, Math.PI*2);ctx.fill();
             });
         } else {
-            this.stageKeys.forEach(key=>{
+            (this.stageKeys || []).forEach(key=>{
                 if(key.collected) return;
-                const unlocked = key._unlocked !== undefined ? key._unlocked : this.isKeyUnlocked(key);
+                const unlocked = key._unlocked !== undefined ? key._unlocked : this.isKeyUnlocked?.(key);
                 ctx.fillStyle = unlocked ? '#FFD700' : '#888';
                 ctx.beginPath();ctx.arc(mx+key.x*scaleX, my+key.y*scaleY, 2, 0, Math.PI*2);ctx.fill();
             });
@@ -553,59 +753,75 @@ export const GameRender = {
         ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;
         ctx.strokeRect(mx+this.camera.x*scaleX, my+this.camera.y*scaleY, this.VW*scaleX, this.VH*scaleY);
         // Player
-        ctx.fillStyle='#FDCB6E';
-        ctx.beginPath();ctx.arc(mx+this.player.x*scaleX, my+this.player.y*scaleY, 2.5, 0, Math.PI*2);ctx.fill();
+        if(this.player){
+            ctx.fillStyle='#FDCB6E';
+            ctx.beginPath();ctx.arc(mx+this.player.x*scaleX, my+this.player.y*scaleY, 2.5, 0, Math.PI*2);ctx.fill();
+        }
         // NPCs
         ctx.fillStyle='rgba(108,92,231,.6)';
-        this.npcs.forEach(n=>{
+        (this.npcs || []).forEach(n=>{
             if(n.dead && !this.ghostMode) return;
             ctx.beginPath();ctx.arc(mx+n.x*scaleX, my+n.y*scaleY, 1.2, 0, Math.PI*2);ctx.fill();
         });
     },
 
     _renderNumberSpots(ctx){
+        if(!this.numberSpots) return;
         const cam = this.camera;
         const t = Date.now() * 0.003;
         this.numberSpots.forEach(spot => {
             if(spot.x+spot.w < cam.x-50 || spot.x > cam.x+this.VW+50) return;
             const cx = spot.x + spot.w/2;
             const pulse = 0.7 + Math.sin(t + spot.number) * 0.3;
-            if(spot.satisfied){
-                ctx.fillStyle = `rgba(0,184,148,${0.25*pulse})`;
-                ctx.beginPath(); ctx.arc(cx, spot.y-5, 28, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'rgba(0,184,148,0.6)';
-            } else if(spot.occupant){
-                ctx.fillStyle = `rgba(225,112,85,${0.2*pulse})`;
-                ctx.beginPath(); ctx.arc(cx, spot.y-5, 28, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'rgba(225,112,85,0.6)';
+
+            if(spot.isPlayerTarget){
+                // ★ 현재 타겟: 금색 강조 펄스
+                ctx.fillStyle = `rgba(255,215,0,${0.3*pulse})`;
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 30, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(255,215,0,0.6)';
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 18, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 18, 0, Math.PI*2); ctx.stroke();
+                // NEXT 표시
+                ctx.fillStyle = '#FFD700'; ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('NEXT', cx, spot.y - 26);
+            } else if(spot.isPlayerDone){
+                // ★ 이미 완료: 회색 + 체크마크
+                ctx.fillStyle = 'rgba(100,100,100,0.15)';
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 22, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(100,100,100,0.4)';
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 16, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 16, 0, Math.PI*2); ctx.stroke();
             } else {
-                ctx.fillStyle = `rgba(108,92,231,${0.15*pulse})`;
-                ctx.beginPath(); ctx.arc(cx, spot.y-5, 25, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = 'rgba(108,92,231,0.5)';
+                // ★ 중립: 보라색
+                ctx.fillStyle = `rgba(108,92,231,${0.12*pulse})`;
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 24, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'rgba(108,92,231,0.45)';
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 16, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#6C5CE7'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, spot.y-5, 16, 0, Math.PI*2); ctx.stroke();
             }
-            ctx.beginPath(); ctx.arc(cx, spot.y-5, 18, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = spot.satisfied ? '#00B894' : (spot.occupant ? '#E17055' : '#6C5CE7');
-            ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.arc(cx, spot.y-5, 18, 0, Math.PI*2); ctx.stroke();
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+
+            // 번호 텍스트
+            ctx.fillStyle = spot.isPlayerDone ? '#888' : '#fff';
+            ctx.font = spot.isPlayerTarget ? 'bold 17px sans-serif' : 'bold 14px sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(spot.number, cx, spot.y-4);
-            if(spot.satisfied){
-                ctx.fillStyle = '#00B894'; ctx.font = '14px sans-serif';
-                ctx.fillText('\u2713', cx+22, spot.y-14);
-            } else if(spot.occupant){
-                ctx.fillStyle = '#E17055'; ctx.font = '12px sans-serif';
-                ctx.fillText('\u2717', cx+22, spot.y-14);
+
+            if(spot.isPlayerDone){
+                ctx.fillStyle = '#00B894'; ctx.font = 'bold 14px sans-serif';
+                ctx.fillText('\u2713', cx+20, spot.y-14);
             }
             ctx.textBaseline = 'alphabetic';
         });
     },
 
     _spawnEffectTrail(){
-        if(this.spectatorMode) return;
-        const effId = Player.equipped.effect;
+        if(this.spectatorMode || !this.player) return;
+        const effId = Player.equipped?.effect;
         if(!effId || !Inventory.EFFECT_COLORS[effId]) return;
         const P = this.player;
         if(P.dead && !this.ghostMode) return;

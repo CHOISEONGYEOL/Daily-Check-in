@@ -152,26 +152,51 @@ export const MazeGame = {
 
         // NPC 생성
         this.npcs = [];
-        const totalNPCs = (this.spectatorMode && this.totalStudents <= 0) ? 5 : (this.totalStudents - 1);
         const npcNames = ['민수','지은','서준','하은','도윤','수빈','예준','지아','시우','하윤',
             '유준','서아','주원','채원','준서','다은','현우','소율','지호','은서',
             '건우','지유','태윤','나윤','민재','아린','성민','예나','우진','하린'];
-        for(let i=0; i<totalNPCs; i++){
-            this.npcs.push({
-                x: this.mazeStart.x + (Math.random()-.5)*30,
-                y: this.mazeStart.y + (Math.random()-.5)*30,
-                vx:0, vy:0, w:18, h:18,
-                dir: Math.random()>.5?1:-1,
-                sprite: CharRender.toOffscreen(parseTemplate(Templates[i % Templates.length]), 64),
-                color: `hsl(${(i*47)%360},60%,55%)`,
-                displayName: npcNames[i % npcNames.length],
-                // 미로 AI
-                moveDir: ['N','S','E','W'][Math.floor(Math.random()*4)],
-                speed: this.NPC_SPD_MIN + Math.random()*(this.NPC_SPD_MAX-this.NPC_SPD_MIN),
-                idleTimer: 0,
-                changeTimer: 60 + Math.floor(Math.random()*120),
-                dead: false, atDoor: false
-            });
+
+        // ★ 멀티플레이어: 실제 접속 유저만 배치 (NPC 없음!)
+        if(this.isMultiplayer && this._remotePlayerData && this._remotePlayerData.size > 0){
+            let idx = 0;
+            for(const [sid, rpData] of this._remotePlayerData){
+                if(idx >= 24) break;
+                this.npcs.push({
+                    x: this.mazeStart.x + (Math.random()-.5)*30,
+                    y: this.mazeStart.y + (Math.random()-.5)*30,
+                    vx:0, vy:0, w:18, h:18,
+                    dir: Math.random()>.5?1:-1,
+                    sprite: rpData.sprite || CharRender.toOffscreen(parseTemplate(Templates[idx % Templates.length]), 64),
+                    color: `hsl(${(idx*47)%360},60%,55%)`,
+                    displayName: rpData.displayName || sid,
+                    isRemote: true,
+                    studentId: sid,
+                    // AI 필드 (원격이라 사용 안 됨)
+                    moveDir: 'N', speed: 0, idleTimer: 0, changeTimer: 99999,
+                    dead: false, atDoor: false
+                });
+                idx++;
+            }
+        } else {
+            // ── 솔로/테스트/관전 모드: AI NPC 생성 ──
+            const totalNPCs = (this.spectatorMode && this.totalStudents <= 0) ? 5 : (this.totalStudents - 1);
+            for(let i=0; i<totalNPCs; i++){
+                this.npcs.push({
+                    x: this.mazeStart.x + (Math.random()-.5)*30,
+                    y: this.mazeStart.y + (Math.random()-.5)*30,
+                    vx:0, vy:0, w:18, h:18,
+                    dir: Math.random()>.5?1:-1,
+                    sprite: CharRender.toOffscreen(parseTemplate(Templates[i % Templates.length]), 64),
+                    color: `hsl(${(i*47)%360},60%,55%)`,
+                    displayName: npcNames[i % npcNames.length],
+                    isRemote: false,
+                    moveDir: ['N','S','E','W'][Math.floor(Math.random()*4)],
+                    speed: this.NPC_SPD_MIN + Math.random()*(this.NPC_SPD_MAX-this.NPC_SPD_MIN),
+                    idleTimer: 0,
+                    changeTimer: 60 + Math.floor(Math.random()*120),
+                    dead: false, atDoor: false
+                });
+            }
         }
 
         this.totalPlayers = this.npcs.length + 1;
@@ -276,6 +301,8 @@ export const MazeGame = {
 
         if(!this.spectatorMode) this.updateMazePlayer();
         this.updateMazeNPCs();
+        // ★ 멀티플레이어 위치 브로드캐스트
+        this._mazeBroadcastPos();
 
         // 탈출 체크: 아무나 출구에 도달하면 클리어
         const ex = this.mazeExitRect;
@@ -355,6 +382,8 @@ export const MazeGame = {
 
     updateMazeNPCs(){
         for(const n of this.npcs){
+            // ★ 원격 플레이어는 AI 스킵 (네트워크에서 위치 수신)
+            if(n.isRemote) continue;
             // 대기 타이머
             if(n.idleTimer > 0){ n.idleTimer--; continue; }
 
@@ -385,6 +414,34 @@ export const MazeGame = {
                 n.changeTimer = 30 + Math.floor(Math.random()*60);
             }
         }
+    },
+
+    // ★ 미로 모드 위치 브로드캐스트
+    _mazeBroadcastPos(){
+        if(!this._rtChannel || this.spectatorMode) return;
+        const p = this.player;
+        if(!p || p._spectatorDummy) return;
+        const now = Date.now();
+        const changed = (this._mazeLastDir !== p.dir);
+        if(!changed && now - (this._mazeLastBroadcast||0) < 100) return;
+        this._mazeLastDir = p.dir;
+        this._mazeLastBroadcast = now;
+        try {
+            this._rtChannel.send({
+                type:'broadcast', event:'gamepos',
+                payload:{
+                    sid: String(Player.studentId),
+                    x: Math.round(p.x),
+                    y: Math.round(p.y),
+                    vx: Math.round(p.vx*10)/10,
+                    vy: Math.round(p.vy*10)/10,
+                    dir: p.dir,
+                    onGround: true,
+                    dead: false,
+                    enteredDoor: false,
+                }
+            });
+        } catch(e) { /* ignore */ }
     },
 
     checkMazeWallCollision(e){

@@ -12,6 +12,9 @@ import { Auction, setNav as setNavAuction } from './auction.js';
 import { WaitingRoom, setGame as setGameWR, setShop as setShopWR, setEditor as setEditorWR } from './waiting-room.js';
 import { Game, Confetti, setNav as setNavGame, setWaitingRoom as setWRGame, setSetupEditorKeys } from './game.js';
 import { MazeGame } from './maze-game.js';
+import { EscapeRoom } from './escape-room.js';
+import { CrosswordGame } from './crossword-game.js';
+import { OllaOllaGame } from './ollaolla-game.js';
 import { Teacher, setTeacherMarketplace, setTeacherWaitingRoom } from './teacher.js';
 import { Vote } from './vote.js';
 import { LS } from './storage.js';
@@ -19,6 +22,7 @@ import { Nav } from './nav.js';
 import { Marketplace, setMarketShop, setMarketNav } from './marketplace.js';
 import { GameKeyboard } from './game-keyboard.js';
 import { PerfMonitor } from './perf-monitor.js';
+import { AppPresence } from './app-presence.js';
 
 // ── Wire forward references ──
 setInventory(Inventory);
@@ -43,7 +47,7 @@ setTeacherMarketplace(Marketplace);
 setTeacherWaitingRoom(WaitingRoom);
 
 // ── Maze game mixin ──
-Object.assign(Game, MazeGame);
+Object.assign(Game, MazeGame, EscapeRoom, CrosswordGame, OllaOllaGame);
 
 // ── Expose to window for inline onclick handlers ──
 window.Nav = Nav;
@@ -90,6 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const savedToken = LS.get('sessionToken', null);
             await Player.login(Player.studentId, Player.studentName, Player.nickname, savedToken);
+            if (Player.studentId !== TEACHER_ACCOUNT) AppPresence.join(Player.className);
             Nav.go(Player.studentId === TEACHER_ACCOUNT ? 'teacher' : 'lobby');
         } catch (e) {
             console.error('Auto-login failed:', e);
@@ -98,6 +103,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         document.getElementById('profile-setup').classList.add('active');
     }
+
+    // ── 페이지 닫기 시 Presence 해제 ──
+    window.addEventListener('beforeunload', () => AppPresence.leave());
 
     // Profile setup Enter key
     ['ps-nickname','ps-studentid','ps-name'].forEach(id => {

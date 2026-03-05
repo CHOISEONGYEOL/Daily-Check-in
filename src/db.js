@@ -35,13 +35,13 @@ export const DB = {
             const ip = await this._getClientIP();
             this._currentIP = ip;
             if (ip) {
-                const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+                // last_active 조건 제거 — DB에 해당 컬럼 없음
+                // login_ip만으로 동일 IP 중복 로그인 차단
                 const { data: conflicts } = await supabase
                     .from('users')
                     .select('student_id')
                     .eq('login_ip', ip)
                     .neq('student_id', studentId)
-                    .gte('last_active', cutoff)
                     .limit(1);
                 if (conflicts && conflicts.length > 0) {
                     return { user: null, isNew: false, error: 'ip_conflict' };
@@ -303,11 +303,12 @@ export const DB = {
         return data; // new balance
     },
 
-    // ── Heartbeat: last_active 갱신 (10초마다) ──
+    // ── Heartbeat: 세션 토큰 검증만 (60초마다, DB Write 없음) ──
+    // 접속 상태(online/offline)는 Supabase Presence가 담당
     _startHeartbeat() {
         this._sendHeartbeat();
         clearInterval(this._heartbeatId);
-        this._heartbeatId = setInterval(() => this._sendHeartbeat(), 10000);
+        this._heartbeatId = setInterval(() => this._sendHeartbeat(), 60000);
     },
 
     stopHeartbeat() {
@@ -328,11 +329,11 @@ export const DB = {
 
     async _sendHeartbeat() {
         if (!this.userId) return;
-        const upd = { last_active: new Date().toISOString() };
-        if (this._currentIP) upd.login_ip = this._currentIP;
-        await supabase.from('users').update(upd).eq('id', this.userId);
 
-        // 세션 토큰 검증 (면제 계정 제외)
+        // DB WRITE (last_active update) 완전 삭제!
+        // 접속 상태는 Supabase Realtime Presence로 추적
+
+        // 세션 토큰 검증만 수행 (Read Only — 면제 계정 제외)
         if (this.sessionToken) {
             try {
                 const { data } = await supabase

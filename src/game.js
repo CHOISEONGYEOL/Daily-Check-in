@@ -131,18 +131,53 @@ export const Game = {
     enterFromWaitingRoom(gameId){
         this.remaining = 300;
         this.isMultiplayer = true;
-        this.totalStudents = WaitingRoom.totalStudents || parseInt(document.getElementById('s-total').value) || 25;
         this.gameMode = gameId || (Math.random() < 0.5 ? 'picopark' : 'numbermatch');
+
+        // ★ 실시간 채널 + 원격 플레이어 인계
+        this._rtChannel = (WaitingRoom && WaitingRoom._rtChannel) || null;
+        this._remotePlayerData = new Map();
+        if(WaitingRoom && WaitingRoom.remotePlayers){
+            for(const [sid, rp] of WaitingRoom.remotePlayers){
+                this._remotePlayerData.set(sid, {
+                    studentId: sid,
+                    sprite: rp.sprite,
+                    displayName: rp.displayName || sid,
+                    hat: rp.hat, effect: rp.effect, pet: rp.pet,
+                });
+            }
+        }
+        this._gameLastBroadcast = 0;
+
+        // ★ 실제 접속 인원 기반으로 총원 설정 (NPC 없이 게임 자체를 조절)
+        const remoteCount = this._remotePlayerData.size;
+        this.totalStudents = remoteCount + 1; // 원격 플레이어 + 나
+        this.totalPlayers = remoteCount + 1;
+
         Nav.go('game');
         // 단체 게임에서는 나가기 버튼 숨김
         const quitBtn = document.querySelector('#game .hud .btn-back');
         if(quitBtn) quitBtn.style.display = 'none';
         document.getElementById('complete-overlay').classList.add('hidden');
         document.getElementById('gacha-overlay').classList.add('hidden');
-        // maze는 독립 루프 사용 (attend 연출 없이 바로 시작)
+        // maze/escaperoom는 독립 루프 사용 (attend 연출 없이 바로 시작)
         if(this.gameMode === 'maze'){
             document.getElementById('attend-overlay').classList.add('hidden');
             this.startMaze();
+            return;
+        }
+        if(this.gameMode === 'escaperoom'){
+            document.getElementById('attend-overlay').classList.add('hidden');
+            this.startEscapeRoom();
+            return;
+        }
+        if(this.gameMode === 'crossword'){
+            document.getElementById('attend-overlay').classList.add('hidden');
+            this.startCrossword();
+            return;
+        }
+        if(this.gameMode === 'ollaolla'){
+            document.getElementById('attend-overlay').classList.add('hidden');
+            this.startOllaOlla();
             return;
         }
         document.getElementById('attend-overlay').classList.remove('hidden');
@@ -173,6 +208,18 @@ export const Game = {
         // 게임 시작
         if(this.gameMode === 'maze'){
             this.startMaze();
+            return;
+        }
+        if(this.gameMode === 'escaperoom'){
+            this.startEscapeRoom();
+            return;
+        }
+        if(this.gameMode === 'crossword'){
+            this.startCrossword();
+            return;
+        }
+        if(this.gameMode === 'ollaolla'){
+            this.startOllaOlla();
             return;
         }
         if(this.gameMode === 'numbermatch') this.startNumberMatch();
@@ -267,8 +314,7 @@ export const Game = {
             if(!document.getElementById('game').classList.contains('active')) return;
             if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
             this._lastFrameTime = ts;
-            this.update();
-            this.render();
+            try { this.update(); this.render(); } catch(e) { console.error('Game loop error:', e); }
             this.animRef=requestAnimationFrame(loop);
         };
         this.animRef=requestAnimationFrame(loop);
@@ -304,7 +350,7 @@ export const Game = {
                 enteredDoor:false, _spectatorDummy:true
             };
             this.totalPlayers = this.npcs.length;
-            this.assignNumbers();
+            this.assignCheckpoints();
             this.setupSpectatorInput();
         } else {
             const pxData = Player.pixels || parseTemplate(Templates[0]);
@@ -316,7 +362,7 @@ export const Game = {
                 dead:false, ghostTimer:0, atDoor:false
             };
             this.totalPlayers = this.npcs.length + 1;
-            this.assignNumbers();
+            this.assignCheckpoints();
             this.setupInput();
         }
         this.resize();
@@ -327,7 +373,7 @@ export const Game = {
             this.remaining--;
             if(this.remaining <= 60 && !this.ghostMode){
                 this.ghostMode = true;
-                this.chatBubbles.push({x:this.VW/2,y:100,text:'👻 유령 모드! 죽은 플레이어도 번호판에 올라갈 수 있어요!',timer:150,follow:null,screen:true});
+                this.chatBubbles.push({x:this.VW/2,y:100,text:'👻 유령 모드! 죽은 플레이어도 체크포인트를 밟을 수 있어요!',timer:150,follow:null,screen:true});
             }
             this.updateHUD();
             if(this.remaining <= 0) this.endGame(false);
@@ -341,8 +387,7 @@ export const Game = {
             if(!document.getElementById('game').classList.contains('active')) return;
             if(ts - this._lastFrameTime < FRAME_MIN){ this.animRef=requestAnimationFrame(loop); return; }
             this._lastFrameTime = ts;
-            this.update();
-            this.render();
+            try { this.update(); this.render(); } catch(e) { console.error('Game loop error:', e); }
             this.animRef=requestAnimationFrame(loop);
         };
         this.animRef=requestAnimationFrame(loop);
@@ -407,6 +452,7 @@ export const Game = {
     // UPDATE
     // ═══════════════════════════════════════
     update(){
+        if(!this.player) return;
         // Victory celebration phase (keep rendering particles/chat)
         if(this.victoryTimer > 0){
             this.victoryTimer--;
@@ -422,14 +468,18 @@ export const Game = {
 
         // Player movement
         this.updatePlayer();
-        // NPC AI
+        // NPC AI (원격 플레이어는 스킵됨)
         this.updateNPCs();
-        // Physics for all entities
+        // Physics for all entities (원격 플레이어는 스킵됨)
         this.applyPhysics();
+        // ★ 로컬 플레이어 위치 브로드캐스트
+        this._gameBroadcastPos();
         // Entity-to-entity collision (stacking!)
         this.resolveEntityCollisions();
         // Game mode specific updates
-        if(this.gameMode === 'numbermatch'){
+        if(this.gameMode === 'escaperoom'){
+            this.updateEscapeRoom();
+        } else if(this.gameMode === 'numbermatch'){
             this.updateNumberSpots();
         } else {
             this.updatePushBlocks();
@@ -512,35 +562,60 @@ export const Game = {
     },
 
     checkStageComplete(){
-        if(!this.door || !this.door.open) return;
-        const aliveCount = [this.player, ...this.npcs].filter(e=>!e.dead).length;
-        const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+        if(!this.door || !this.door.open || !this.player) return;
+        const aliveCount = [this.player, ...(this.npcs || [])].filter(e=>e && !e.dead).length;
+
+        // 방탈출: escapeRooms 배열 사용
+        let stageCount;
+        if(this.gameMode === 'escaperoom'){
+            stageCount = this.escapeRooms ? this.escapeRooms.length : 2;
+        } else {
+            const stageList = this.gameMode === 'numbermatch' ? this.nmStages : this.stages;
+            stageCount = stageList.length;
+        }
+
         if(this.playersAtDoor >= aliveCount && aliveCount > 0){
             this.stage++;
-            if(this.stage >= stageList.length){
+            if(this.stage >= stageCount){
                 this.missionClear();
             } else {
                 this.spawnParticles(this.door.x, this.door.y, '#00B894', 20);
                 this.chatBubbles.push({
                     x:this.VW/2, y:this.VH/3,
-                    text:'🎉 스테이지 클리어! 다음으로!',
+                    text: this.gameMode === 'escaperoom' ? '🚪 방 탈출 성공! 다음 방으로!' : '🎉 스테이지 클리어! 다음으로!',
                     timer:120, follow:null, screen:true, big:true
                 });
                 setTimeout(()=>{
-                    this.loadStage(this.stage);
-                    if(this.gameMode === 'numbermatch') this.assignNumbers();
-                    const sd = this.stageData;
-                    this.player.x = sd.spawnX;
-                    this.player.y = sd.spawnY;
-                    this.player.vx=0; this.player.vy=0;
-                    this.player.dead = false; this.player.atDoor = false; this.player.enteredDoor = false;
-                    this.npcs.forEach(n=>{
-                        n.x = sd.spawnX + (Math.random()*200-100);
-                        n.y = sd.spawnY - Math.random()*20;
-                        n.vx=0; n.vy=0;
-                        n.dead=false; n.atDoor=false; n.enteredDoor=false;
-                        n.stuckTimer=0;
-                    });
+                    if(this.gameMode === 'escaperoom'){
+                        // 방탈출: 다음 방 로드
+                        this.loadEscapeRoom(this.stage);
+                        const sd = this.stageData;
+                        this.player.x = sd.spawnX; this.player.y = sd.spawnY;
+                        this.player.vx=0; this.player.vy=0;
+                        this.player.dead=false; this.player.atDoor=false; this.player.enteredDoor=false;
+                        this.npcs.forEach(n=>{
+                            n.x = sd.spawnX + (Math.random()*200-100);
+                            n.y = sd.spawnY - Math.random()*20;
+                            n.vx=0; n.vy=0;
+                            n.dead=false; n.atDoor=false; n.enteredDoor=false;
+                            n.stuckTimer=0;
+                        });
+                    } else {
+                        this.loadStage(this.stage);
+                        if(this.gameMode === 'numbermatch') this.assignCheckpoints();
+                        const sd = this.stageData;
+                        this.player.x = sd.spawnX;
+                        this.player.y = sd.spawnY;
+                        this.player.vx=0; this.player.vy=0;
+                        this.player.dead = false; this.player.atDoor = false; this.player.enteredDoor = false;
+                        this.npcs.forEach(n=>{
+                            n.x = sd.spawnX + (Math.random()*200-100);
+                            n.y = sd.spawnY - Math.random()*20;
+                            n.vx=0; n.vy=0;
+                            n.dead=false; n.atDoor=false; n.enteredDoor=false;
+                            n.stuckTimer=0;
+                        });
+                    }
                 }, 1500);
             }
         }
@@ -628,11 +703,121 @@ export const Game = {
         }
     },
 
+    // ═══════════════════════════════════════
+    // 게임 중 실시간 위치 동기화
+    // ═══════════════════════════════════════
+    _gameBroadcastPos(){
+        if(!this._rtChannel || this.spectatorMode) return;
+        const p = this.player;
+        if(!p || p._spectatorDummy) return;
+        const now = Date.now();
+        // 상태 변화 시 또는 100ms heartbeat
+        const changed = (this._gameLastDir !== p.dir) ||
+                        (this._gameLastGround !== p.onGround) ||
+                        (this._gameLastDead !== p.dead);
+        if(!changed && now - (this._gameLastBroadcast||0) < 100) return;
+        this._gameLastDir = p.dir;
+        this._gameLastGround = p.onGround;
+        this._gameLastDead = p.dead;
+        this._gameLastBroadcast = now;
+        try {
+            this._rtChannel.send({
+                type:'broadcast', event:'gamepos',
+                payload:{
+                    sid: String(Player.studentId),
+                    x: Math.round(p.x),
+                    y: Math.round(p.y),
+                    vx: Math.round(p.vx*10)/10,
+                    vy: Math.round(p.vy*10)/10,
+                    dir: p.dir,
+                    onGround: p.onGround,
+                    dead: p.dead || false,
+                    enteredDoor: p.enteredDoor || false,
+                    currentCP: p.currentCP || 0,
+                    completedAll: p.completedAll || false,
+                }
+            });
+        } catch(e) { /* ignore broadcast errors */ }
+    },
+
+    _onGameRemotePos(data){
+        if(!data || !this.running) return;
+        const sid = String(data.sid);
+        if(sid === String(Player.studentId)) return;
+        // 해당 원격 플레이어 엔티티 찾기
+        const entity = this.npcs.find(n => n.isRemote && n.studentId === sid);
+        if(!entity || entity.enteredDoor) return;
+        // 네트워크 위치 적용
+        entity.x = data.x;
+        entity.y = data.y;
+        entity.vx = data.vx;
+        entity.vy = data.vy;
+        entity.dir = data.dir;
+        entity.onGround = data.onGround;
+        entity.dead = data.dead || false;
+        entity.enteredDoor = data.enteredDoor || false;
+        if(data.currentCP !== undefined) entity.currentCP = data.currentCP;
+        if(data.completedAll !== undefined) entity.completedAll = data.completedAll;
+    },
+
+    // ── 교사 종료 신호 수신 시 완전한 클린업 (좀비 프로세스 방지) ──
+    forceCleanup(){
+        if(!this.running && !this.animRef && !this.timerRef) return; // 이미 정지됨
+        console.log('[Game] forceCleanup: stopping physics/render loop');
+        // 1) 물리 엔진 + 렌더링 루프 즉시 정지
+        this.running = false;
+        this.completed = true; // update()에서 추가 처리 방지
+        cancelAnimationFrame(this.animRef);
+        this.animRef = null;
+        // 2) 게임 타이머 정지
+        clearInterval(this.timerRef);
+        this.timerRef = null;
+        // 3) 키 입력 리스너 해제
+        window.onkeydown = null;
+        window.onkeyup = null;
+        if(this._mazeKeyDown){ window.removeEventListener('keydown', this._mazeKeyDown); this._mazeKeyDown = null; }
+        if(this._mazeKeyUp){ window.removeEventListener('keyup', this._mazeKeyUp); this._mazeKeyUp = null; }
+        if(this._mazeSpecClick && this.cvs){ this.cvs.removeEventListener('click', this._mazeSpecClick); this._mazeSpecClick = null; }
+        if(this._specKeyDown){ window.removeEventListener('keydown', this._specKeyDown); this._specKeyDown = null; }
+        if(this._specKeyUp){ window.removeEventListener('keyup', this._specKeyUp); this._specKeyUp = null; }
+        if(this._specClick && this.cvs){ this.cvs.removeEventListener('click', this._specClick); this._specClick = null; }
+        // 4) 게임별 정리
+        if(this.cleanupCwInput) this.cleanupCwInput();
+        if(this.cleanupOllaOlla) this.cleanupOllaOlla();
+        // 5) 멀티플레이어 상태 초기화
+        this.isMultiplayer = false;
+        this.spectatorMode = false;
+        this._followTarget = null;
+        this._spectatorCamMode = 'free';
+        this.keys = {};
+        // 6) UI 정리
+        const cwOvl = document.getElementById('cw-overlay');
+        if(cwOvl) cwOvl.classList.add('hidden');
+        const mc = document.getElementById('mobile-controls');
+        if(mc) mc.classList.remove('hidden');
+        const badge = document.getElementById('spectator-badge');
+        if(badge) badge.classList.add('hidden');
+        const slist = document.getElementById('spectator-student-list');
+        if(slist) slist.classList.add('hidden');
+        const quitBtn = document.querySelector('#game .hud .btn-back');
+        if(quitBtn) quitBtn.style.display = '';
+        document.getElementById('complete-overlay').classList.add('hidden');
+        document.getElementById('gacha-overlay').classList.add('hidden');
+        document.getElementById('attend-overlay').classList.add('hidden');
+        // 7) 로비로 복귀
+        if(setupEditorKeys) setupEditorKeys();
+        Nav.go('lobby');
+    },
+
     quit(){
         const wasSpectator = this.spectatorMode;
         this.spectatorMode = false;
         this.running = false;
         this.isMultiplayer = false;
+        // ★ 실시간 채널 해제
+        if(WaitingRoom && WaitingRoom.rtDestroy) WaitingRoom.rtDestroy();
+        this._rtChannel = null;
+        this._remotePlayerData = null;
         clearInterval(this.timerRef);
         cancelAnimationFrame(this.animRef);
         window.onkeydown=null; window.onkeyup=null;
@@ -640,6 +825,14 @@ export const Game = {
         if(this._mazeKeyDown){ window.removeEventListener('keydown', this._mazeKeyDown); this._mazeKeyDown=null; }
         if(this._mazeKeyUp){ window.removeEventListener('keyup', this._mazeKeyUp); this._mazeKeyUp=null; }
         if(this._mazeSpecClick && this.cvs){ this.cvs.removeEventListener('click', this._mazeSpecClick); this._mazeSpecClick=null; }
+        // 크로스워드 정리
+        if(this.cleanupCwInput) this.cleanupCwInput();
+        // 올라올라 정리
+        if(this.cleanupOllaOlla) this.cleanupOllaOlla();
+        const cwOvl = document.getElementById('cw-overlay');
+        if(cwOvl) cwOvl.classList.add('hidden');
+        const mc = document.getElementById('mobile-controls');
+        if(mc) mc.classList.remove('hidden');
         // 관전 모드 키 리스너 + 클릭 리스너 정리
         if(this._specKeyDown){ window.removeEventListener('keydown', this._specKeyDown); this._specKeyDown=null; }
         if(this._specKeyUp){ window.removeEventListener('keyup', this._specKeyUp); this._specKeyUp=null; }

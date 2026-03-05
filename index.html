@@ -348,6 +348,18 @@
                 <button class="btn-back" onclick="Game.quit()">✕</button>
             </div>
         </div>
+        <!-- 크로스워드 오버레이 -->
+        <div id="cw-overlay" class="cw-overlay hidden">
+            <div id="cw-clue-panel" class="cw-clue-panel hidden">
+                <span id="cw-clue-dir" class="cw-clue-dir"></span>
+                <span id="cw-clue-text" class="cw-clue-text"></span>
+            </div>
+            <div id="cw-answer-bar" class="cw-answer-bar hidden">
+                <div id="cw-answer-cells" class="cw-answer-cells"></div>
+                <input id="cw-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="답을 입력하세요">
+                <button id="cw-submit-btn" class="cw-submit-btn" onclick="Game.cwSubmitAnswer()">확인</button>
+            </div>
+        </div>
         <!-- Mobile controls (PUBG style: left=dpad, right=action) -->
         <div class="mobile-controls" id="mobile-controls">
             <div class="game-dpad">

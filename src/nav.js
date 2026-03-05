@@ -11,6 +11,7 @@ import { DB } from './db.js';
 import { esc } from './sanitize.js';
 import { Teacher } from './teacher.js';
 import { Marketplace } from './marketplace.js';
+import { AppPresence } from './app-presence.js';
 
 const TEST_ACCOUNT = '99999';
 const TEACHER_ACCOUNT = '77777';
@@ -29,6 +30,7 @@ window.addEventListener('session-revoked', () => {
 
 export const Nav = {
     logout() {
+        AppPresence.leave(); // Presence 채널 해제
         DB.clearLoginState(); // IP 해제 (대리 출석 방지)
         Player.logout();
         DB.stopHeartbeat();

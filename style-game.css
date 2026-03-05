@@ -225,3 +225,68 @@ body.touch-device #game.screen.active{
 .btn-save{padding:.45rem;font-size:.8rem;}
 }
 @media(max-width:500px){.mks-editor-row{flex-direction:column;align-items:center;}}
+
+/* ===== CROSSWORD GAME ===== */
+.cw-overlay{position:absolute;inset:0;pointer-events:none;z-index:50;display:flex;flex-direction:column;justify-content:flex-end;}
+.cw-overlay>*{pointer-events:auto;}
+
+.cw-clue-panel{
+    position:absolute;top:46px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.75);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.15);border-radius:12px;
+    padding:8px 18px;display:flex;gap:10px;align-items:center;
+    max-width:90%;z-index:55;
+}
+.cw-clue-dir{
+    font-weight:800;font-size:.85rem;color:#FFD700;white-space:nowrap;
+}
+.cw-clue-text{
+    font-size:.85rem;color:#fff;line-height:1.4;
+}
+
+.cw-answer-bar{
+    position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.8);backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.2);border-radius:14px;
+    padding:10px 14px;display:flex;gap:10px;align-items:center;
+    max-width:95%;z-index:55;
+}
+.cw-answer-cells{
+    display:flex;gap:4px;
+}
+.cw-ans-cell{
+    width:36px;height:36px;
+    border:2px solid rgba(255,255,255,.3);border-radius:6px;
+    background:rgba(255,255,255,.08);
+    display:flex;align-items:center;justify-content:center;
+    font-size:1rem;font-weight:700;color:#fff;
+}
+.cw-ans-cell.cw-ans-fixed{
+    background:rgba(0,184,148,.3);border-color:rgba(0,184,148,.6);color:#00B894;
+}
+#cw-input{
+    width:120px;padding:8px 12px;
+    border:2px solid rgba(255,255,255,.2);border-radius:10px;
+    background:rgba(255,255,255,.1);color:#fff;
+    font-size:1rem;font-weight:600;outline:none;
+    font-family:'Noto Sans KR',sans-serif;
+}
+#cw-input:focus{border-color:var(--purple);box-shadow:0 0 12px rgba(108,92,231,.3);}
+#cw-input::placeholder{color:rgba(255,255,255,.3);font-size:.8rem;}
+.cw-submit-btn{
+    padding:8px 18px;border:none;border-radius:10px;
+    background:linear-gradient(135deg,var(--purple),var(--pink));
+    color:#fff;font-weight:700;font-size:.9rem;cursor:pointer;
+    transition:transform .15s,box-shadow .15s;white-space:nowrap;
+}
+.cw-submit-btn:hover{transform:scale(1.05);box-shadow:0 4px 15px rgba(108,92,231,.4);}
+.cw-submit-btn:active{transform:scale(.97);}
+
+/* 모바일 대응 */
+@media(max-width:650px){
+    .cw-ans-cell{width:30px;height:30px;font-size:.85rem;}
+    #cw-input{width:80px;padding:6px 8px;font-size:.9rem;}
+    .cw-submit-btn{padding:6px 12px;font-size:.8rem;}
+    .cw-clue-panel{padding:6px 12px;top:42px;}
+    .cw-clue-dir,.cw-clue-text{font-size:.75rem;}
+}

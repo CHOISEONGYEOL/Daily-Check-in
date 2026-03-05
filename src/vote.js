@@ -12,6 +12,9 @@ export const Vote = {
         { id: 'quiz',          name: '❓ 퀴즈 대회',        desc: '지식을 겨루자!',          bounty: 80,  status: 'soon' },
         { id: 'relay',         name: '🏃 릴레이 레이스',    desc: '팀 릴레이 달리기!',       bounty: 60,  status: 'soon' },
         { id: 'maze',          name: '🌀 미로 탈출',        desc: '투명한 벽 속 출구를 찾아라!', bounty: 100, status: 'open' },
+        { id: 'escaperoom',    name: '🚪 방탈출',           desc: '단서를 찾고 퀴즈를 풀어 탈출하라!', bounty: 100, status: 'open' },
+        { id: 'crossword',    name: '📝 가로세로 퀴즈',   desc: '낱말 퍼즐을 풀어라!', bounty: 80,  status: 'open' },
+        { id: 'ollaolla',     name: '🧗 올라올라',        desc: 'OX 퀴즈로 계단을 올라가라!', bounty: 80, status: 'open' },
         { id: 'rhythm',        name: '🎵 리듬 게임',        desc: '박자에 맞춰 점프!',       bounty: 60,  status: 'soon' },
         { id: 'tower',         name: '🗼 탑 쌓기',          desc: '가장 높이 쌓아라!',       bounty: 40,  status: 'soon' },
         { id: 'fishing',       name: '🎣 낚시 대회',        desc: '물고기를 잡아라!',        bounty: 45,  status: 'soon' },
@@ -46,10 +49,12 @@ export const Vote = {
     selectedGame: null,
     clearedGames: [],
     _onComplete: null,
+    _onGameDecided: null,   // ★ 게임 결정 즉시 콜백 (브로드캐스트 동기화용)
     totalVoters: 1,   // player + npcs
 
     async start(totalStudents, onComplete) {
         this._onComplete = onComplete;
+        // _onGameDecided는 외부에서 설정 — start()에서 초기화하지 않음
         this.votes = {};
         this.playerVote = null;
         this.selectedGame = null;
@@ -212,6 +217,11 @@ export const Vote = {
     },
 
     async _announceResult() {
+        // ★ 게임 결정 즉시 브로드캐스트 콜백 (DB 쓰기보다 먼저 — 최소 지연)
+        if(this._onGameDecided) {
+            try { this._onGameDecided(this.selectedGame.id); } catch(e) { console.warn('onGameDecided error:', e); }
+        }
+
         const open = this.openGames;
         // 교사에게 결과 전송 (await로 DB 확정 보장)
         if(Player.className && Player.studentId !== TEST_ACCOUNT) {

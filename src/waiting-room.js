@@ -143,13 +143,15 @@ export const WaitingRoom = {
             {x:W*0.7,    y:250, w:W*0.3,      h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
         ];
         const goalTop = H-15-120; // 골대 꼭대기 y (765)
+        // 골대 히트박스: 터널링 방지를 위해 시각적 크기보다 y축으로 넉넉하게 설정
+        const goalPad = 40; // 상하 여유 패딩
         this.goals = [
-            // 바닥 골대
-            {x:0, y:goalTop, w:40, h:120, side:'left'},
-            {x:W-40, y:goalTop, w:40, h:120, side:'right'},
-            // 위쪽 골대 — 관람석 바로 아래
-            {x:0, y:270, w:40, h:90, side:'left'},
-            {x:W-40, y:270, w:40, h:90, side:'right'},
+            // 바닥 골대 (시각: 120px → 히트박스: 120+80=200px)
+            {x:0, y:goalTop-goalPad, w:40, h:120+goalPad*2, side:'left'},
+            {x:W-40, y:goalTop-goalPad, w:40, h:120+goalPad*2, side:'right'},
+            // 위쪽 골대 (시각: 90px → 히트박스: 90+80=170px)
+            {x:0, y:270-goalPad, w:40, h:90+goalPad*2, side:'left'},
+            {x:W-40, y:270-goalPad, w:40, h:90+goalPad*2, side:'right'},
         ];
         // 골대 꼭대기 발판 (엘리베이터 접근용, 더블점프로 도달)
         this.platforms.push(
@@ -340,8 +342,8 @@ export const WaitingRoom = {
         this._startGameStartPoll();
     },
 
-    stop(){
-        this.rtDestroy();
+    stop(keepRealtime){
+        if(!keepRealtime) this.rtDestroy();
         if(this._onFullscreenChange){
             document.removeEventListener('fullscreenchange', this._onFullscreenChange);
             document.removeEventListener('webkitfullscreenchange', this._onFullscreenChange);
@@ -444,7 +446,7 @@ export const WaitingRoom = {
     resolveEntityCollisions(){
         if(!this.player || this.player.explodeTimer > 0 || this.overlayActive) return;
         const P = this.player;
-        const remotes = this._rtGetRemoteArray();
+        const remotes = this._rtGetRemoteArray?.() || [];
         // ★ 로컬 플레이어(P)와 원격 플레이어(R)의 충돌만 계산. R은 벽 취급(위치 불변).
         for(const R of remotes){
             if(R._inSpectator) continue;
@@ -688,6 +690,7 @@ export const WaitingRoom = {
 
     // ── Update Loop ──
     update(){
+        if(!this.player) return;
         this.frameCount++;
         const P = this.player;
         // _inSpectator: 엘리베이터로 진입 시 true, 나가면 false

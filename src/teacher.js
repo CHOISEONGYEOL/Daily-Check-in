@@ -12,8 +12,6 @@ export function setTeacherMarketplace(m) { Marketplace = m; setTeacherMarketMark
 let WaitingRoom = null;
 export function setTeacherWaitingRoom(wr) { WaitingRoom = wr; }
 
-const ONLINE_THRESHOLD_MS = 30 * 1000; // 30초 (하트비트 10초 간격 기준)
-
 export const Teacher = {
     students: [],
     gameIsOpen: false,
@@ -22,8 +20,9 @@ export const Teacher = {
     _classFilter: '',   // '' = 전체, '6반', '7반' 등
     _attendance: {},     // { studentId: { status, markedAt } }
     // ── 실시간 접속 상태 (Supabase Presence) ──
-    _rtChannels: new Map(),      // className → Supabase channel
-    _realtimeOnline: new Set(),  // 현재 대기실에 접속 중인 studentId Set
+    _rtChannels: new Map(),      // className → Supabase channel (대기실 wr: 채널)
+    _appChannels: new Map(),     // className → Supabase channel (앱 전체 app: 채널)
+    _realtimeOnline: new Set(),  // 현재 접속 중인 studentId Set
 
     async init() {
         await Promise.all([this.loadStudents(), this.loadGameState(), this._loadTodayAttendance()]);
@@ -31,8 +30,13 @@ export const Teacher = {
         this._populateGameClassSelect();
         this.render();
         clearInterval(this._pollId);
-        this._pollId = setInterval(() => this.refresh(), 10000); // 10초마다 갱신
-        // 열린 반이 있으면 Presence 구독 (재진입 시 복구)
+        // 출석 상태만 폴링 (온라인은 Presence가 담당) — 30초
+        this._pollId = setInterval(() => this.refresh(), 30000);
+        // 모든 반에 앱 Presence 구독 (온라인 상태 실시간 추적)
+        const allClasses = [...new Set(this.students.map(s => s.className).filter(c => c))];
+        allClasses.forEach(c => this._appSubscribe(c));
+        this._appSubscribe(''); // 미분류 학생
+        // 열린 반이 있으면 대기실 Presence 구독 (재진입 시 복구)
         if (this._openClasses.length > 0) {
             this._openClasses.forEach(c => this._rtSubscribe(c));
             this.startRosterPoll();
@@ -44,6 +48,7 @@ export const Teacher = {
         this._pollId = null;
         this.stopRosterPoll();
         this._rtUnsubscribeAll();
+        this._appUnsubscribeAll();
     },
 
     _editingId: null,  // 현재 인라인 편집 중인 studentId
@@ -51,11 +56,10 @@ export const Teacher = {
     // ── 학생 데이터 로드 ──
     async loadStudents() {
         const today = new Date().toISOString().split('T')[0];
-        const now = new Date();
 
         const [rosterRes, usersRes, checkinsRes] = await Promise.all([
             supabase.from('roster').select('*').order('student_id'),
-            supabase.from('users').select('student_id, student_name, nickname, last_active'),
+            supabase.from('users').select('student_id, student_name, nickname'),
             supabase.from('check_ins').select('user_id, users!inner(student_id)').eq('checked_at', today)
         ]);
 
@@ -75,17 +79,13 @@ export const Teacher = {
 
         this.students = roster.map(r => {
             const u = userMap[r.student_id];
-            const isOnline = u?.last_active && (now - new Date(u.last_active)) < ONLINE_THRESHOLD_MS;
-            const isChecked = checkedSet.has(r.student_id);
             return {
                 studentId: r.student_id,
                 studentName: r.student_name,
                 className: r.class_name || '',
                 gender: r.gender || '',
                 nickname: u?.nickname || null,
-                lastActive: u?.last_active ? new Date(u.last_active) : null,
-                online: isOnline,
-                checked: isChecked,
+                checked: checkedSet.has(r.student_id),
                 unregistered: false
             };
         });
@@ -94,17 +94,13 @@ export const Teacher = {
         users.forEach(u => {
             if (rosterIds.has(u.student_id)) return;
             if (u.student_id === TEACHER_ID || u.student_id === TEST_ID) return;
-            const isOnline = u.last_active && (now - new Date(u.last_active)) < ONLINE_THRESHOLD_MS;
-            const isChecked = checkedSet.has(u.student_id);
             this.students.push({
                 studentId: u.student_id,
                 studentName: u.student_name || u.nickname || '이름없음',
                 className: '',
                 gender: '',
                 nickname: u.nickname || null,
-                lastActive: u.last_active ? new Date(u.last_active) : null,
-                online: isOnline,
-                checked: isChecked,
+                checked: checkedSet.has(u.student_id),
                 unregistered: true
             });
         });
@@ -190,8 +186,27 @@ export const Teacher = {
             const entry = this._rtChannels.get(className);
             if (entry && entry.channel) {
                 entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
-                await new Promise(r => setTimeout(r, 600)); // 브로드캐스트 전달 대기
             }
+            // ★ 게임 채널에도 game_end 브로드캐스트 (게임 중인 학생의 물리/렌더 루프 클린업)
+            const gameIds = ['picopark', 'numbermatch', 'maze', 'escaperoom', 'crossword', 'ollaolla'];
+            const endPromises = gameIds.map(gid => {
+                const chName = `game:${className}_${gid}`;
+                return new Promise((resolve) => {
+                    try {
+                        const ch = supabase.channel(chName);
+                        const timeout = setTimeout(() => { try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){} resolve(); }, 3000);
+                        ch.subscribe((status) => {
+                            if (status === 'SUBSCRIBED') {
+                                ch.send({ type: 'broadcast', event: 'game_end', payload: {} });
+                                setTimeout(() => { clearTimeout(timeout); ch.unsubscribe(); supabase.removeChannel(ch); resolve(); }, 200);
+                            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                                clearTimeout(timeout); try { supabase.removeChannel(ch); } catch(e){} resolve();
+                            }
+                        });
+                    } catch(e) { resolve(); }
+                });
+            });
+            await Promise.all(endPromises);
         }
         // UI는 에러와 무관하게 반영 (로컬 상태 우선)
         if (newState) {
@@ -357,6 +372,56 @@ export const Teacher = {
         this.render();
     },
 
+    // ── 앱 레벨 Presence: 전체 온라인 상태 추적 (app: 채널) ──
+    _appSubscribe(className) {
+        if (this._appChannels.has(className)) return;
+        const channelName = `app:${className || 'main'}`;
+        const channel = supabase.channel(channelName, {
+            config: { broadcast: { self: false }, presence: { key: 'teacher-app-' + Date.now() } }
+        });
+        channel.on('presence', { event: 'sync' }, () => {
+            this._appSyncFromChannel(className, channel);
+        });
+        channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+            }
+        });
+        this._appChannels.set(className, channel);
+    },
+
+    _appUnsubscribe(className) {
+        const channel = this._appChannels.get(className);
+        if (!channel) return;
+        channel.unsubscribe();
+        supabase.removeChannel(channel);
+        this._appChannels.delete(className);
+    },
+
+    _appUnsubscribeAll() {
+        for (const [cls] of this._appChannels) {
+            this._appUnsubscribe(cls);
+        }
+    },
+
+    _appSyncFromChannel(className, channel) {
+        const state = channel.presenceState();
+        // 이 반 학생을 _realtimeOnline에서 제거 후 현재 접속자 다시 추가
+        const classStudentIds = new Set(
+            this.students.filter(s => (s.className || '') === (className || '')).map(s => s.studentId)
+        );
+        for (const sid of classStudentIds) this._realtimeOnline.delete(sid);
+        for (const [key, presences] of Object.entries(state)) {
+            if (!presences || presences.length === 0) continue;
+            const p = presences[0];
+            if (p.isTeacher) continue;
+            const sid = String(p.studentId);
+            if (sid) this._realtimeOnline.add(sid);
+        }
+        this.render();
+        if (this._openClasses.length > 0) this.renderRosterCheck();
+    },
+
     // ── 교사 대기실 입장 (전지전능 관전 모드) ──
     async enterWaitingRoom() {
         if (this._openClasses.length === 0) {
@@ -416,9 +481,9 @@ export const Teacher = {
         let filtered = this._classFilter
             ? this.students.filter(s => s.className === this._classFilter)
             : this.students;
-        if (statusFilter === 'online') filtered = filtered.filter(s => s.online);
+        if (statusFilter === 'online') filtered = filtered.filter(s => this._realtimeOnline.has(s.studentId));
         else if (statusFilter === 'checked') filtered = filtered.filter(s => s.checked);
-        else if (statusFilter === 'offline') filtered = filtered.filter(s => !s.online && !s.checked);
+        else if (statusFilter === 'offline') filtered = filtered.filter(s => !this._realtimeOnline.has(s.studentId) && !s.checked);
         if (search) filtered = filtered.filter(s =>
             s.studentName.includes(search) || s.studentId.includes(search) || (s.nickname && s.nickname.toLowerCase().includes(search))
         );
@@ -428,7 +493,7 @@ export const Teacher = {
             ? this.students.filter(s => s.className === this._classFilter)
             : this.students;
         const total = classStudents.length;
-        const online = classStudents.filter(s => this._realtimeOnline.has(s.studentId) || s.online).length;
+        const online = classStudents.filter(s => this._realtimeOnline.has(s.studentId)).length;
         const checked = classStudents.filter(s => s.checked).length;
         const el = id => document.getElementById(id);
         if (el('t-total')) el('t-total').textContent = total;
@@ -438,7 +503,7 @@ export const Teacher = {
 
         // 정렬: 실시간 접속 > 출석 > 미접속
         filtered.sort((a, b) => {
-            const score = s => (this._realtimeOnline.has(s.studentId) ? 4 : 0) + (s.online ? 2 : 0) + (s.checked ? 1 : 0);
+            const score = s => (this._realtimeOnline.has(s.studentId) ? 4 : 0) + (s.checked ? 1 : 0);
             return score(b) - score(a) || a.studentId.localeCompare(b.studentId);
         });
 
@@ -453,7 +518,8 @@ export const Teacher = {
         grid.innerHTML = '';
         filtered.forEach(s => {
             const card = document.createElement('div');
-            const status = s.online ? 'online' : s.checked ? 'checked' : 'offline';
+            const isOnline = this._realtimeOnline.has(s.studentId);
+            const status = isOnline ? 'online' : s.checked ? 'checked' : 'offline';
 
             // ── 인라인 편집 모드 ──
             if (this._editingId === s.studentId) {
@@ -486,8 +552,8 @@ export const Teacher = {
             const isLive = this._realtimeOnline.has(s.studentId);
             card.className = `teacher-card ${status}${s.unregistered ? ' unregistered' : ''}${isLive ? ' t-live' : ''}`;
 
-            const dotColor = isLive ? 'live' : s.online ? 'green' : s.checked ? 'yellow' : 'gray';
-            const timeStr = isLive ? '🟢 접속중' : s.lastActive ? this._timeAgo(s.lastActive) : '미접속';
+            const dotColor = isLive ? 'live' : s.checked ? 'yellow' : 'gray';
+            const timeStr = isLive ? '🟢 접속중' : '미접속';
             const nickHtml = s.nickname ? `<div class="teacher-card-nick">@${esc(s.nickname)}</div>` : '';
             const unregBadge = s.unregistered ? '<span class="teacher-unreg-badge">미등록</span>' : '';
             const genderBadge = s.gender ? `<span class="t-gender-badge ${s.gender === '남' ? 'male' : 'female'}">${esc(s.gender)}</span>` : '';
@@ -513,14 +579,6 @@ export const Teacher = {
             `;
             grid.appendChild(card);
         });
-    },
-
-    _timeAgo(date) {
-        const diff = Date.now() - date.getTime();
-        if (diff < 60000) return '방금 전';
-        if (diff < 3600000) return Math.floor(diff / 60000) + '분 전';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + '시간 전';
-        return Math.floor(diff / 86400000) + '일 전';
     },
 
     async refresh() {

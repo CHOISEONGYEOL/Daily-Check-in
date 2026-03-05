@@ -1,6 +1,7 @@
 import { Player } from './player.js';
 import { CharRender } from './char-render.js';
 import { DB } from './db.js';
+import { AppPresence } from './app-presence.js';
 
 let Nav = null;
 export function setNav(n) { Nav = n; }
@@ -73,6 +74,8 @@ export const ProfileSetup = {
             if (sid !== TEACHER_ACCOUNT) {
                 DB.recordLogin(sid, sname);
             }
+            // 학생이면 앱 Presence 채널 입장 (교사 제외)
+            if (sid !== TEACHER_ACCOUNT) AppPresence.join(Player.className);
             // 교사 계정이면 교사 대시보드로, 신규면 에디터로, 기존 유저면 로비로
             if (sid === TEACHER_ACCOUNT) {
                 Nav.go('teacher');

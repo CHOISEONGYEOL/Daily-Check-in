@@ -337,6 +337,7 @@ export const WrRender = {
     },
 
     render(){
+        if(!this.ctx || !this.camera) return;
         const ctx = this.ctx;
         const camX = this.camera.x;
         const camY = this.camera.y;
@@ -735,6 +736,66 @@ export const WrRender = {
         if(this.reversedControls){
             const fa=0.04+Math.sin((this._frameNow||Date.now())*0.005)*0.02;
             ctx.fillStyle=`rgba(0,200,50,${fa})`;ctx.fillRect(0,0,VW,VH);
+        }
+        // ── 무궁화 꽃이 피었습니다 — 화면 테두리 경고 + 플레이어 추적 문구 ──
+        if(this.redLightGreenLight){
+            const rl=this.redLightGreenLight;
+            const isRed=rl.phase==='red';
+            if(isRed){
+                // 빨간 테두리 깜빡임 (강렬한 펄스)
+                const pulse=0.35+Math.sin(this.frameCount*0.25)*0.25;
+                const bw=8; // 테두리 두께
+                ctx.fillStyle=`rgba(255,0,0,${pulse})`;
+                ctx.fillRect(0,0,VW,bw);        // 상단
+                ctx.fillRect(0,VH-bw,VW,bw);    // 하단
+                ctx.fillRect(0,0,bw,VH);         // 좌측
+                ctx.fillRect(VW-bw,0,bw,VH);     // 우측
+                // 모서리 강조 (더 넓은 그라디언트)
+                const cornerSize=60;
+                const cAlpha=pulse*0.6;
+                ctx.fillStyle=`rgba(255,0,0,${cAlpha})`;
+                ctx.fillRect(0,0,cornerSize,cornerSize);
+                ctx.fillRect(VW-cornerSize,0,cornerSize,cornerSize);
+                ctx.fillRect(0,VH-cornerSize,cornerSize,cornerSize);
+                ctx.fillRect(VW-cornerSize,VH-cornerSize,cornerSize,cornerSize);
+                // 화면 전체 빨간 틴트
+                ctx.fillStyle=`rgba(255,0,0,${pulse*0.15})`;
+                ctx.fillRect(0,0,VW,VH);
+            }
+            // 플레이어 머리 위 추적 문구
+            if(P && !this._inSpectator){
+                const px=P.x-camX, py=P.y-camY;
+                if(isRed){
+                    // 빨간 단계: "멈춰!!!" 깜빡임
+                    const blink=Math.sin(this.frameCount*0.3)>0;
+                    if(blink){
+                        ctx.save();
+                        ctx.font='bold 22px "Segoe UI",sans-serif';ctx.textAlign='center';
+                        ctx.fillStyle='#FF0000';
+                        ctx.shadowColor='#FF0000';ctx.shadowBlur=15;
+                        ctx.fillText('🔴 멈춰!!!',px,py-50);
+                        ctx.restore();
+                    }
+                } else if(rl.chars && rl.displayedChars>0){
+                    // 초록 단계: 한 글자씩 나타나는 문장 (플레이어 머리 위)
+                    const shown=rl.chars.slice(0,rl.displayedChars);
+                    const text=shown.join('.')+'.';
+                    ctx.save();
+                    ctx.font='bold 18px "Segoe UI",sans-serif';ctx.textAlign='center';
+                    ctx.fillStyle='#44FF44';
+                    ctx.shadowColor='#00FF00';ctx.shadowBlur=10;
+                    ctx.fillText(text,px,py-50);
+                    // 마지막 글자 강조 펄스
+                    const lc=shown[shown.length-1];
+                    const pulseS=1+Math.sin(this.frameCount*0.3)*0.2;
+                    ctx.font=`bold ${18*pulseS}px "Segoe UI",sans-serif`;
+                    ctx.fillStyle='#FFFFFF';
+                    const fullW=ctx.measureText(text).width;
+                    const lcW=ctx.measureText(lc+'.').width;
+                    ctx.fillText(lc,px+fullW/2-lcW/2,py-50);
+                    ctx.restore();
+                }
+            }
         }
 
         // HUD

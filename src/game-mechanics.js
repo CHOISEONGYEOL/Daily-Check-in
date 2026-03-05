@@ -1,10 +1,11 @@
 export const GameMechanics = {
     // ── Push Blocks ──
     updatePushBlocks(){
-        this.pushBlocks.forEach(block=>{
+        if(!this.player) return;
+        (this.pushBlocks || []).forEach(block=>{
             if(block.pushed) return;
             block.pushers.clear();
-            const all = [this.player, ...this.npcs].filter(e=>!e.dead || this.ghostMode);
+            const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
             all.forEach((e,i)=>{
                 // Check if entity is touching block from left side and moving right
                 const touching = (e.x+e.w/2 >= block.x-5 && e.x+e.w/2 <= block.x+10 &&
@@ -31,9 +32,10 @@ export const GameMechanics = {
 
     // ── Pressure Plates ──
     updatePlates(){
-        this.plates.forEach(plate=>{
+        if(!this.player) return;
+        (this.plates || []).forEach(plate=>{
             plate.stepCount = 0;
-            const all = [this.player, ...this.npcs].filter(e=>!e.dead || this.ghostMode);
+            const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
             all.forEach(e=>{
                 if(e.onGround &&
                    e.x+e.w/2 > plate.x && e.x-e.w/2 < plate.x+plate.w &&
@@ -45,13 +47,13 @@ export const GameMechanics = {
             plate.active = plate.stepCount > 0;
 
             // Activate/deactivate linked bridges
-            this.bridges.forEach(br=>{
+            (this.bridges || []).forEach(br=>{
                 if(br.linkedId === plate.linkedId){
                     br.visible = plate.active;
                 }
             });
             // Activate linked elevators
-            this.elevators.forEach(elev=>{
+            (this.elevators || []).forEach(elev=>{
                 // Elevators handled separately
             });
 
@@ -64,10 +66,11 @@ export const GameMechanics = {
 
     // ── Elevators ──
     updateElevators(){
-        this.elevators.forEach(elev=>{
+        if(!this.player) return;
+        (this.elevators || []).forEach(elev=>{
             // Count riders
             let riders = 0;
-            const all = [this.player, ...this.npcs].filter(e=>!e.dead || this.ghostMode);
+            const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
             all.forEach(e=>{
                 if(e.onGround &&
                    e.x+e.w/2 > elev.x && e.x-e.w/2 < elev.x+elev.w &&
@@ -79,7 +82,7 @@ export const GameMechanics = {
 
             // Check if linked plate is active
             let plateActive = false;
-            this.plates.forEach(plate=>{
+            (this.plates || []).forEach(plate=>{
                 if(plate.linkedId && plate.linkedId === 'elev' + (this.elevators.indexOf(elev)+1)){
                     plateActive = plate.active;
                 }
@@ -102,11 +105,11 @@ export const GameMechanics = {
 
     // ── Key & Door ──
     updateKeyDoor(){
-        if(!this.door) return;
+        if(!this.door || !this.player) return;
 
         // Key collection (multiple keys) — 협동 게이트 체크 포함
-        const all = [this.player, ...this.npcs].filter(e=>!e.dead);
-        this.stageKeys.forEach(key=>{
+        const all = [this.player, ...(this.npcs || [])].filter(e=>e && !e.dead);
+        (this.stageKeys || []).forEach(key=>{
             if(key.collected) return;
             // 게이트 잠금 상태 캐싱
             key._unlocked = this.isKeyUnlocked(key);
@@ -155,7 +158,7 @@ export const GameMechanics = {
         // Locked door feedback (push back + message)
         if(!this.door.open){
             this.doorLockCooldown = Math.max(0, this.doorLockCooldown-1);
-            const all2 = [this.player, ...this.npcs].filter(e=>!e.dead);
+            const all2 = [this.player, ...(this.npcs || [])].filter(e=>e && !e.dead);
             all2.forEach(e=>{
                 const atDoor = (e.x+e.w/2 > this.door.x && e.x-e.w/2 < this.door.x+this.door.w &&
                                 e.y+e.h > this.door.y && e.y < this.door.y+this.door.h+20);
@@ -178,8 +181,8 @@ export const GameMechanics = {
         // Players enter door (disappear inside)
         if(this.door.open){
             this.playersAtDoor = 0;
-            const all = [this.player, ...this.npcs].filter(e=>!e.dead);
-            all.forEach(e=>{
+            const allDoor = [this.player, ...(this.npcs || [])].filter(e=>e && !e.dead);
+            allDoor.forEach(e=>{
                 if(e.enteredDoor){ this.playersAtDoor++; return; }
                 const atDoor = (e.x+e.w/2 > this.door.x && e.x-e.w/2 < this.door.x+this.door.w &&
                                 e.y+e.h > this.door.y && e.y < this.door.y+this.door.h+20);
@@ -193,50 +196,88 @@ export const GameMechanics = {
         }
     },
 
-    // ── Number Match: spot checking ──
+    // ── 오리엔티어링 체크포인트 시스템 ──
     updateNumberSpots(){
-        if(!this.numberSpots || !this.numberSpots.length) return;
-        const all = [this.player, ...this.npcs].filter(e => !e.dead || this.ghostMode);
-        let matchCount = 0;
-        const aliveCount = all.filter(e => !e.enteredDoor).length;
+        if(!this.numberSpots || !this.numberSpots.length || !this.player) return;
+        const all = [this.player, ...(this.npcs || [])].filter(e => e && (!e.dead || this.ghostMode));
+        const activeAll = all.filter(e => !e.enteredDoor && !e._spectatorDummy);
 
+        // 스팟 렌더링 상태 초기화
         this.numberSpots.forEach(spot => {
-            spot.occupant = null;
-            spot.satisfied = false;
-            for(const e of all){
-                if(e.enteredDoor) continue;
-                const onSpot = (
-                    e.x + e.w/2 > spot.x && e.x - e.w/2 < spot.x + spot.w &&
-                    Math.abs((e.y + e.h) - spot.y) < 12 && e.onGround
-                );
-                if(onSpot){
-                    spot.occupant = e;
-                    if(e.assignedNumber === spot.number){
-                        spot.satisfied = true;
-                        matchCount++;
-                    }
-                    break;
-                }
-            }
+            spot.isPlayerTarget = false;
+            spot.isPlayerDone = false;
         });
 
-        this.nmMatchCount = matchCount;
-        const allSatisfied = matchCount >= aliveCount && aliveCount > 0;
+        // 로컬 플레이어의 체크포인트 렌더링 마킹
+        const p = this.player;
+        if(p.checkpoints && !p._spectatorDummy){
+            for(let i = 0; i < p.checkpoints.length; i++){
+                const spot = this.numberSpots.find(s => s.number === p.checkpoints[i]);
+                if(!spot) continue;
+                if(i < p.currentCP) spot.isPlayerDone = true;
+                else if(i === p.currentCP) spot.isPlayerTarget = true;
+            }
+        }
 
-        if(allSatisfied && !this.nmAllMatched){
+        // 각 엔티티 체크포인트 판정 (원격 플레이어는 서버에서 처리)
+        let completedCount = 0;
+        for(const e of activeAll){
+            if(!e.checkpoints) continue;
+            if(e.completedAll){ completedCount++; continue; }
+            if(e.isRemote){ continue; } // 원격 플레이어는 클라이언트에서 자체 판정
+
+            const targetNum = e.checkpoints[e.currentCP];
+            const targetSpot = this.numberSpots.find(s => s.number === targetNum);
+            if(!targetSpot) continue;
+
+            // 스팟 위에 서있는지 판정
+            const onSpot = (
+                e.x + e.w/2 > targetSpot.x && e.x - e.w/2 < targetSpot.x + targetSpot.w &&
+                Math.abs((e.y + e.h) - targetSpot.y) < 12 && e.onGround
+            );
+            if(onSpot){
+                e.currentCP++;
+                this.spawnParticles(targetSpot.x + targetSpot.w/2, targetSpot.y - 10, '#FFD700', 10);
+
+                if(e.currentCP >= e.checkpoints.length){
+                    e.completedAll = true;
+                    completedCount++;
+                    this.chatBubbles.push({
+                        x: e.x, y: e.y - 30,
+                        text: '✅ 미션 완료!', timer: 90, follow: e
+                    });
+                    this.spawnParticles(e.x, e.y - 10, '#00B894', 15);
+                } else {
+                    const nextNum = e.checkpoints[e.currentCP];
+                    this.chatBubbles.push({
+                        x: e.x, y: e.y - 30,
+                        text: `다음: ${nextNum}번!`, timer: 60, follow: e
+                    });
+                }
+            }
+        }
+
+        // 원격 플레이어 완료 카운트 (broadcast로 받은 상태)
+        for(const e of activeAll){
+            if(e.isRemote && e.completedAll) completedCount++;
+        }
+
+        this.nmMatchCount = completedCount;
+        const aliveCount = activeAll.length;
+
+        // 전원 완료 → 문 열림
+        if(completedCount >= aliveCount && aliveCount > 0 && !this.nmAllMatched){
             this.nmAllMatched = true;
             if(this.door) this.door.open = true;
             this.chatBubbles.push({
                 x:this.VW/2, y:this.VH/4,
-                text:'🎉 전원 매칭 완료! 문이 열렸어요!',
+                text:'🎉 전원 체크포인트 완료! 문이 열렸어요!',
                 timer:120, follow:null, screen:true, big:true
             });
-            this.numberSpots.forEach(spot => {
-                if(spot.satisfied) this.spawnParticles(spot.x+spot.w/2, spot.y-10, '#00B894', 6);
-            });
+            this.spawnParticles(this.door.x+this.door.w/2, this.door.y, '#00B894', 20);
         }
 
-        // Door entry (reuse pattern)
+        // 문 진입
         if(this.door && this.door.open){
             this.playersAtDoor = 0;
             all.forEach(e => {
@@ -255,8 +296,9 @@ export const GameMechanics = {
 
     // ── Hazards ──
     updateHazards(){
-        this.hazards.forEach(hz=>{
-            const all = [this.player, ...this.npcs];
+        if(!this.player) return;
+        (this.hazards || []).forEach(hz=>{
+            const all = [this.player, ...(this.npcs || [])];
             all.forEach(e=>{
                 if(e.dead || e.enteredDoor) return;
                 if(e.x+e.w/2 > hz.x && e.x-e.w/2 < hz.x+hz.w &&
@@ -275,7 +317,9 @@ export const GameMechanics = {
     },
 
     respawnEntity(e){
+        if(!e) return;
         const sd = this.stageData;
+        if(!sd) return;
         e.dead = false;
         e.x = sd.spawnX + (Math.random()*100-50);
         e.y = sd.spawnY - 30;

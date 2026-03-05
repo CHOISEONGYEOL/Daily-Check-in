@@ -1,9 +1,13 @@
 export const GamePhysics = {
     applyPhysics(){
-        const all = [this.player, ...this.npcs];
+        if(!this.player) return;
+        const all = [this.player, ...(this.npcs || [])];
         all.forEach(e=>{
+            if(!e) return;
             if(e.enteredDoor) return;
             if(e.dead && !this.ghostMode) return;
+            // ★ 원격 플레이어는 물리 스킵 (위치를 네트워크에서 받음)
+            if(e.isRemote) return;
             // Gravity
             e.vy += this.GRAVITY;
             if(e.vy > 14) e.vy = 14;
@@ -18,7 +22,7 @@ export const GamePhysics = {
             // Platform collision
             this.checkPlatforms(e);
             // Bridge collision (only if visible)
-            this.bridges.forEach(br=>{
+            (this.bridges || []).forEach(br=>{
                 if(!br.visible) return;
                 if(e.vy >= 0 &&
                    e.x+e.w/2 > br.x && e.x-e.w/2 < br.x+br.w &&
@@ -30,7 +34,7 @@ export const GamePhysics = {
                 }
             });
             // Elevator collision
-            this.elevators.forEach(elev=>{
+            (this.elevators || []).forEach(elev=>{
                 if(e.vy >= 0 &&
                    e.x+e.w/2 > elev.x && e.x-e.w/2 < elev.x+elev.w &&
                    e.y+e.h >= elev.y && e.y+e.h <= elev.y+elev.h+e.vy+2){
@@ -77,7 +81,8 @@ export const GamePhysics = {
 
     // ── Entity-to-Entity collision (Pico Park stacking!) ──
     resolveEntityCollisions(){
-        const all = [this.player, ...this.npcs].filter(e=>!e.enteredDoor && (!e.dead || this.ghostMode));
+        if(!this.player) return;
+        const all = [this.player, ...(this.npcs || [])].filter(e=>e && !e.enteredDoor && (!e.dead || this.ghostMode));
         const len = all.length;
         for(let i=0;i<len;i++){
             for(let j=i+1;j<len;j++){
