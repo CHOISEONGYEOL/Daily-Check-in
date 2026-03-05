@@ -57,7 +57,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleStart() {
-        if (this.battleMode) return; // 이중 호출 방지
+        if (this.battleMode || !this.player) return; // 이중 호출 + null 방지
         this.battleMode = true;
         this._battleHP = MAX_HP;
         this._battleKills = 0;
@@ -110,9 +110,15 @@ export const WrBattle = {
         const atkBtn = document.getElementById('wr-attack-btn');
         if (atkBtn) atkBtn.style.display = '';
 
-        // Hide ball
+        // Hide ball + clear active gimmicks
         this.ball = null;
         this.ballGameStarted = false;
+        this.activeWind = null;
+        this.gravityReversed = false;
+        this.reversedControls = false;
+        this.blackHole = null;
+        this.screenFlip = null;
+        this.sizeChange = null;
 
         // Reset remote players HP
         if (this.remotePlayers) {
@@ -278,7 +284,7 @@ export const WrBattle = {
         if (!this._battleProjectiles || !this._projPool) return;
         const remotes = this._rtGetRemoteArray();
 
-        for (let i = this._battleProjectiles.length - 1; i >= 0; i--) {
+        for (let i = 0; i < this._battleProjectiles.length;) {
             const p = this._battleProjectiles[i];
             const prevX = p.x, prevY = p.y;
 
@@ -323,8 +329,9 @@ export const WrBattle = {
             }
 
             // === Owner-only hit detection ===
-            if (!p.isOwner) continue;
+            if (!p.isOwner) { i++; continue; }
 
+            let removed = false;
             if (p.type === 'bullet') {
                 // Segment vs AABB (Liang-Barsky) for anti-tunneling
                 for (const target of remotes) {
@@ -349,10 +356,12 @@ export const WrBattle = {
                             this._battleOnKill(target);
                         }
                         this._battleReturnProj(p, i);
+                        removed = true;
                         break;
                     }
                 }
             }
+            if (!removed) i++;
         }
     },
 
@@ -427,7 +436,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleTakeDamage(damage, kx, ky, attackerSid) {
-        if (this._battleIsDead || this._battleInvincible > 0) return;
+        if (this._battleIsDead || this._battleInvincible > 0 || this._inSpectator) return;
         this._battleHP -= damage;
         // Knockback + stun
         if (this.player) {

@@ -772,7 +772,7 @@ export const WrRealtime = {
         // 배틀 모드 중 호스트면 현재 픽업 상태 전송
         if (this.battleMode && this._isHost && this._battlePickups && this._rtChannel) {
             const pickupState = this._battlePickups.map(pk => ({
-                x: pk.x, y: pk.y, active: pk.active
+                x: pk.x, y: pk.y, active: pk.active, rt: pk.respawnTimer || 0
             }));
             this._rtChannel.send({
                 type: 'broadcast', event: 'gimmick',
@@ -846,7 +846,7 @@ export const WrRealtime = {
                     if (!pk.active && pk.respawnTimer <= 0) pk.respawnTimer = 300; // 5초 후 리스폰
                 }
                 const pickupState = this._battlePickups.map(pk => ({
-                    x: pk.x, y: pk.y, active: pk.active
+                    x: pk.x, y: pk.y, active: pk.active, rt: pk.respawnTimer || 0
                 }));
                 this._rtChannel.send({
                     type: 'broadcast', event: 'gimmick',
@@ -1132,6 +1132,7 @@ export const WrRealtime = {
         if (data.battlePickupSync && this._battlePickups) {
             for (let i = 0; i < this._battlePickups.length && i < data.battlePickupSync.length; i++) {
                 this._battlePickups[i].active = data.battlePickupSync[i].active;
+                this._battlePickups[i].respawnTimer = data.battlePickupSync[i].rt || 0;
             }
             return;
         }

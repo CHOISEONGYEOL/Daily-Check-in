@@ -795,7 +795,7 @@ export const WaitingRoom = {
         { let w=0; const arr=this.chatBubbles;
         for(let i=0;i<arr.length;i++){ const b=arr[i]; b.timer--; if(b.follow){b.x=b.follow.x;b.y=b.follow.y-45;} if(b.timer>0) arr[w++]=b; }
         arr.length=w; }
-        try { if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall(); } catch(e) { console.error('ball error:', e); }
+        try { if(!this.battleMode) { if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall(); } } catch(e) { console.error('ball error:', e); }
         this.updateEmote();
         this._spawnEffectTrail();
         // Battle mode update
