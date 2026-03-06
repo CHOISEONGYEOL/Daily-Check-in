@@ -427,7 +427,6 @@ export const WrBattle = {
                         this._rtBroadcastHit(target.studentId, p.damage, kx, ky);
                         // Local prediction
                         target.hp = (target.hp || MAX_HP) - p.damage;
-                        target.stunTimer = Math.max(target.stunTimer || 0, 15);
                         this._battleSpawnHitParticles(hit.x, hit.y);
                         // Check kill
                         if (target.hp <= 0) {
@@ -503,7 +502,6 @@ export const WrBattle = {
                 const ky = dist > 1 ? (dy / dist) * knockF - 4 : -6;
                 this._rtBroadcastHit(target.studentId, damage, kx, ky);
                 target.hp = (target.hp || MAX_HP) - damage;
-                target.stunTimer = Math.max(target.stunTimer || 0, 25);
                 if (target.hp <= 0) this._battleOnKill(target);
             }
         }
@@ -519,11 +517,10 @@ export const WrBattle = {
     _battleTakeDamage(damage, kx, ky, attackerSid) {
         if (this._battleIsDead || this._battleInvincible > 0 || this._inSpectator) return;
         this._battleHP -= damage;
-        // Knockback + stun
+        // Knockback
         if (this.player) {
             this.player.vx += kx || 0;
             this.player.vy += ky || 0;
-            this.player.stunTimer = Math.max(this.player.stunTimer || 0, 15);
         }
         this._battleSpawnHitParticles(
             this.player ? this.player.x : 0,
@@ -787,7 +784,6 @@ export const WrBattle = {
         const rp = this.remotePlayers ? this.remotePlayers.get(String(data.targetSid)) : null;
         if (rp && !rp.isDead) {
             rp.hp = (rp.hp || MAX_HP) - data.damage;
-            rp.stunTimer = Math.max(rp.stunTimer || 0, 15);
             this._battleSpawnHitParticles(rp.x, rp.y + 15);
             // 사망 처리는 isDeath 이벤트에서만 수행 (레이스 컨디션 방지)
         }
