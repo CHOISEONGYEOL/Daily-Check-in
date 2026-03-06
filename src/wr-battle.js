@@ -8,7 +8,7 @@ import { Player } from './player.js';
 // ── Constants ──
 const BULLET_SPEED   = 18;
 const BULLET_DAMAGE  = 12;
-const BULLET_LIFE    = 90;   // frames (~1.5s, 사거리 약 1600px)
+const BULLET_LIFE    = 40;   // frames (~0.67s, 사거리 약 720px)
 const BULLET_CD      = 30;   // 0.5s
 const BOMB_DAMAGE    = 30;   // center
 const BOMB_RADIUS    = 80;
@@ -71,7 +71,7 @@ export const WrBattle = {
         this._battleRespawnTimer = 0;
         this._battleInvincible = 0;
         this._battleBulletCD = 0;
-        this._battleBombCount = 0;
+        this._battleBombCount = 1;
         this._battleMeleeCD = 0;
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
@@ -580,7 +580,7 @@ export const WrBattle = {
         this._battleIsDead = false;
         this._battleHP = MAX_HP;
         this._battleInvincible = INVINCIBLE_TIME;
-        this._battleBombCount = 0;
+        this._battleBombCount = 1;
         this._battleWeapon = 'bullet';
 
         if (this.player) {
