@@ -8,7 +8,7 @@ import { Player } from './player.js';
 // ── Constants ──
 const BULLET_SPEED   = 18;
 const BULLET_DAMAGE  = 12;
-const BULLET_LIFE    = 45;   // frames
+const BULLET_LIFE    = 90;   // frames (~1.5s, 사거리 약 1600px)
 const BULLET_CD      = 30;   // 0.5s
 const BOMB_DAMAGE    = 30;   // center
 const BOMB_RADIUS    = 80;
@@ -889,24 +889,65 @@ export const WrBattle = {
 
             ctx.save();
             if (p.type === 'bullet') {
-                ctx.fillStyle = '#4D96FF';
-                ctx.shadowColor = '#4D96FF';
-                ctx.shadowBlur = 6;
+                const angle = Math.atan2(p.vy, p.vx);
+                // 꼬리 트레일
+                const tailLen = 18;
+                const grad = ctx.createLinearGradient(
+                    sx - Math.cos(angle) * tailLen, sy - Math.sin(angle) * tailLen, sx, sy);
+                grad.addColorStop(0, 'rgba(77,150,255,0)');
+                grad.addColorStop(1, 'rgba(77,150,255,0.8)');
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 4;
                 ctx.beginPath();
-                ctx.ellipse(sx, sy, 6, 3, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
+                ctx.moveTo(sx - Math.cos(angle) * tailLen, sy - Math.sin(angle) * tailLen);
+                ctx.lineTo(sx, sy);
+                ctx.stroke();
+                // 총알 본체 (밝은 원)
+                ctx.fillStyle = '#9DC4FF';
+                ctx.shadowColor = '#4D96FF';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.ellipse(sx, sy, 8, 4, angle, 0, Math.PI * 2);
+                ctx.fill();
+                // 중심 하이라이트
+                ctx.fillStyle = '#fff';
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.ellipse(sx, sy, 3, 2, angle, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                // Bomb
-                ctx.fillStyle = '#FF4500';
+                // 폭탄 본체
+                ctx.fillStyle = '#333';
                 ctx.shadowColor = '#FF4500';
+                ctx.shadowBlur = 12;
+                ctx.beginPath();
+                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+                ctx.fill();
+                // 폭탄 하이라이트
+                ctx.fillStyle = '#FF4500';
+                ctx.beginPath();
+                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+                ctx.strokeStyle = '#FF6B00';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // 도화선
+                ctx.strokeStyle = '#8B4513';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy - 10);
+                ctx.quadraticCurveTo(sx + 6, sy - 18, sx + 4, sy - 22);
+                ctx.stroke();
+                // 도화선 불꽃
+                ctx.fillStyle = '#FFD700';
+                ctx.shadowColor = '#FF6B00';
                 ctx.shadowBlur = 8;
                 ctx.beginPath();
-                ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+                ctx.arc(sx + 4 + (Math.random() - 0.5) * 3, sy - 22, 3 + Math.random() * 2, 0, Math.PI * 2);
                 ctx.fill();
-                // Fuse spark
-                ctx.fillStyle = '#FFD700';
+                // 불꽃 파티클
+                ctx.fillStyle = '#FF4500';
                 ctx.beginPath();
-                ctx.arc(sx + (Math.random() - 0.5) * 4, sy - 8, 2, 0, Math.PI * 2);
+                ctx.arc(sx + 4 + (Math.random() - 0.5) * 6, sy - 24 - Math.random() * 4, 1.5, 0, Math.PI * 2);
                 ctx.fill();
             }
             ctx.restore();
