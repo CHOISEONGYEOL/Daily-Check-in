@@ -717,8 +717,27 @@ export const WaitingRoom = {
 
     // ── Update Loop ──
     update(){
-        if(!this.player) return;
         this.frameCount++;
+        // ── 대기실 타이머 업데이트 (player 없는 교사도 실행) ──
+        if(this.wrStartTime){
+            this.wrElapsed = Math.floor((Date.now() - this.wrStartTime) / 1000);
+            if(this.wrTimeLimit > 0 && !this._wrTimerTriggered && !this.voteStarted && !this.countdown){
+                const remaining = this.wrTimeLimit - this.wrElapsed;
+                if(remaining <= 0){
+                    this._wrTimerTriggered = true;
+                    if(this.godMode) this.teacherStartGame();
+                }
+            }
+        }
+        // Battle mode update (관전자도)
+        if(this.battleMode) { this._battleUpdate(); }
+        // 파티클 업데이트 (관전자도)
+        { let w=0; const arr=this.particles;
+        for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
+        arr.length=w; }
+        if(this.screenShake > 0) this.screenShake *= 0.85;
+        if(this.screenShake < 0.5) this.screenShake = 0;
+        if(!this.player) return;
         const P = this.player;
         // _inSpectator: 엘리베이터로 진입 시 true, 나가면 false
         // 만약 _inSpectator인데 박스 밖으로 나갔으면 해제
@@ -813,25 +832,8 @@ export const WaitingRoom = {
         try { if(!this.battleMode) { if(this._isHost) { this.updateBall(); this._rtCheckAndSendBall(); } else this._rtPredictBall(); } } catch(e) { console.error('ball error:', e); }
         this.updateEmote();
         this._spawnEffectTrail();
-        // Battle mode update
-        if(this.battleMode) { this._battleUpdate(); this._battleCheckPickup(); }
-        if(this.screenShake > 0) this.screenShake *= 0.85;
-        if(this.screenShake < 0.5) this.screenShake = 0;
-        // ── 대기실 타이머 업데이트 (매 프레임) ──
-        if(this.wrStartTime){
-            this.wrElapsed = Math.floor((Date.now() - this.wrStartTime) / 1000);
-            if(this.wrTimeLimit > 0 && !this._wrTimerTriggered && !this.voteStarted && !this.countdown){
-                const remaining = this.wrTimeLimit - this.wrElapsed;
-                if(remaining <= 0){
-                    this._wrTimerTriggered = true;
-                    if(this.godMode) this.teacherStartGame();
-                }
-            }
-        }
-        // particles 인플레이스 업데이트 (새 배열 생성 안 함)
-        { let w=0; const arr=this.particles;
-        for(let i=0;i<arr.length;i++){ const p=arr[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life--; if(p.life>0) arr[w++]=p; }
-        arr.length=w; }
+        // Battle mode: player-specific (pickup check)
+        if(this.battleMode) { this._battleCheckPickup(); }
     },
 
     toggleBattleMode(){

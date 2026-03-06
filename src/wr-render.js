@@ -347,6 +347,14 @@ export const WrRender = {
         // 프레임 시작 시 1회만 Date.now() 호출 (이후 this._frameNow 참조)
         this._frameNow = Date.now();
         const now = this._frameNow;
+        // 교사 HTML 타이머 버튼 실시간 업데이트
+        if(this.godMode && this.wrStartTime && this.wrTimeLimit > 0){
+            const rem = Math.max(0, this.wrTimeLimit - this.wrElapsed);
+            const mm = Math.floor(rem/60);
+            const ss = String(rem%60).padStart(2,'0');
+            const btn = document.getElementById('wr-set-timer');
+            if(btn) btn.textContent = `⏱ ${mm}:${ss}`;
+        }
         // Sky gradient (캐시 — VH 변경 시에만 재생성)
         if(!this._skyGrad || this._skyGradVH !== VH){
             this._skyGrad = ctx.createLinearGradient(0,0,0,VH);
@@ -848,10 +856,11 @@ export const WrRender = {
         }
 
         // HUD
-        const hudX = this.godMode ? 10 : 10;
-        const hudTopY = this.godMode ? 44 : 8;
+        // 교사: HTML 버튼(대시보드, 게임시작, 타이머)이 top에 있으므로 canvas HUD는 아래에 배치
+        const hudX = 10;
+        const hudTopY = this.godMode ? 80 : 8;
         if(this.godMode){
-            // 교사 관전 모드 배지 (모드별 텍스트)
+            // 교사 관전 모드 배지 — "← 대시보드" 버튼 아래
             let badgeText, badgeW;
             if(this._spectatorCamMode === 'pov' && this._followTarget){
                 const name = this._followTarget.displayName || '학생';
@@ -861,18 +870,19 @@ export const WrRender = {
                 badgeText = '🌐 전지적 시점';
                 badgeW = 160;
             }
-            ctx.fillStyle='rgba(108,92,231,.7)';ctx.beginPath();ctx.roundRect(10,8,badgeW,28,10);ctx.fill();
+            ctx.fillStyle='rgba(108,92,231,.7)';ctx.beginPath();ctx.roundRect(10,48,badgeW,28,10);ctx.fill();
             ctx.fillStyle='#fff';ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
-            ctx.fillText(badgeText,10+badgeW/2,27);
+            ctx.fillText(badgeText,10+badgeW/2,67);
         }
+        // 인원수 표시
         ctx.fillStyle='rgba(0,0,0,.5)';
         ctx.beginPath();ctx.roundRect(hudX,hudTopY,130,28,10);ctx.fill();
         ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=0.5;
         ctx.beginPath();ctx.roundRect(hudX,hudTopY,130,28,10);ctx.stroke();
         ctx.fillStyle='#fff';ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
         ctx.fillText('👥 '+this.readyCount+' / '+this.totalStudents,hudX+65,hudTopY+19);
-        // ── 대기실 타이머 HUD ──
-        if(this.wrStartTime && !this.voteStarted && !this.countdown){
+        // ── 대기실 타이머 HUD (학생만 — 교사는 HTML 타이머 버튼 사용) ──
+        if(!this.godMode && this.wrStartTime && !this.voteStarted && !this.countdown){
             let timerSec, timerColor = '#fff', timerBlink = false;
             if(this.wrTimeLimit > 0){
                 timerSec = Math.max(0, this.wrTimeLimit - this.wrElapsed);
