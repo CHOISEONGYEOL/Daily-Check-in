@@ -63,7 +63,7 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleStart() {
-        if (this.battleMode || !this.player) return; // 이중 호출 + null 방지
+        if (this.battleMode) return; // 이중 호출 방지
         this.battleMode = true;
         this._battleHP = MAX_HP;
         this._battleKills = 0;
@@ -192,7 +192,16 @@ export const WrBattle = {
     // ═══════════════════════════════════════
 
     _battleUpdate() {
-        if (!this.battleMode || !this.player) return;
+        if (!this.battleMode) return;
+
+        // Always update projectiles & particles (관전자도 보여야 함)
+        this._battleUpdateProjectiles();
+
+        // Skip player-specific logic if no player (spectator/godMode)
+        if (!this.player) {
+            this._battleUpdateParticles();
+            return;
+        }
 
         // Cooldowns
         if (this._battleBulletCD > 0) this._battleBulletCD--;
@@ -216,9 +225,6 @@ export const WrBattle = {
                 this._battleBombCount++;
             }
         }
-
-        // Update projectiles
-        this._battleUpdateProjectiles();
 
         // Update bomb pickups (host only)
         if (this._isHost) this._battleUpdatePickups();
