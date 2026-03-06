@@ -158,77 +158,81 @@ export const Teacher = {
         const btn = document.getElementById('teacher-game-toggle');
         if (btn) btn.style.pointerEvents = 'none';
 
-        const { error } = await supabase.from('game_sessions').upsert({
-            id: sessionId,
-            is_open: newState,
-            teacher_id: DB.userId,
-            // 열기: 이전 세션 잔여 상태 초기화 (game_started, phase 등)
-            ...(newState ? {
-                opened_at: new Date().toISOString(),
-                game_started: false,
-                phase: 'waiting',
-                vote_data: null,
-                selected_game: null,
-                wr_mode: document.getElementById('teacher-wr-mode')?.value || 'soccer'
-            } : {
-                closed_at: new Date().toISOString(),
-                game_started: false,
-                phase: 'waiting',
-                vote_data: null,
-                selected_game: null
-            }),
-            updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        try {
+            const { error } = await supabase.from('game_sessions').upsert({
+                id: sessionId,
+                is_open: newState,
+                ...(newState ? {
+                    opened_at: new Date().toISOString(),
+                    game_started: false,
+                    phase: 'waiting',
+                    vote_data: null,
+                    selected_game: null,
+                    wr_mode: document.getElementById('teacher-wr-mode')?.value || 'soccer'
+                } : {
+                    closed_at: new Date().toISOString(),
+                    game_started: false,
+                    phase: 'waiting',
+                    vote_data: null,
+                    selected_game: null
+                }),
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
 
-        if (error) {
-            console.error('toggleGame upsert error:', error);
-        }
-        // 닫기 시: 해당 반 채널로 shutdown 브로드캐스트 → 학생 강제 퇴장
-        if (!newState) {
-            const entry = this._rtChannels.get(className);
-            if (entry && entry.channel) {
-                entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
+            if (error) {
+                console.error('toggleGame upsert error:', error);
+                alert('게임 상태 변경 실패: ' + error.message);
+                return;
             }
-            // ★ 게임 채널에도 game_end 브로드캐스트 (게임 중인 학생의 물리/렌더 루프 클린업)
-            const gameIds = ['picopark', 'numbermatch', 'maze', 'escaperoom', 'crossword', 'ollaolla'];
-            const endPromises = gameIds.map(gid => {
-                const chName = `game:${className}_${gid}`;
-                return new Promise((resolve) => {
-                    try {
-                        const ch = supabase.channel(chName);
-                        const timeout = setTimeout(() => { try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){} resolve(); }, 3000);
-                        ch.subscribe((status) => {
-                            if (status === 'SUBSCRIBED') {
-                                ch.send({ type: 'broadcast', event: 'game_end', payload: {} });
-                                setTimeout(() => { clearTimeout(timeout); ch.unsubscribe(); supabase.removeChannel(ch); resolve(); }, 200);
-                            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                                clearTimeout(timeout); try { supabase.removeChannel(ch); } catch(e){} resolve();
-                            }
-                        });
-                    } catch(e) { resolve(); }
+            // 닫기 시: 해당 반 채널로 shutdown 브로드캐스트 → 학생 강제 퇴장
+            if (!newState) {
+                const entry = this._rtChannels.get(className);
+                if (entry && entry.channel) {
+                    entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
+                }
+                // ★ 게임 채널에도 game_end 브로드캐스트 (게임 중인 학생의 물리/렌더 루프 클린업)
+                const gameIds = ['picopark', 'numbermatch', 'maze', 'escaperoom', 'crossword', 'ollaolla'];
+                const endPromises = gameIds.map(gid => {
+                    const chName = `game:${className}_${gid}`;
+                    return new Promise((resolve) => {
+                        try {
+                            const ch = supabase.channel(chName);
+                            const timeout = setTimeout(() => { try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){} resolve(); }, 3000);
+                            ch.subscribe((status) => {
+                                if (status === 'SUBSCRIBED') {
+                                    ch.send({ type: 'broadcast', event: 'game_end', payload: {} });
+                                    setTimeout(() => { clearTimeout(timeout); ch.unsubscribe(); supabase.removeChannel(ch); resolve(); }, 200);
+                                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                                    clearTimeout(timeout); try { supabase.removeChannel(ch); } catch(e){} resolve();
+                                }
+                            });
+                        } catch(e) { resolve(); }
+                    });
                 });
-            });
-            await Promise.all(endPromises);
-        }
-        // UI는 에러와 무관하게 반영 (로컬 상태 우선)
-        if (newState) {
-            if (!this._openClasses.includes(className)) this._openClasses.push(className);
-        } else {
-            this._openClasses = this._openClasses.filter(c => c !== className);
-        }
-        this.gameIsOpen = this._openClasses.length > 0;
-        this.updateToggle();
-        if (btn) btn.style.pointerEvents = '';
-        // 출석부 실시간 폴링 + Presence 구독
-        if (this._openClasses.length > 0) {
-            this.startRosterPoll();
-            // 열린 반에 Presence 구독
-            this._openClasses.forEach(c => this._rtSubscribe(c));
-        } else {
-            this.stopRosterPoll();
-            this._rtUnsubscribeAll();
-            // 모든 반이 닫히면 대기실도 정리
-            if (WaitingRoom && WaitingRoom.running) WaitingRoom.stop();
+                await Promise.all(endPromises);
+            }
+            // DB 성공 → 로컬 상태 반영
+            if (newState) {
+                if (!this._openClasses.includes(className)) this._openClasses.push(className);
+            } else {
+                this._openClasses = this._openClasses.filter(c => c !== className);
+            }
+            this.gameIsOpen = this._openClasses.length > 0;
+            this.updateToggle();
+            // 출석부 실시간 폴링 + Presence 구독
+            if (this._openClasses.length > 0) {
+                this.startRosterPoll();
+                this._openClasses.forEach(c => this._rtSubscribe(c));
+            } else {
+                this.stopRosterPoll();
+                this._rtUnsubscribeAll();
+                if (WaitingRoom && WaitingRoom.running) WaitingRoom.stop();
+            }
+        } catch (e) {
+            console.error('toggleGame exception:', e);
+            alert('게임 상태 변경 중 오류가 발생했습니다.');
+        } finally {
+            if (btn) btn.style.pointerEvents = '';
         }
     },
 
