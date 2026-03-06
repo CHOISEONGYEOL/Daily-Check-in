@@ -347,7 +347,6 @@ export const WrBattle = {
             this._rtBroadcastHit(target.studentId, MELEE_DAMAGE, kx, ky);
             // Local prediction
             target.hp = (target.hp || MAX_HP) - MELEE_DAMAGE;
-            target.stunTimer = Math.max(target.stunTimer || 0, 20);
             this._battleSpawnHitParticles(target.x, target.y + target.h / 2);
             if (target.hp <= 0) this._battleOnKill(target);
         }
