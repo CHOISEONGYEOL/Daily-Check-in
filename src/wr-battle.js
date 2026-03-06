@@ -26,6 +26,10 @@ const BOMB_PICKUP_RESPAWN = 600; // 10s
 const KILLFEED_DURATION = 180;   // 3s
 const MAX_DAMAGE = 50;           // 수신 데미지 상한 (치트 방지)
 const MAX_KNOCK  = 15;           // 수신 넉백 상한
+const MELEE_DAMAGE = 20;         // 근접 공격 데미지
+const MELEE_RANGE  = 40;         // 근접 공격 범위 (px)
+const MELEE_KNOCK  = 8;          // 근접 넉백 강도
+const MELEE_CD     = 36;         // 근접 쿨다운 (0.6s)
 
 export const WrBattle = {
 
@@ -40,6 +44,7 @@ export const WrBattle = {
     _battleInvincible: 0,
     _battleBulletCD: 0,
     _battleBombCount: 0,
+    _battleMeleeCD: 0,
     _battleWeapon: 'bullet', // 'bullet' | 'bomb'
     _battleKillFeed: [],     // [{text, timer}]
 
@@ -67,6 +72,7 @@ export const WrBattle = {
         this._battleInvincible = 0;
         this._battleBulletCD = 0;
         this._battleBombCount = 0;
+        this._battleMeleeCD = 0;
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
 
@@ -115,9 +121,9 @@ export const WrBattle = {
             pk.y = bestY;
         });
 
-        // Show mobile attack button
-        const atkBtn = document.getElementById('wr-attack-btn');
-        if (atkBtn) atkBtn.style.display = '';
+        // Show mobile battle buttons
+        const battleBtns = document.getElementById('wr-battle-btns');
+        if (battleBtns) battleBtns.style.display = '';
 
         // Hide ball + clear active gimmicks
         this.ball = null;
@@ -151,8 +157,8 @@ export const WrBattle = {
 
     _battleStop() {
         this.battleMode = false;
-        const atkBtn = document.getElementById('wr-attack-btn');
-        if (atkBtn) atkBtn.style.display = 'none';
+        const battleBtns = document.getElementById('wr-battle-btns');
+        if (battleBtns) battleBtns.style.display = 'none';
         this._battleProjectiles = [];
         this._battleParticles = [];
         this._projPool = null;
@@ -164,6 +170,7 @@ export const WrBattle = {
         this._battleIsDead = false;
         this._battleHP = 0;
         this._battleBulletCD = 0;
+        this._battleMeleeCD = 0;
         this._battleBombCount = 0;
         this._battleInvincible = 0;
         this._battleRespawnTimer = 0;
@@ -185,6 +192,7 @@ export const WrBattle = {
 
         // Cooldowns
         if (this._battleBulletCD > 0) this._battleBulletCD--;
+        if (this._battleMeleeCD > 0) this._battleMeleeCD--;
         if (this._battleInvincible > 0) this._battleInvincible--;
 
         // Dead → respawn countdown
@@ -286,6 +294,62 @@ export const WrBattle = {
 
             // Auto-switch back to bullet if no bombs left
             if (this._battleBombCount <= 0) this._battleWeapon = 'bullet';
+        }
+    },
+
+    // ═══════════════════════════════════════
+    // Melee Attack (근접 공격)
+    // ═══════════════════════════════════════
+
+    _battleMelee() {
+        if (!this.battleMode || this._battleIsDead || this.overlayActive) return;
+        if (this._inSpectator || !this.player) return;
+        if (this._battleMeleeCD > 0) return;
+        this._battleMeleeCD = MELEE_CD;
+
+        const P = this.player;
+        const dir = P.dir || 1;
+        const hitX = P.x + dir * (P.w / 2 + MELEE_RANGE / 2);
+        const hitY = P.y + P.h * 0.4;
+
+        // 이펙트 (슬래시 파티클)
+        for (let i = 0; i < 6; i++) {
+            const sp = this._battleGetParticle();
+            if (!sp) break;
+            Object.assign(sp, {
+                x: hitX + (Math.random() - 0.5) * MELEE_RANGE,
+                y: hitY + (Math.random() - 0.5) * 20,
+                vx: dir * (2 + Math.random() * 3),
+                vy: (Math.random() - 0.5) * 2,
+                life: 12 + Math.random() * 8,
+                maxLife: 20,
+                size: 3 + Math.random() * 3,
+                color: '#FFD700'
+            });
+            this._battleParticles.push(sp);
+        }
+
+        // 범위 내 원격 플레이어 히트 판정
+        const remotes = this._rtGetRemoteArray();
+        for (const target of remotes) {
+            if (target._inSpectator || target.isDead) continue;
+            if (target.invincible > 0) continue;
+            const dx = target.x - P.x;
+            const dy = (target.y + target.h / 2) - hitY;
+            // 방향 체크: 바라보는 방향에 있는 적만 타격
+            if (dir > 0 && dx < -10) continue;
+            if (dir < 0 && dx > 10) continue;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > MELEE_RANGE + target.w / 2) continue;
+
+            const kx = dir * MELEE_KNOCK;
+            const ky = -MELEE_KNOCK * 0.4;
+            this._rtBroadcastHit(target.studentId, MELEE_DAMAGE, kx, ky);
+            // Local prediction
+            target.hp = (target.hp || MAX_HP) - MELEE_DAMAGE;
+            target.stunTimer = Math.max(target.stunTimer || 0, 20);
+            this._battleSpawnHitParticles(target.x, target.y + target.h / 2);
+            if (target.hp <= 0) this._battleOnKill(target);
         }
     },
 
@@ -899,8 +963,8 @@ export const WrBattle = {
         ctx.beginPath(); ctx.roundRect(VW - 130, 40, 120, 24, 8); ctx.fill();
         ctx.font = 'bold 11px "Segoe UI",sans-serif';
         const weaponText = this._battleWeapon === 'bullet'
-            ? 'GUN [Q: switch]'
-            : `BOMB x${this._battleBombCount} [Q: switch]`;
+            ? 'GUN [F] / MELEE [E]'
+            : `BOMB x${this._battleBombCount} [F] / MELEE [E]`;
         ctx.fillStyle = this._battleWeapon === 'bullet' ? '#4D96FF' : '#FF4500';
         ctx.fillText(weaponText, VW - 70, 56);
 

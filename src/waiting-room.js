@@ -291,6 +291,7 @@ export const WaitingRoom = {
             // Battle mode controls (f/F: shoot, q/Q: switch weapon)
             if(this.battleMode){
                 if(e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
+                if(e.key==='e'||e.key==='E') { e.preventDefault(); this._battleMelee(); }
                 if(e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
             }
         };
@@ -314,6 +315,9 @@ export const WaitingRoom = {
                 if(k==='right'){this.keys['ArrowRight']=true;this.keys['_mobileRight']=true;}
                 if(k==='jump'){this.keys['_mobileJump']=true;this.playerJump();}
                 if(k==='attack'){if(this.battleMode) this._battleShoot();}
+                if(k==='shoot'){if(this.battleMode){ this._battleWeapon='bullet'; this._battleShoot(); }}
+                if(k==='bomb'){if(this.battleMode){ this._battleWeapon='bomb'; this._battleShoot(); }}
+                if(k==='melee'){if(this.battleMode) this._battleMelee();}
                 if(k==='down'){
                     this.keys['ArrowDown']=true;this.keys['_mobileDown']=true;
                     if(this.reversedControls && !this._inSpectator) this.playerJump();

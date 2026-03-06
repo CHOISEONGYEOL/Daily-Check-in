@@ -310,7 +310,12 @@
             <div class="wr-rpad">
                 <button class="wr-ctrl-btn jump-btn" data-key="jump">▲</button>
                 <button class="wr-ctrl-btn down-btn" data-key="down">▼</button>
-                <button class="wr-ctrl-btn" data-key="attack" id="wr-attack-btn" style="display:none;background:rgba(255,60,60,.4);border-color:rgba(255,60,60,.5);">ATK</button>
+            </div>
+            <!-- 배틀 모드 전용 액션 버튼 (배틀 시작 시 표시) -->
+            <div id="wr-battle-btns" class="wr-battle-btns" style="display:none;">
+                <button class="wr-ctrl-btn wr-bat-btn gun-btn" data-key="shoot">🔫</button>
+                <button class="wr-ctrl-btn wr-bat-btn bomb-btn" data-key="bomb">💣</button>
+                <button class="wr-ctrl-btn wr-bat-btn melee-btn" data-key="melee">⚔️</button>
             </div>
         </div>
         <div id="wr-countdown" class="wr-countdown hidden">
