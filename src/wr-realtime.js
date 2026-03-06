@@ -771,7 +771,7 @@ export const WrRealtime = {
             jumpCount: 0, maxJumps: 2,
             emote: null, emoteTimer: 0,
             stunTimer: 0, explodeTimer: 0,
-            team: presence.team || (this.remotePlayers.size % 2 === 0 ? 'right' : 'left'),
+            team: null, // _rtAssignTeams()에서 균형 배정 (presence.team 사용 시 모두 'left' 되는 버그)
             sprite: null,
             hat: presence.hat || null,
             effect: presence.effect || null,
