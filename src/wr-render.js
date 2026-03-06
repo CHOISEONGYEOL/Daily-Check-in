@@ -703,9 +703,10 @@ export const WrRender = {
         this._renderParticles(ctx);
         // Battle: projectiles, pickups, battle particles (world space)
         if(this.battleMode){
-            this._battleRenderProjectiles(ctx, camX, camY);
-            this._battleRenderPickups(ctx, camX, camY);
-            this._battleRenderParticles(ctx, camX, camY);
+            this._battleRenderProjectiles(ctx, 0, 0);
+            this._battleRenderPickups(ctx, 0, 0);
+            this._battleRenderParticles(ctx, 0, 0);
+            this._battleRenderEffects(ctx, 0, 0);
         }
         // Chat bubbles
         this.chatBubbles.forEach(b=>{

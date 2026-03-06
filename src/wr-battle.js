@@ -167,6 +167,8 @@ export const WrBattle = {
         this._bParticleFree = null;
         this._battlePickups = null;
         this._battleKillFeed = [];
+        this._battleExplosionRings = null;
+        this._battleMuzzleFlashes = null;
         this._battleIsDead = false;
         this._battleHP = 0;
         this._battleBulletCD = 0;
@@ -266,6 +268,9 @@ export const WrBattle = {
             });
             this._battleProjectiles.push(p);
 
+            // Muzzle flash particles
+            this._battleSpawnMuzzleFlash(p.x, p.y, dir);
+
             // Broadcast shoot event (1 time)
             this._rtBroadcastShoot(p);
 
@@ -289,6 +294,9 @@ export const WrBattle = {
                 ownerSid: String(Player.studentId)
             });
             this._battleProjectiles.push(p);
+
+            // Bomb throw flash
+            this._battleSpawnBombThrowEffect(p.x, p.y, dir);
 
             this._rtBroadcastShoot(p);
 
@@ -727,6 +735,14 @@ export const WrBattle = {
             isOwner: false, ownerSid: data.sid
         });
         this._battleProjectiles.push(p);
+
+        // Remote shoot visual effects
+        const dir = data.vx > 0 ? 1 : -1;
+        if (data.type === 'bullet') {
+            this._battleSpawnMuzzleFlash(data.x, data.y, dir);
+        } else {
+            this._battleSpawnBombThrowEffect(data.x, data.y, dir);
+        }
     },
 
     _rtOnRemoteHit(data) {
@@ -831,15 +847,55 @@ export const WrBattle = {
     },
 
     _battleSpawnExplosionParticles(x, y) {
-        const cols = ['#FF6B6B', '#FFD93D', '#FF9F43'];
+        const cols = ['#FF6B6B', '#FFD93D', '#FF9F43', '#FF4500', '#FFA500'];
+        // Big burst particles (20개)
+        for (let i = 0; i < 20; i++) {
+            const p = this._battleGetParticle();
+            if (!p) break;
+            const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 7;
+            Object.assign(p, {
+                x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 3,
+                color: cols[i % 5], size: 4 + Math.random() * 5,
+                life: 25 + Math.random() * 20, maxLife: 45
+            });
+            this._battleParticles.push(p);
+        }
+        // Add explosion ring animation
+        if (!this._battleExplosionRings) this._battleExplosionRings = [];
+        this._battleExplosionRings.push({ x, y, radius: 5, maxRadius: BOMB_RADIUS, life: 20, maxLife: 20 });
+    },
+
+    _battleSpawnMuzzleFlash(x, y, dir) {
+        const cols = ['#FFE066', '#FFF', '#4D96FF'];
         for (let i = 0; i < 8; i++) {
             const p = this._battleGetParticle();
             if (!p) break;
-            const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 4;
+            const spread = (Math.random() - 0.5) * 1.5;
             Object.assign(p, {
-                x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2,
-                color: cols[i % 3], size: 3 + Math.random() * 3,
-                life: 20 + Math.random() * 15, maxLife: 35
+                x, y,
+                vx: dir * (3 + Math.random() * 5) + spread,
+                vy: (Math.random() - 0.5) * 3,
+                color: cols[i % 3], size: 2 + Math.random() * 3,
+                life: 8 + Math.random() * 6, maxLife: 14
+            });
+            this._battleParticles.push(p);
+        }
+        // Muzzle flash ring
+        if (!this._battleMuzzleFlashes) this._battleMuzzleFlashes = [];
+        this._battleMuzzleFlashes.push({ x, y, radius: 3, life: 6, maxLife: 6 });
+    },
+
+    _battleSpawnBombThrowEffect(x, y, dir) {
+        const cols = ['#FF4500', '#FF6B00', '#FFD700'];
+        for (let i = 0; i < 6; i++) {
+            const p = this._battleGetParticle();
+            if (!p) break;
+            Object.assign(p, {
+                x, y,
+                vx: dir * (1 + Math.random() * 2),
+                vy: -1 - Math.random() * 2,
+                color: cols[i % 3], size: 2 + Math.random() * 2,
+                life: 10 + Math.random() * 8, maxLife: 18
             });
             this._battleParticles.push(p);
         }
@@ -947,6 +1003,68 @@ export const WrBattle = {
                 ctx.fill();
             }
             ctx.restore();
+        }
+    },
+
+    _battleRenderEffects(ctx, camX, camY) {
+        // Explosion rings
+        if (this._battleExplosionRings) {
+            let w = 0;
+            for (let i = 0; i < this._battleExplosionRings.length; i++) {
+                const r = this._battleExplosionRings[i];
+                r.life--;
+                const t = 1 - r.life / r.maxLife;
+                r.radius = r.maxRadius * t;
+                if (r.life > 0) {
+                    const sx = r.x - camX, sy = r.y - camY;
+                    const alpha = r.life / r.maxLife;
+                    ctx.save();
+                    // Outer shockwave ring
+                    ctx.strokeStyle = `rgba(255,100,0,${alpha * 0.8})`;
+                    ctx.lineWidth = 4 * alpha + 1;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, r.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    // Inner glow fill
+                    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r.radius);
+                    grad.addColorStop(0, `rgba(255,200,50,${alpha * 0.4})`);
+                    grad.addColorStop(0.5, `rgba(255,100,0,${alpha * 0.2})`);
+                    grad.addColorStop(1, `rgba(255,50,0,0)`);
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, r.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    this._battleExplosionRings[w++] = r;
+                }
+            }
+            this._battleExplosionRings.length = w;
+        }
+        // Muzzle flashes
+        if (this._battleMuzzleFlashes) {
+            let w = 0;
+            for (let i = 0; i < this._battleMuzzleFlashes.length; i++) {
+                const f = this._battleMuzzleFlashes[i];
+                f.life--;
+                if (f.life > 0) {
+                    const sx = f.x - camX, sy = f.y - camY;
+                    const alpha = f.life / f.maxLife;
+                    const size = f.radius + (f.maxLife - f.life) * 2;
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, size);
+                    grad.addColorStop(0, 'rgba(255,255,220,0.9)');
+                    grad.addColorStop(0.4, 'rgba(77,150,255,0.5)');
+                    grad.addColorStop(1, 'rgba(77,150,255,0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    this._battleMuzzleFlashes[w++] = f;
+                }
+            }
+            this._battleMuzzleFlashes.length = w;
         }
     },
 
