@@ -94,7 +94,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const savedToken = LS.get('sessionToken', null);
             await Player.login(Player.studentId, Player.studentName, Player.nickname, savedToken);
-            if (Player.studentId !== TEACHER_ACCOUNT) AppPresence.join(Player.className);
+            // 로그인 후 roster에서 최신 className 갱신 (반 변경 반영)
+            if (Player.studentId !== TEACHER_ACCOUNT) {
+                const roster = await DB.checkRoster(Player.studentId);
+                if (roster && roster.class_name) {
+                    Player.className = roster.class_name;
+                    Player.save();
+                }
+                AppPresence.join(Player.className);
+            }
             Nav.go(Player.studentId === TEACHER_ACCOUNT ? 'teacher' : 'lobby');
         } catch (e) {
             console.error('Auto-login failed:', e);

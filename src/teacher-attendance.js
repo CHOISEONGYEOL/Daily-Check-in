@@ -33,8 +33,8 @@ export const TeacherAttendance = {
         if (!grid) return;
         const classStudents = this._getRosterStudents();
 
-        // 실시간 접속자 수
-        const liveCount = classStudents.filter(s => this._realtimeOnline.has(s.studentId)).length;
+        // 실시간 대기실 접속자 수 (출석게임 입장한 학생만)
+        const liveCount = classStudents.filter(s => this._wrOnline.has(s.studentId)).length;
 
         // 통계
         let cnt = { present: 0, late: 0, early: 0, absent: 0 };
@@ -66,9 +66,9 @@ export const TeacherAttendance = {
         // 정렬: 실시간 접속 > 출석(시간순) → 지각 → 조퇴 → 결석 → 미체크
         const order = { present: 0, late: 1, early: 2, absent: 3 };
         const sorted = [...classStudents].sort((a, b) => {
-            // 실시간 접속자 우선
-            const aLive = this._realtimeOnline.has(a.studentId) ? 0 : 1;
-            const bLive = this._realtimeOnline.has(b.studentId) ? 0 : 1;
+            // 실시간 대기실 접속자 우선
+            const aLive = this._wrOnline.has(a.studentId) ? 0 : 1;
+            const bLive = this._wrOnline.has(b.studentId) ? 0 : 1;
             if (aLive !== bLive) return aLive - bLive;
             const sa = this._getStatus(a.studentId);
             const sb = this._getStatus(b.studentId);
@@ -87,7 +87,7 @@ export const TeacherAttendance = {
             const att = this._attendance[s.studentId];
             const st = att?.status || '';
             const markedAt = att?.markedAt;
-            const isLive = this._realtimeOnline.has(s.studentId);
+            const isLive = this._wrOnline.has(s.studentId);
             const card = document.createElement('div');
             card.className = `trc-card ${st}${isLive ? ' trc-live' : ''}`;
 
