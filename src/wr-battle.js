@@ -16,7 +16,8 @@ const BOMB_VX        = 10;
 const BOMB_VY        = -8;
 const BOMB_GRAVITY   = 0.5;
 const BOMB_LIFE      = 180;  // 3s max flight
-const MAX_BOMBS      = 2;    // max carry
+const MAX_BOMBS      = 3;    // max carry
+const BOMB_REGEN     = 300;  // 5초마다 폭탄 1개 자동 충전
 const RESPAWN_TIME   = 180;  // 3s
 const INVINCIBLE_TIME = 120; // 2s
 const MAX_HP         = 100;
@@ -71,7 +72,8 @@ export const WrBattle = {
         this._battleRespawnTimer = 0;
         this._battleInvincible = 0;
         this._battleBulletCD = 0;
-        this._battleBombCount = 1;
+        this._battleBombCount = MAX_BOMBS;
+        this._battleBombRegenTimer = 0;
         this._battleMeleeCD = 0;
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
@@ -204,6 +206,15 @@ export const WrBattle = {
                 this._battleRespawn();
             }
             return; // skip input while dead
+        }
+
+        // Bomb auto-regen (5초마다 1개)
+        if (this._battleBombCount < MAX_BOMBS) {
+            this._battleBombRegenTimer = (this._battleBombRegenTimer || 0) + 1;
+            if (this._battleBombRegenTimer >= BOMB_REGEN) {
+                this._battleBombRegenTimer = 0;
+                this._battleBombCount++;
+            }
         }
 
         // Update projectiles
@@ -580,7 +591,8 @@ export const WrBattle = {
         this._battleIsDead = false;
         this._battleHP = MAX_HP;
         this._battleInvincible = INVINCIBLE_TIME;
-        this._battleBombCount = 1;
+        this._battleBombCount = MAX_BOMBS;
+        this._battleBombRegenTimer = 0;
         this._battleWeapon = 'bullet';
 
         if (this.player) {
