@@ -8,12 +8,12 @@ import { Player } from './player.js';
 // ── Constants ──
 const BULLET_SPEED   = 18;
 const BULLET_DAMAGE  = 12;
-const BULLET_LIFE    = 40;   // frames (~0.67s, 사거리 약 720px)
+const BULLET_LIFE    = 20;   // frames (~0.33s, 사거리 약 360px)
 const BULLET_CD      = 30;   // 0.5s
-const BOMB_DAMAGE    = 30;   // center
+const BOMB_DAMAGE    = 60;   // center (2x)
 const BOMB_RADIUS    = 80;
-const BOMB_VX        = 10;
-const BOMB_VY        = -8;
+const BOMB_VX        = 5;    // 포물선 거리 절반
+const BOMB_VY        = -4;   // 포물선 높이 절반
 const BOMB_GRAVITY   = 0.5;
 const BOMB_LIFE      = 180;  // 3s max flight
 const MAX_BOMBS      = 3;    // max carry
