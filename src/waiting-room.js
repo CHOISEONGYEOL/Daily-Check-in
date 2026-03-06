@@ -237,7 +237,7 @@ export const WaitingRoom = {
             onGround:false, dir:1, jumpCount:0, maxJumps:2,
             sprite:CharRender.toOffscreen(pxData,64),
             emote:null, emoteTimer:0, emoteCooldown:0, explodeTimer:0, stunTimer:0,
-            team:'left'
+            team:null
         };
         this.ball = null; this.score = {left:0, right:0}; this.goalLog = [];
         this.ballResetTimer = 0; this.goalFlash = 0; this.ballAngle = 0;

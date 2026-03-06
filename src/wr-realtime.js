@@ -134,7 +134,6 @@ export const WrRealtime = {
                             hat: Player.equipped?.hat || null,
                             effect: Player.equipped?.effect || null,
                             pet: Player.equipped?.pet || null,
-                            team: this.player?.team || 'left',
                             isTeacher: false,
                         });
                         console.log('[RT] tracked OK');
@@ -899,38 +898,38 @@ export const WrRealtime = {
         }
     },
 
-    // ── 팀 자동 배정 (studentId 정렬 → 교대 배정) ──
+    // ── 팀 자동 배정 (studentId 정렬 → 결정적 배정, 모든 클라이언트 동일 결과) ──
     _rtAssignTeams() {
         if (!this._rtChannel || this.godMode || !this.remotePlayers) return;
-        // 관람석 플레이어는 팀 null 처리
-        if (this._inSpectator && this.player) {
-            this.player.team = null;
+
+        // 활성 플레이어 목록 (관람석 제외) — studentId로 정렬하여 모든 클라이언트가 동일 순서
+        const active = [];
+        const mySid = String(Player.studentId);
+        if (this.player && !this._inSpectator) {
+            active.push({ sid: mySid, isLocal: true });
         }
-        for (const rp of this.remotePlayers.values()) {
-            if (rp._inSpectator) { rp.team = null; }
-        }
-        // 이미 팀이 배정된 플레이어는 유지, 팀이 없는 활성 플레이어만 새로 배정
-        // 현재 팀별 인원수 계산
-        let leftCount = 0, rightCount = 0;
-        if (this.player && !this._inSpectator && this.player.team) {
-            if (this.player.team === 'left') leftCount++; else rightCount++;
-        }
-        for (const rp of this.remotePlayers.values()) {
-            if (!rp._inSpectator && rp.team) {
-                if (rp.team === 'left') leftCount++; else rightCount++;
+        for (const [sid, rp] of this.remotePlayers.entries()) {
+            if (!rp._inSpectator) {
+                active.push({ sid, isLocal: false });
             }
         }
-        // 로컬 플레이어 팀 배정 (팀 없을 때만)
-        if (this.player && !this._inSpectator && !this.player.team) {
-            this.player.team = leftCount <= rightCount ? 'left' : 'right';
-            if (this.player.team === 'left') leftCount++; else rightCount++;
-        }
-        // 원격 플레이어 팀 배정 (팀 없을 때만)
-        for (const rp of this.remotePlayers.values()) {
-            if (!rp._inSpectator && !rp.team) {
-                rp.team = leftCount <= rightCount ? 'left' : 'right';
-                if (rp.team === 'left') leftCount++; else rightCount++;
+        active.sort((a, b) => a.sid.localeCompare(b.sid));
+
+        // 교대 배정: 정렬 순서대로 left, right, left, right...
+        for (let i = 0; i < active.length; i++) {
+            const team = i % 2 === 0 ? 'left' : 'right';
+            if (active[i].isLocal) {
+                this.player.team = team;
+            } else {
+                const rp = this.remotePlayers.get(active[i].sid);
+                if (rp) rp.team = team;
             }
+        }
+
+        // 관람석 플레이어는 팀 null
+        if (this._inSpectator && this.player) this.player.team = null;
+        for (const rp of this.remotePlayers.values()) {
+            if (rp._inSpectator) rp.team = null;
         }
     },
 
