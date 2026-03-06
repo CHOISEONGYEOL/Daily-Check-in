@@ -21,7 +21,7 @@ const RESPAWN_TIME   = 180;  // 3s
 const INVINCIBLE_TIME = 120; // 2s
 const MAX_HP         = 100;
 const PROJ_POOL_SIZE = 80;
-const PARTICLE_POOL_SIZE = 300;
+const PARTICLE_POOL_SIZE = 100;
 const BOMB_PICKUP_RESPAWN = 600; // 10s
 const KILLFEED_DURATION = 180;   // 3s
 const MAX_DAMAGE = 50;           // 수신 데미지 상한 (치트 방지)
@@ -834,82 +834,66 @@ export const WrBattle = {
     },
 
     _battleSpawnHitParticles(x, y) {
-        const cols = ['#FF6B6B', '#FF4444', '#FFD700', '#FF8C00'];
-        for (let i = 0; i < 12; i++) {
+        for (let i = 0; i < 4; i++) {
             const p = this._battleGetParticle();
             if (!p) break;
-            const a = Math.random() * Math.PI * 2, spd = 2 + Math.random() * 5;
+            const a = Math.random() * Math.PI * 2, spd = 2 + Math.random() * 3;
             Object.assign(p, {
-                x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 2,
-                color: cols[i % 4], size: 5 + Math.random() * 6,
-                life: 18 + Math.random() * 12, maxLife: 30
+                x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd - 1,
+                color: i < 2 ? '#FF6B6B' : '#FFD700', size: 3 + Math.random() * 3,
+                life: 12 + Math.random() * 8, maxLife: 20
             });
             this._battleParticles.push(p);
         }
     },
 
     _battleSpawnExplosionParticles(x, y) {
-        const cols = ['#FF6B6B', '#FFD93D', '#FF9F43', '#FF4500', '#FFA500', '#FFFF00'];
-        // Big burst particles (30개)
-        for (let i = 0; i < 30; i++) {
-            const p = this._battleGetParticle();
-            if (!p) break;
-            const a = Math.random() * Math.PI * 2, s = 4 + Math.random() * 10;
-            Object.assign(p, {
-                x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4,
-                color: cols[i % 6], size: 8 + Math.random() * 10,
-                life: 30 + Math.random() * 25, maxLife: 55
-            });
-            this._battleParticles.push(p);
-        }
-        // Smoke/debris particles
+        const cols = ['#FF6B6B', '#FFD93D', '#FF9F43', '#FF4500', '#FFA500'];
         for (let i = 0; i < 10; i++) {
             const p = this._battleGetParticle();
             if (!p) break;
-            const a = Math.random() * Math.PI * 2, s = 1 + Math.random() * 3;
+            const a = Math.random() * Math.PI * 2, s = 3 + Math.random() * 5;
             Object.assign(p, {
                 x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 2,
-                color: i % 2 === 0 ? '#555' : '#888', size: 10 + Math.random() * 8,
-                life: 35 + Math.random() * 20, maxLife: 55
+                color: cols[i % 5], size: 4 + Math.random() * 4,
+                life: 20 + Math.random() * 15, maxLife: 35
             });
             this._battleParticles.push(p);
         }
-        // Add explosion ring animation - bigger, longer
+        // Explosion ring
         if (!this._battleExplosionRings) this._battleExplosionRings = [];
-        this._battleExplosionRings.push({ x, y, radius: 5, maxRadius: BOMB_RADIUS * 1.5, life: 30, maxLife: 30 });
+        this._battleExplosionRings.push({ x, y, radius: 5, maxRadius: BOMB_RADIUS, life: 20, maxLife: 20 });
     },
 
     _battleSpawnMuzzleFlash(x, y, dir) {
-        const cols = ['#FFE066', '#FFF', '#4D96FF', '#FFD700'];
-        for (let i = 0; i < 12; i++) {
+        // Simple small flash - 뿅!
+        for (let i = 0; i < 3; i++) {
             const p = this._battleGetParticle();
             if (!p) break;
-            const spread = (Math.random() - 0.5) * 2.5;
             Object.assign(p, {
                 x, y,
-                vx: dir * (4 + Math.random() * 8) + spread,
-                vy: (Math.random() - 0.5) * 5,
-                color: cols[i % 4], size: 5 + Math.random() * 6,
-                life: 10 + Math.random() * 8, maxLife: 18
+                vx: dir * (2 + Math.random() * 3),
+                vy: (Math.random() - 0.5) * 2,
+                color: i === 0 ? '#FFF' : '#FFE066', size: 3 + Math.random() * 2,
+                life: 6 + Math.random() * 4, maxLife: 10
             });
             this._battleParticles.push(p);
         }
-        // Muzzle flash ring - bigger
+        // Small muzzle flash glow
         if (!this._battleMuzzleFlashes) this._battleMuzzleFlashes = [];
-        this._battleMuzzleFlashes.push({ x, y, radius: 8, life: 8, maxLife: 8 });
+        this._battleMuzzleFlashes.push({ x, y, radius: 5, life: 5, maxLife: 5 });
     },
 
     _battleSpawnBombThrowEffect(x, y, dir) {
-        const cols = ['#FF4500', '#FF6B00', '#FFD700', '#FF8C00'];
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 3; i++) {
             const p = this._battleGetParticle();
             if (!p) break;
             Object.assign(p, {
                 x, y,
-                vx: dir * (2 + Math.random() * 4) + (Math.random() - 0.5) * 2,
-                vy: -2 - Math.random() * 4,
-                color: cols[i % 4], size: 5 + Math.random() * 5,
-                life: 14 + Math.random() * 10, maxLife: 24
+                vx: dir * (1 + Math.random() * 2),
+                vy: -1 - Math.random() * 2,
+                color: i === 0 ? '#FF4500' : '#FFD700', size: 3 + Math.random() * 2,
+                life: 8 + Math.random() * 6, maxLife: 14
             });
             this._battleParticles.push(p);
         }
@@ -961,64 +945,58 @@ export const WrBattle = {
             ctx.save();
             if (p.type === 'bullet') {
                 const angle = Math.atan2(p.vy, p.vx);
-                // 꼬리 트레일 (longer)
-                const tailLen = 32;
+                // 꼬리 트레일
+                const tailLen = 20;
                 const grad = ctx.createLinearGradient(
                     sx - Math.cos(angle) * tailLen, sy - Math.sin(angle) * tailLen, sx, sy);
                 grad.addColorStop(0, 'rgba(77,150,255,0)');
-                grad.addColorStop(1, 'rgba(77,150,255,0.9)');
+                grad.addColorStop(1, 'rgba(77,150,255,0.8)');
                 ctx.strokeStyle = grad;
-                ctx.lineWidth = 6;
+                ctx.lineWidth = 4;
                 ctx.beginPath();
                 ctx.moveTo(sx - Math.cos(angle) * tailLen, sy - Math.sin(angle) * tailLen);
                 ctx.lineTo(sx, sy);
                 ctx.stroke();
-                // 총알 본체 (밝은 원) - bigger
+                // 총알 본체 (밝은 원)
                 ctx.fillStyle = '#9DC4FF';
                 ctx.shadowColor = '#4D96FF';
-                ctx.shadowBlur = 20;
+                ctx.shadowBlur = 10;
                 ctx.beginPath();
-                ctx.ellipse(sx, sy, 12, 6, angle, 0, Math.PI * 2);
+                ctx.ellipse(sx, sy, 8, 4, angle, 0, Math.PI * 2);
                 ctx.fill();
                 // 중심 하이라이트
                 ctx.fillStyle = '#fff';
                 ctx.shadowBlur = 0;
                 ctx.beginPath();
-                ctx.ellipse(sx, sy, 5, 3, angle, 0, Math.PI * 2);
+                ctx.ellipse(sx, sy, 3, 2, angle, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                // 폭탄 본체 - bigger
+                // 폭탄 본체
                 ctx.fillStyle = '#333';
                 ctx.shadowColor = '#FF4500';
-                ctx.shadowBlur = 20;
+                ctx.shadowBlur = 10;
                 ctx.beginPath();
-                ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
                 ctx.fill();
-                // 폭탄 하이라이트
-                ctx.fillStyle = '#FF4500';
-                ctx.beginPath();
-                ctx.arc(sx, sy, 14, 0, Math.PI * 2);
+                // 폭탄 테두리
                 ctx.strokeStyle = '#FF6B00';
-                ctx.lineWidth = 3;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
                 ctx.stroke();
                 // 도화선
                 ctx.strokeStyle = '#8B4513';
-                ctx.lineWidth = 2.5;
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(sx, sy - 14);
-                ctx.quadraticCurveTo(sx + 8, sy - 24, sx + 5, sy - 30);
+                ctx.moveTo(sx, sy - 10);
+                ctx.quadraticCurveTo(sx + 6, sy - 18, sx + 4, sy - 22);
                 ctx.stroke();
                 // 도화선 불꽃
                 ctx.fillStyle = '#FFD700';
                 ctx.shadowColor = '#FF6B00';
-                ctx.shadowBlur = 14;
+                ctx.shadowBlur = 6;
                 ctx.beginPath();
-                ctx.arc(sx + 5 + (Math.random() - 0.5) * 4, sy - 30, 5 + Math.random() * 3, 0, Math.PI * 2);
-                ctx.fill();
-                // 불꽃 파티클
-                ctx.fillStyle = '#FF4500';
-                ctx.beginPath();
-                ctx.arc(sx + 5 + (Math.random() - 0.5) * 8, sy - 32 - Math.random() * 5, 2.5, 0, Math.PI * 2);
+                ctx.arc(sx + 4 + (Math.random() - 0.5) * 3, sy - 22, 3 + Math.random() * 2, 0, Math.PI * 2);
                 ctx.fill();
             }
             ctx.restore();
@@ -1047,23 +1025,16 @@ export const WrBattle = {
                     const sx = r.x - camX, sy = r.y - camY;
                     const alpha = r.life / r.maxLife;
                     ctx.save();
-                    // Outer shockwave ring - thicker
-                    ctx.strokeStyle = `rgba(255,100,0,${alpha * 0.9})`;
-                    ctx.lineWidth = 8 * alpha + 2;
+                    // Shockwave ring
+                    ctx.strokeStyle = `rgba(255,100,0,${alpha * 0.8})`;
+                    ctx.lineWidth = 4 * alpha + 1;
                     ctx.beginPath();
                     ctx.arc(sx, sy, r.radius, 0, Math.PI * 2);
                     ctx.stroke();
-                    // Second shockwave ring
-                    ctx.strokeStyle = `rgba(255,200,50,${alpha * 0.5})`;
-                    ctx.lineWidth = 3 * alpha + 1;
-                    ctx.beginPath();
-                    ctx.arc(sx, sy, r.radius * 0.7, 0, Math.PI * 2);
-                    ctx.stroke();
-                    // Inner glow fill - brighter
+                    // Inner glow fill
                     const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r.radius);
-                    grad.addColorStop(0, `rgba(255,255,150,${alpha * 0.6})`);
-                    grad.addColorStop(0.3, `rgba(255,200,50,${alpha * 0.4})`);
-                    grad.addColorStop(0.6, `rgba(255,100,0,${alpha * 0.2})`);
+                    grad.addColorStop(0, `rgba(255,200,50,${alpha * 0.4})`);
+                    grad.addColorStop(0.5, `rgba(255,100,0,${alpha * 0.2})`);
                     grad.addColorStop(1, `rgba(255,50,0,0)`);
                     ctx.fillStyle = grad;
                     ctx.beginPath();
@@ -1089,13 +1060,12 @@ export const WrBattle = {
                     }
                     const sx = f.x - camX, sy = f.y - camY;
                     const alpha = f.life / f.maxLife;
-                    const size = f.radius + (f.maxLife - f.life) * 5;
+                    const size = f.radius + (f.maxLife - f.life) * 2;
                     ctx.save();
                     ctx.globalAlpha = alpha;
                     const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, size);
-                    grad.addColorStop(0, 'rgba(255,255,220,1)');
-                    grad.addColorStop(0.3, 'rgba(255,255,150,0.7)');
-                    grad.addColorStop(0.6, 'rgba(77,150,255,0.4)');
+                    grad.addColorStop(0, 'rgba(255,255,220,0.9)');
+                    grad.addColorStop(0.4, 'rgba(77,150,255,0.5)');
                     grad.addColorStop(1, 'rgba(77,150,255,0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath();
@@ -1122,7 +1092,7 @@ export const WrBattle = {
             const sx = p.x - camX, sy = p.y - camY;
             ctx.globalAlpha = alpha;
             ctx.fillStyle = p.color;
-            const s = p.size * (0.5 + 0.5 * alpha);
+            const s = p.size * alpha;
             ctx.beginPath();
             ctx.arc(sx, sy, s, 0, Math.PI * 2);
             ctx.fill();
