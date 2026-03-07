@@ -292,6 +292,7 @@ export const WaitingRoom = {
             if(this.battleMode){
                 if(e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
                 if(e.key==='e'||e.key==='E') { e.preventDefault(); this._battleMelee(); }
+                if(e.key==='r'||e.key==='R') { e.preventDefault(); this._battleShootMega(); }
                 if(e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
             }
         };

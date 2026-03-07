@@ -17,7 +17,8 @@ const BOMB_VY        = -4;   // 포물선 높이 절반
 const BOMB_GRAVITY   = 0.5;
 const BOMB_LIFE      = 180;  // 3s max flight
 const MAX_BOMBS      = 3;    // max carry
-const BOMB_REGEN     = 300;  // 5초마다 폭탄 1개 자동 충전
+const BOMB_REGEN     = 300;  // 3개 소모 후 5초 대기 → 3개 일괄 리필
+const MEGA_BOMB_DAMAGE = BOMB_DAMAGE * 2; // 왕폭탄: 2배 위력
 const RESPAWN_TIME   = 180;  // 3s
 const INVINCIBLE_TIME = 120; // 2s
 const MAX_HP         = 100;
@@ -74,6 +75,7 @@ export const WrBattle = {
         this._battleBulletCD = 0;
         this._battleBombCount = MAX_BOMBS;
         this._battleBombRegenTimer = 0;
+        this._battleMegaBomb = 0;
         this._battleMeleeCD = 0;
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
@@ -242,13 +244,15 @@ export const WrBattle = {
             return; // skip input while dead
         }
 
-        // Bomb auto-regen (5초마다 1개)
-        if (this._battleBombCount < MAX_BOMBS) {
+        // Bomb auto-regen (3개 소모 후 5초 대기 → 3개 일괄 리필)
+        if (this._battleBombCount <= 0) {
             this._battleBombRegenTimer = (this._battleBombRegenTimer || 0) + 1;
             if (this._battleBombRegenTimer >= BOMB_REGEN) {
                 this._battleBombRegenTimer = 0;
-                this._battleBombCount++;
+                this._battleBombCount = MAX_BOMBS;
             }
+        } else {
+            this._battleBombRegenTimer = 0;
         }
 
         // Update bomb pickups (host only)
@@ -394,29 +398,30 @@ export const WrBattle = {
             // Physics
             p.x += p.vx;
             p.y += p.vy;
-            if (p.type === 'bomb') p.vy += BOMB_GRAVITY;
+            if (p.type === 'bomb' || p.type === 'megabomb') p.vy += BOMB_GRAVITY;
             p.life--;
 
             // Wall/floor bounds
+            const isBomb = p.type === 'bomb' || p.type === 'megabomb';
             if (p.x < 0 || p.x > this.W || p.y < 0) {
-                if (p.type === 'bomb' && p.isOwner) this._battleExplodeBomb(p);
+                if (isBomb && p.isOwner) this._battleExplodeBomb(p);
                 this._battleReturnProj(p, i);
                 continue;
             }
             if (p.y > this.H - 30) {
-                if (p.type === 'bomb' && p.isOwner) this._battleExplodeBomb(p);
+                if (isBomb && p.isOwner) this._battleExplodeBomb(p);
                 this._battleReturnProj(p, i);
                 continue;
             }
             // Lifetime
             if (p.life <= 0) {
-                if (p.type === 'bomb' && p.isOwner) this._battleExplodeBomb(p);
+                if (isBomb && p.isOwner) this._battleExplodeBomb(p);
                 this._battleReturnProj(p, i);
                 continue;
             }
 
             // Platform collision (bombs only)
-            if (p.type === 'bomb') {
+            if (isBomb) {
                 let hitPlat = false;
                 for (const pl of this.platforms) {
                     if (pl.type === 'ground') continue;
@@ -601,6 +606,7 @@ export const WrBattle = {
         this._battleInvincible = INVINCIBLE_TIME;
         this._battleBombCount = MAX_BOMBS;
         this._battleBombRegenTimer = 0;
+        this._battleMegaBomb = 0;
         this._battleWeapon = 'bullet';
 
         if (this.player) {
@@ -680,7 +686,7 @@ export const WrBattle = {
     _battleCheckPickup() {
         if (!this.battleMode || !this.player || this._battleIsDead) return;
         if (!this._battlePickups) return;
-        if (this._battleBombCount >= MAX_BOMBS) return;
+        if (this._battleMegaBomb >= 1) return; // 이미 왕폭탄 보유 중
 
         const P = this.player;
         for (const pk of this._battlePickups) {
@@ -689,11 +695,11 @@ export const WrBattle = {
             if (Math.abs(dx) < 40 && Math.abs(dy) < 40) {
                 pk.active = false;
                 pk.respawnTimer = BOMB_PICKUP_RESPAWN;
-                this._battleBombCount = Math.min(this._battleBombCount + 1, MAX_BOMBS);
+                this._battleMegaBomb = 1;
                 if (this.chatBubbles) {
                     this.chatBubbles.push({
                         x: P.x, y: P.y - 45,
-                        text: 'BOMB +1', timer: 60, follow: P
+                        text: 'MEGA BOMB!', timer: 90, follow: P
                     });
                 }
                 // Broadcast pickup taken
@@ -751,7 +757,7 @@ export const WrBattle = {
         if (!p) return;
         Object.assign(p, {
             x: data.x, y: data.y, vx: data.vx, vy: data.vy,
-            type: data.type, damage: 0, life: data.type === 'bomb' ? BOMB_LIFE : BULLET_LIFE,
+            type: data.type, damage: 0, life: (data.type === 'bomb' || data.type === 'megabomb') ? BOMB_LIFE : BULLET_LIFE,
             isOwner: false, ownerSid: data.sid
         });
         this._battleProjectiles.push(p);
@@ -760,7 +766,7 @@ export const WrBattle = {
         const dir = data.vx > 0 ? 1 : -1;
         if (data.type === 'bullet') {
             this._battleSpawnMuzzleFlash(data.x, data.y, dir);
-        } else {
+        } else { // bomb or megabomb
             this._battleSpawnBombThrowEffect(data.x, data.y, dir);
         }
     },
@@ -945,6 +951,31 @@ export const WrBattle = {
         }
     },
 
+    _battleShootMega() {
+        if (!this.battleMode || !this.player || this._battleIsDead) return;
+        if (this._battleMegaBomb <= 0) return;
+        this._battleMegaBomb--;
+
+        const p = this._battleGetProjectile();
+        if (!p) return;
+
+        const dir = this.player.dir || 1;
+        Object.assign(p, {
+            x: this.player.x + dir * 10,
+            y: this.player.y,
+            vx: dir * BOMB_VX,
+            vy: BOMB_VY,
+            type: 'megabomb',
+            damage: MEGA_BOMB_DAMAGE,
+            life: BOMB_LIFE,
+            isOwner: true,
+            ownerSid: String(Player.studentId)
+        });
+        this._battleProjectiles.push(p);
+        this._battleSpawnBombThrowEffect(p.x, p.y, dir);
+        this._rtBroadcastShoot(p);
+    },
+
     // ═══════════════════════════════════════
     // Rendering
     // ═══════════════════════════════════════
@@ -990,32 +1021,42 @@ export const WrBattle = {
                 ctx.ellipse(sx, sy, 3, 2, angle, 0, Math.PI * 2);
                 ctx.fill();
             } else {
+                const isMega = p.type === 'megabomb';
+                const bombR = isMega ? 14 : 10;
                 // 폭탄 본체
-                ctx.fillStyle = '#333';
-                ctx.shadowColor = '#FF4500';
-                ctx.shadowBlur = 10;
+                ctx.fillStyle = isMega ? '#8B0000' : '#333';
+                ctx.shadowColor = isMega ? '#FF0000' : '#FF4500';
+                ctx.shadowBlur = isMega ? 16 : 10;
                 ctx.beginPath();
-                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+                ctx.arc(sx, sy, bombR, 0, Math.PI * 2);
                 ctx.fill();
                 // 폭탄 테두리
-                ctx.strokeStyle = '#FF6B00';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = isMega ? '#FF2200' : '#FF6B00';
+                ctx.lineWidth = isMega ? 3 : 2;
                 ctx.beginPath();
-                ctx.arc(sx, sy, 10, 0, Math.PI * 2);
+                ctx.arc(sx, sy, bombR, 0, Math.PI * 2);
                 ctx.stroke();
+                // 왕폭탄 내부 마크
+                if (isMega) {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold 12px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('★', sx, sy + 5);
+                }
                 // 도화선
                 ctx.strokeStyle = '#8B4513';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(sx, sy - 10);
-                ctx.quadraticCurveTo(sx + 6, sy - 18, sx + 4, sy - 22);
+                ctx.moveTo(sx, sy - bombR);
+                ctx.quadraticCurveTo(sx + 6, sy - bombR - 8, sx + 4, sy - bombR - 12);
                 ctx.stroke();
                 // 도화선 불꽃
-                ctx.fillStyle = '#FFD700';
-                ctx.shadowColor = '#FF6B00';
+                ctx.fillStyle = isMega ? '#FF4444' : '#FFD700';
+                ctx.shadowColor = isMega ? '#FF0000' : '#FF6B00';
                 ctx.shadowBlur = 6;
                 ctx.beginPath();
-                ctx.arc(sx + 4 + (Math.random() - 0.5) * 3, sy - 22, 3 + Math.random() * 2, 0, Math.PI * 2);
+                ctx.arc(sx + 4 + (Math.random() - 0.5) * 3, sy - bombR - 12, 3 + Math.random() * 2, 0, Math.PI * 2);
                 ctx.fill();
             }
             ctx.restore();
@@ -1153,15 +1194,28 @@ export const WrBattle = {
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.beginPath(); ctx.roundRect(VW - 130, 40, 120, 24, 8); ctx.fill();
             ctx.font = 'bold 11px "Segoe UI",sans-serif';
-            const weaponText = this._battleWeapon === 'bullet'
-                ? 'GUN [F] / MELEE [E]'
-                : `BOMB x${this._battleBombCount} [F] / MELEE [E]`;
+            let weaponText;
+            if (this._battleWeapon === 'bullet') {
+                weaponText = 'GUN [F] / MELEE [E]';
+            } else {
+                const regenSec = this._battleBombCount <= 0 ? Math.ceil((BOMB_REGEN - (this._battleBombRegenTimer || 0)) / 60) : 0;
+                weaponText = this._battleBombCount > 0
+                    ? `BOMB x${this._battleBombCount} [F] / MELEE [E]`
+                    : `BOMB (${regenSec}s) [F] / MELEE [E]`;
+            }
             ctx.fillStyle = this._battleWeapon === 'bullet' ? '#4D96FF' : '#FF4500';
             ctx.fillText(weaponText, VW - 70, 56);
+
+            // 왕폭탄 HUD
+            ctx.fillStyle = this._battleMegaBomb > 0 ? 'rgba(139,0,0,0.7)' : 'rgba(0,0,0,0.3)';
+            ctx.beginPath(); ctx.roundRect(VW - 130, 68, 120, 22, 8); ctx.fill();
+            ctx.font = 'bold 11px "Segoe UI",sans-serif';
+            ctx.fillStyle = this._battleMegaBomb > 0 ? '#FF4444' : '#666';
+            ctx.fillText(this._battleMegaBomb > 0 ? '★ MEGA BOMB [R]' : '★ MEGA - [R]', VW - 70, 83);
         }
 
         // ── PUBG-style Kill Log (upper right) ──
-        const kfStartY = isGod ? 10 : 72;
+        const kfStartY = isGod ? 10 : 95;
         const kfMax = 5;
         const kfH = 18;
         const kfGap = 4;
@@ -1268,18 +1322,27 @@ export const WrBattle = {
 
             ctx.save();
             // Glow
-            ctx.shadowColor = '#FF4500';
-            ctx.shadowBlur = 10;
-            ctx.fillStyle = '#FF4500';
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 14;
+            ctx.fillStyle = '#8B0000';
             ctx.beginPath();
-            ctx.arc(sx, bobY, 10, 0, Math.PI * 2);
+            ctx.arc(sx, bobY, 12, 0, Math.PI * 2);
             ctx.fill();
-            // Label
+            ctx.strokeStyle = '#FF2200';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, bobY, 12, 0, Math.PI * 2);
+            ctx.stroke();
+            // Star mark
+            ctx.fillStyle = '#FFD700';
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 10px sans-serif';
+            ctx.font = 'bold 11px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('BOMB', sx, bobY - 16);
+            ctx.fillText('★', sx, bobY + 4);
+            // Label
+            ctx.fillStyle = '#FF4444';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.fillText('MEGA', sx, bobY - 18);
             ctx.restore();
         }
     },
