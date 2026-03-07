@@ -76,6 +76,7 @@ export const WrBattle = {
         this._battleBombCount = MAX_BOMBS;
         this._battleBombRegenTimer = 0;
         this._battleMegaBomb = 0;
+        this._updateMegaBombBtn();
         this._battleMeleeCD = 0;
         this._battleWeapon = 'bullet';
         this._battleKillFeed = [];
@@ -607,6 +608,7 @@ export const WrBattle = {
         this._battleBombCount = MAX_BOMBS;
         this._battleBombRegenTimer = 0;
         this._battleMegaBomb = 0;
+        this._updateMegaBombBtn();
         this._battleWeapon = 'bullet';
 
         if (this.player) {
@@ -696,6 +698,7 @@ export const WrBattle = {
                 pk.active = false;
                 pk.respawnTimer = BOMB_PICKUP_RESPAWN;
                 this._battleMegaBomb = 1;
+                this._updateMegaBombBtn();
                 if (this.chatBubbles) {
                     this.chatBubbles.push({
                         x: P.x, y: P.y - 45,
@@ -955,6 +958,7 @@ export const WrBattle = {
         if (!this.battleMode || !this.player || this._battleIsDead) return;
         if (this._battleMegaBomb <= 0) return;
         this._battleMegaBomb--;
+        this._updateMegaBombBtn();
 
         const p = this._battleGetProjectile();
         if (!p) return;
@@ -974,6 +978,16 @@ export const WrBattle = {
         this._battleProjectiles.push(p);
         this._battleSpawnBombThrowEffect(p.x, p.y, dir);
         this._rtBroadcastShoot(p);
+    },
+
+    _updateMegaBombBtn() {
+        const btn = document.getElementById('wr-mega-btn');
+        if (!btn) return;
+        if (this._battleMegaBomb > 0) {
+            btn.classList.remove('disabled');
+        } else {
+            btn.classList.add('disabled');
+        }
     },
 
     // ═══════════════════════════════════════

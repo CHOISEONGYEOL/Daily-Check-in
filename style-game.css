@@ -54,6 +54,9 @@
 .wr-bat-btn.bomb-btn:active,.wr-bat-btn.bomb-btn.pressed{background:rgba(255,69,0,.6);}
 .wr-bat-btn.melee-btn{background:rgba(255,215,0,.35);border:1px solid rgba(255,215,0,.5);}
 .wr-bat-btn.melee-btn:active,.wr-bat-btn.melee-btn.pressed{background:rgba(255,215,0,.6);}
+.wr-bat-btn.mega-btn{background:rgba(139,0,0,.35);border:1px solid rgba(139,0,0,.5);}
+.wr-bat-btn.mega-btn:active,.wr-bat-btn.mega-btn.pressed{background:rgba(139,0,0,.6);}
+.wr-bat-btn.mega-btn.disabled{opacity:0.35;pointer-events:none;filter:grayscale(1);}
 /* Mobile chat icon */
 .wr-chat-icon{display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:50px;height:50px;border-radius:50%;background:rgba(108,92,231,.45);border:2px solid rgba(255,255,255,.18);color:#fff;font-size:1.3rem;z-index:15;align-items:center;justify-content:center;-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .wr-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;}

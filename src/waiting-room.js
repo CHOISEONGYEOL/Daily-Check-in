@@ -319,6 +319,7 @@ export const WaitingRoom = {
                 if(k==='shoot'){if(this.battleMode){ this._battleWeapon='bullet'; this._battleShoot(); }}
                 if(k==='bomb'){if(this.battleMode){ this._battleWeapon='bomb'; this._battleShoot(); }}
                 if(k==='melee'){if(this.battleMode) this._battleMelee();}
+                if(k==='megabomb'){if(this.battleMode) this._battleShootMega();}
                 if(k==='down'){
                     this.keys['ArrowDown']=true;this.keys['_mobileDown']=true;
                     if(this.reversedControls && !this._inSpectator) this.playerJump();
