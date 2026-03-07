@@ -448,6 +448,8 @@ export const WrTeacher = {
         // 원격 플레이어 보간
         this.frameCount++;
         this._rtPredictRemotePlayers();
+        // 배틀 모드 업데이트 (투사체, 파티클, 킬피드 등)
+        if(this.battleMode) this._battleUpdate();
         // 기믹/장애물/공 업데이트 (교사도 시각적 효과 표시)
         this.updateObstacles();
         if(this._isHost) this._rtCheckAndSendGimmick();

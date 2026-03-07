@@ -197,6 +197,31 @@ export const WrBattle = {
         // Always update projectiles & particles (관전자도 보여야 함)
         this._battleUpdateProjectiles();
 
+        // Killfeed timer (in-place) — 관전자도 업데이트 필요
+        if (this._battleKillFeed) {
+            let w = 0; const kf = this._battleKillFeed;
+            for (let i = 0; i < kf.length; i++) { if (--kf[i].timer > 0) kf[w++] = kf[i]; }
+            kf.length = w;
+        }
+
+        // Remote player invincible/respawn timers — 관전자도 업데이트 필요
+        if (this.remotePlayers) {
+            for (const rp of this.remotePlayers.values()) {
+                if (rp.invincible > 0) rp.invincible--;
+                if (rp.isDead && rp._respawnTimer > 0) {
+                    rp._respawnTimer--;
+                    if (rp._respawnTimer <= 0) {
+                        rp.isDead = false;
+                        rp.hp = MAX_HP;
+                        rp.invincible = INVINCIBLE_TIME;
+                        const spawnX = rp.team === 'left' ? 200 : rp.team === 'right' ? this.W - 200 : this.W / 2;
+                        rp.x = spawnX;
+                        rp.y = this.H - 60;
+                    }
+                }
+            }
+        }
+
         // Skip player-specific logic if no player (spectator/godMode)
         if (!this.player) {
             this._battleUpdateParticles();
@@ -231,29 +256,6 @@ export const WrBattle = {
 
         // Update battle particles
         this._battleUpdateParticles();
-
-        // Killfeed timer (in-place)
-        { let w = 0; const kf = this._battleKillFeed;
-        for (let i = 0; i < kf.length; i++) { if (--kf[i].timer > 0) kf[w++] = kf[i]; }
-        kf.length = w; }
-
-        // Remote player invincible timers
-        if (this.remotePlayers) {
-            for (const rp of this.remotePlayers.values()) {
-                if (rp.invincible > 0) rp.invincible--;
-                if (rp.isDead && rp._respawnTimer > 0) {
-                    rp._respawnTimer--;
-                    if (rp._respawnTimer <= 0) {
-                        rp.isDead = false;
-                        rp.hp = MAX_HP;
-                        rp.invincible = INVINCIBLE_TIME;
-                        const spawnX = rp.team === 'left' ? 200 : rp.team === 'right' ? this.W - 200 : this.W / 2;
-                        rp.x = spawnX;
-                        rp.y = this.H - 60;
-                    }
-                }
-            }
-        }
     },
 
     // ═══════════════════════════════════════
@@ -1138,61 +1140,155 @@ export const WrBattle = {
     },
 
     _battleRenderHUD(ctx, VW, VH) {
-        // K/D display (top right)
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.beginPath(); ctx.roundRect(VW - 130, 8, 120, 28, 10); ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 13px "Segoe UI",sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`K ${this._battleKills}  /  D ${this._battleDeaths}`, VW - 70, 27);
+        const isGod = this.godMode;
 
-        // Weapon indicator (top right below K/D)
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.beginPath(); ctx.roundRect(VW - 130, 40, 120, 24, 8); ctx.fill();
-        ctx.font = 'bold 11px "Segoe UI",sans-serif';
-        const weaponText = this._battleWeapon === 'bullet'
-            ? 'GUN [F] / MELEE [E]'
-            : `BOMB x${this._battleBombCount} [F] / MELEE [E]`;
-        ctx.fillStyle = this._battleWeapon === 'bullet' ? '#4D96FF' : '#FF4500';
-        ctx.fillText(weaponText, VW - 70, 56);
+        if (!isGod) {
+            // ── Student HUD: K/D + Weapon ──
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath(); ctx.roundRect(VW - 130, 8, 120, 28, 10); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 13px "Segoe UI",sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`K ${this._battleKills}  /  D ${this._battleDeaths}`, VW - 70, 27);
 
-        // Killfeed (right side)
-        for (let i = 0; i < this._battleKillFeed.length && i < 5; i++) {
-            const kf = this._battleKillFeed[i];
-            const ky = 72 + i * 22;
-            const alpha = Math.min(1, kf.timer / 30);
-            ctx.globalAlpha = alpha;
-            ctx.fillStyle = 'rgba(180,0,0,0.6)';
-            const tw = ctx.measureText(kf.text).width + 20;
-            ctx.beginPath(); ctx.roundRect(VW - tw - 15, ky, tw + 10, 18, 6); ctx.fill();
-            ctx.fillStyle = '#FFD700';
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.beginPath(); ctx.roundRect(VW - 130, 40, 120, 24, 8); ctx.fill();
             ctx.font = 'bold 11px "Segoe UI",sans-serif';
-            ctx.textAlign = 'right';
-            ctx.fillText(kf.text, VW - 18, ky + 14);
-            ctx.globalAlpha = 1;
+            const weaponText = this._battleWeapon === 'bullet'
+                ? 'GUN [F] / MELEE [E]'
+                : `BOMB x${this._battleBombCount} [F] / MELEE [E]`;
+            ctx.fillStyle = this._battleWeapon === 'bullet' ? '#4D96FF' : '#FF4500';
+            ctx.fillText(weaponText, VW - 70, 56);
+        }
+
+        // ── PUBG-style Kill Log (upper right) ──
+        const kfStartY = isGod ? 10 : 72;
+        const kfMax = isGod ? 8 : 5;
+        const kfH = isGod ? 28 : 18;
+        const kfGap = isGod ? 4 : 4;
+        const kfFont = isGod ? 'bold 13px "Segoe UI",sans-serif' : 'bold 11px "Segoe UI",sans-serif';
+        if (this._battleKillFeed) {
+            for (let i = 0; i < this._battleKillFeed.length && i < kfMax; i++) {
+                const kf = this._battleKillFeed[i];
+                const ky = kfStartY + i * (kfH + kfGap);
+                const alpha = Math.min(1, kf.timer / 30);
+                ctx.globalAlpha = alpha;
+                ctx.font = kfFont;
+
+                // Parse "killer -> victim" or "victim (self)"
+                const isSuicide = kf.text.includes('(self)');
+                let killer = '', victim = '';
+                if (isSuicide) {
+                    victim = kf.text.replace(' (self)', '');
+                } else {
+                    const parts = kf.text.split(' -> ');
+                    killer = parts[0] || '';
+                    victim = parts[1] || '';
+                }
+
+                // Measure text widths
+                const skullIcon = isSuicide ? ' \u2620 ' : ' \u2694 ';
+                ctx.font = kfFont;
+                const killerW = killer ? ctx.measureText(killer).width : 0;
+                const iconW = ctx.measureText(skullIcon).width;
+                const victimW = ctx.measureText(victim).width;
+                const pad = isGod ? 16 : 12;
+                const totalW = killerW + iconW + victimW + pad * 2;
+
+                const bx = VW - totalW - 10;
+                const by = ky;
+
+                // Background
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.beginPath(); ctx.roundRect(bx, by, totalW, kfH, 4); ctx.fill();
+                // Left accent bar
+                ctx.fillStyle = isSuicide ? 'rgba(150,150,150,0.8)' : 'rgba(255,50,50,0.9)';
+                ctx.fillRect(bx, by, 3, kfH);
+
+                const textY = by + kfH * 0.72;
+                let tx = bx + pad;
+                ctx.textAlign = 'left';
+
+                // Killer name (yellow)
+                if (killer) {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = kfFont;
+                    ctx.fillText(killer, tx, textY);
+                    tx += killerW;
+                }
+                // Icon (red sword / grey skull)
+                ctx.fillStyle = isSuicide ? '#888' : '#FF4444';
+                ctx.fillText(skullIcon, tx, textY);
+                tx += iconW;
+                // Victim name (white)
+                ctx.fillStyle = '#fff';
+                ctx.fillText(victim, tx, textY);
+
+                ctx.globalAlpha = 1;
+            }
         }
         ctx.textAlign = 'left';
 
-        // Death screen
-        if (this._battleIsDead) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
-            ctx.fillRect(0, 0, VW, VH);
-            ctx.fillStyle = '#FF4444';
-            ctx.font = 'bold 36px "Segoe UI",sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('YOU DIED', VW / 2, VH / 2 - 20);
-            const sec = Math.ceil(this._battleRespawnTimer / 60);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 24px "Segoe UI",sans-serif';
-            ctx.fillText(`Respawn in ${sec}...`, VW / 2, VH / 2 + 20);
-            ctx.textAlign = 'left';
+        // ── God mode: live scoreboard (left side) ──
+        if (isGod && this.remotePlayers && this.remotePlayers.size > 0) {
+            const sorted = [...this.remotePlayers.values()]
+                .filter(rp => (rp.kills || 0) + (rp.deaths || 0) > 0 || !rp.isDead)
+                .sort((a, b) => (b.kills || 0) - (a.kills || 0));
+            const top = sorted.slice(0, 8);
+            if (top.length > 0) {
+                const sbX = 10, sbY = 10, rowH = 22, sbW = 180;
+                const sbH = 26 + top.length * rowH;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath(); ctx.roundRect(sbX, sbY, sbW, sbH, 8); ctx.fill();
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.fillRect(sbX, sbY, sbW, 24);
+                ctx.font = 'bold 12px "Segoe UI",sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#FFD700';
+                ctx.fillText('BATTLE SCOREBOARD', sbX + sbW / 2, sbY + 17);
+                ctx.textAlign = 'left';
+                for (let i = 0; i < top.length; i++) {
+                    const rp = top[i];
+                    const ry = sbY + 28 + i * rowH;
+                    const name = rp.displayName || '???';
+                    const k = rp.kills || 0;
+                    const d = rp.deaths || 0;
+                    // Rank badge
+                    const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : `${i + 1}.`;
+                    ctx.font = '12px "Segoe UI",sans-serif';
+                    ctx.fillStyle = rp.isDead ? 'rgba(255,255,255,0.35)' : '#fff';
+                    ctx.fillText(`${medal} ${name}`, sbX + 8, ry + 14);
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = '#4CAF50';
+                    ctx.fillText(`${k}K`, sbX + sbW - 36, ry + 14);
+                    ctx.fillStyle = '#F44336';
+                    ctx.fillText(`${d}D`, sbX + sbW - 8, ry + 14);
+                    ctx.textAlign = 'left';
+                }
+            }
         }
 
-        // Invincible indicator
-        if (this._battleInvincible > 0 && !this._battleIsDead) {
-            const alpha = 0.3 + 0.3 * Math.sin(this.frameCount * 0.3);
-            ctx.fillStyle = `rgba(100,200,255,${alpha})`;
-            ctx.fillRect(0, 0, VW, VH);
+        if (!isGod) {
+            // Death screen (students only)
+            if (this._battleIsDead) {
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0, 0, VW, VH);
+                ctx.fillStyle = '#FF4444';
+                ctx.font = 'bold 36px "Segoe UI",sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('YOU DIED', VW / 2, VH / 2 - 20);
+                const sec = Math.ceil(this._battleRespawnTimer / 60);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 24px "Segoe UI",sans-serif';
+                ctx.fillText(`Respawn in ${sec}...`, VW / 2, VH / 2 + 20);
+                ctx.textAlign = 'left';
+            }
+            // Invincible indicator
+            if (this._battleInvincible > 0 && !this._battleIsDead) {
+                const alpha = 0.3 + 0.3 * Math.sin(this.frameCount * 0.3);
+                ctx.fillStyle = `rgba(100,200,255,${alpha})`;
+                ctx.fillRect(0, 0, VW, VH);
+            }
         }
     },
 
