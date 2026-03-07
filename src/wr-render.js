@@ -980,7 +980,7 @@ export const WrRender = {
             this._battleRenderHUD(ctx, VW, VH);
         }
         // Minimap
-        this._renderMinimap(ctx);
+        if(!this.godMode) this._renderMinimap(ctx);
         // Countdown
         if(this.countdown > 0){
             ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,VW,VH);

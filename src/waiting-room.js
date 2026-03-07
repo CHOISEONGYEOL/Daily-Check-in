@@ -163,12 +163,11 @@ export const WaitingRoom = {
             {x:0, y:goalTop, w:55, h:8, color:'#555', top:'#888', type:'wood'},
             {x:W-55, y:goalTop, w:55, h:8, color:'#555', top:'#888', type:'wood'},
         );
-        // 엘리베이터 — 올라가기: 양쪽 끝 바닥 + 골대 위 / 내려가기: 관람석 내부
+        // 엘리베이터 — 올라가기: 골대 위 (양쪽) + 중앙 (골대 높이) / 내려가기: 관람석 내부
         this.elevators = [
-            // 올라가기: 양쪽 끝 바닥 + 골대 꼭대기
-            {x:0,    y:H-15-70, w:55, h:70, targetX:W*0.15,  targetY:250, dir:'up'},
-            {x:W-55, y:H-15-70, w:55, h:70, targetX:W*0.85,  targetY:250, dir:'up'},
+            // 올라가기: 골대 꼭대기 (양쪽) + 중앙 (같은 높이)
             {x:0,        y:goalTop-70, w:55, h:70, targetX:W*0.15,  targetY:250, dir:'up'},
+            {x:W*0.5-25, y:goalTop-70, w:50, h:70, targetX:W*0.5,   targetY:250, dir:'up'},
             {x:W-55,     y:goalTop-70, w:55, h:70, targetX:W*0.85,  targetY:250, dir:'up'},
             // 내려가기: 관람석 내부
             {x:W*0.25-25,  y:250-70,  w:50, h:70, targetX:W*0.25,  targetY:H-15, dir:'down'},
