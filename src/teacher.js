@@ -120,7 +120,7 @@ export const Teacher = {
         }
         // 최초 로드: 열려있는 세션 복원 (F5 새로고침 시 학생 세션 유지)
         const { data } = await supabase.from('game_sessions')
-            .select('id, is_open, opened_at').eq('is_open', true);
+            .select('id, is_open, opened_at, wr_mode').eq('is_open', true);
         const openSessions = data || [];
         // 12시간 이상 된 좀비 세션만 자동 정리
         const STALE_MS = 12 * 60 * 60 * 1000;
@@ -142,6 +142,11 @@ export const Teacher = {
         }
         this._openClasses = fresh.map(s => s.id.replace(/^class_/, ''));
         this.gameIsOpen = this._openClasses.length > 0;
+        // DB에 저장된 wr_mode 복원
+        if (fresh.length > 0 && fresh[0].wr_mode) {
+            const sel = document.getElementById('teacher-wr-mode');
+            if (sel) sel.value = fresh[0].wr_mode;
+        }
         this._gameStateLoaded = true;
         this.updateToggle();
     },
