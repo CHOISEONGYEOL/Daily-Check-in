@@ -1139,6 +1139,7 @@ export const WrRealtime = {
             bh: this.blackHole ? { x: Math.round(this.blackHole.x), y: Math.round(this.blackHole.y), r: this.blackHole.radius, s: Math.round(this.blackHole.strength * 100) / 100 } : null,
             sf: this.screenFlip || null,
             sc: this.sizeChange || null,
+            battleMode: this.battleMode || false,
         };
         this._rtChannel.send({ type: 'broadcast', event: 'gimmick', payload });
         PerfMonitor.logSend(300);

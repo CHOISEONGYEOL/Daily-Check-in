@@ -95,6 +95,10 @@ export const WrTeacher = {
             this.npcs = [];
             this.remotePlayers = new Map();
             this.rtInit();
+            // DB에서 대기실 모드 로드 → 배틀 모드면 즉시 전환
+            DB.getWrMode(Player.className).then(mode => {
+                if(mode === 'battle' && !this.battleMode) this._battleStart();
+            }).catch(()=>{});
             // 초기 타이머 브로드캐스트 (학생들에게 기본 5분 알림)
             setTimeout(() => {
                 if(this._rtChannel && this.wrTimeLimit > 0){
