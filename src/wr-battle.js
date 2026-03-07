@@ -782,30 +782,29 @@ export const WrBattle = {
         // Death event
         if (data.isDeath) {
             const rp = this.remotePlayers ? this.remotePlayers.get(String(data.targetSid)) : null;
-            if (rp) {
-                // 이미 로컬 예측으로 사망 처리된 경우 중복 방지
-                if (rp.isDead) return;
+            const alreadyDead = rp && rp.isDead;
+            if (rp && !alreadyDead) {
                 rp.isDead = true;
                 rp._respawnTimer = RESPAWN_TIME;
                 rp.deaths = (rp.deaths || 0) + 1;
                 this._battleSpawnExplosionParticles(rp.x, rp.y);
             }
-            // Update killer stats (자폭은 킬 카운트 제외)
-            const isSuicide = data.attackerSid === data.targetSid || !data.attackerSid;
-            if (!isSuicide) {
-                const killer = data.attackerSid === String(Player.studentId)
-                    ? null // self handled in _battleOnKill
-                    : this.remotePlayers?.get(String(data.attackerSid));
-                if (killer) killer.kills = (killer.kills || 0) + 1;
-            }
-
-            // Killfeed
-            const deadName = rp ? rp.displayName : data.targetSid;
-            if (isSuicide) {
-                this._battleKillFeed.push({ text: `${deadName} (self)`, timer: KILLFEED_DURATION });
-            } else {
-                const killerName = this._battleGetName(data.attackerSid);
-                this._battleKillFeed.push({ text: `${killerName} -> ${deadName}`, timer: KILLFEED_DURATION });
+            // Killfeed — 중복 사망이어도 항상 표시
+            if (!alreadyDead) {
+                const isSuicide = data.attackerSid === data.targetSid || !data.attackerSid;
+                if (!isSuicide) {
+                    const killer = data.attackerSid === String(Player.studentId)
+                        ? null // self handled in _battleOnKill
+                        : this.remotePlayers?.get(String(data.attackerSid));
+                    if (killer) killer.kills = (killer.kills || 0) + 1;
+                }
+                const deadName = rp ? rp.displayName : data.targetSid;
+                if (isSuicide) {
+                    this._battleKillFeed.push({ text: `${deadName} (self)`, timer: KILLFEED_DURATION });
+                } else {
+                    const killerName = this._battleGetName(data.attackerSid);
+                    this._battleKillFeed.push({ text: `${killerName} -> ${deadName}`, timer: KILLFEED_DURATION });
+                }
             }
             return;
         }
