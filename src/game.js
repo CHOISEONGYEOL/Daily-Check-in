@@ -757,14 +757,8 @@ export const Game = {
         const p = this.player;
         if(!p || p._spectatorDummy) return;
         const now = Date.now();
-        // 상태 변화 시 또는 100ms heartbeat
-        const changed = (this._gameLastDir !== p.dir) ||
-                        (this._gameLastGround !== p.onGround) ||
-                        (this._gameLastDead !== p.dead);
-        if(!changed && now - (this._gameLastBroadcast||0) < 100) return;
-        this._gameLastDir = p.dir;
-        this._gameLastGround = p.onGround;
-        this._gameLastDead = p.dead;
+        // 고정 100ms(초당 10회) tick-rate — 상태 변화 여부와 무관하게 주기 고정
+        if(now - (this._gameLastBroadcast||0) < 100) return;
         this._gameLastBroadcast = now;
         try {
             this._rtChannel.send({
@@ -801,8 +795,11 @@ export const Game = {
         entity.dir = data.dir;
         entity.onGround = data.onGround;
         entity.dead = data.dead || false;
-        // ★ enteredDoor는 로컬 충돌 판정(updateDoor)으로만 관리 — 원격 데이터 무시
-        // (스테이지 전환 시 리셋 후 원격의 stale enteredDoor:true가 덮어쓰는 버그 방지)
+        // ★ enteredDoor를 네트워크에서 동기화 — 원격 플레이어 문 진입 상태 반영
+        if(data.enteredDoor && !entity.enteredDoor){
+            entity.enteredDoor = true;
+            entity.vx = 0; entity.vy = 0;
+        }
         if(data.currentCP !== undefined) entity.currentCP = data.currentCP;
         if(data.completedAll !== undefined) entity.completedAll = data.completedAll;
     },

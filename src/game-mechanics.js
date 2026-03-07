@@ -7,9 +7,10 @@ export const GameMechanics = {
             block.pushers.clear();
             const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
             all.forEach((e,i)=>{
-                // Check if entity is touching block from left side and moving right
-                const touching = (e.x+e.w/2 >= block.x-5 && e.x+e.w/2 <= block.x+10 &&
-                                  e.y+e.h > block.y && e.y < block.y+block.h);
+                // 블록 좌측 넓은 범위에서 밀기 판정 (30명 밀집 대응)
+                const pushZone = Math.max(40, block.required * 8);
+                const touching = (e.x+e.w/2 >= block.x - pushZone && e.x+e.w/2 <= block.x + 15 &&
+                                  e.y+e.h > block.y - 10 && e.y < block.y+block.h + 10);
                 if(touching && e.vx > 0){
                     block.pushers.add(i);
                 }
@@ -36,10 +37,12 @@ export const GameMechanics = {
         (this.plates || []).forEach(plate=>{
             plate.stepCount = 0;
             const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
+            // 발판 좌우 여유 판정 (좁은 발판에 여러 명 밀집 대응)
+            const plateMargin = 20;
             all.forEach(e=>{
                 if(e.onGround &&
-                   e.x+e.w/2 > plate.x && e.x-e.w/2 < plate.x+plate.w &&
-                   Math.abs((e.y+e.h) - plate.y) < 8){
+                   e.x+e.w/2 > plate.x - plateMargin && e.x-e.w/2 < plate.x+plate.w + plateMargin &&
+                   Math.abs((e.y+e.h) - plate.y) < 12){
                     plate.stepCount++;
                 }
             });
@@ -71,10 +74,12 @@ export const GameMechanics = {
             // Count riders
             let riders = 0;
             const all = [this.player, ...(this.npcs || [])].filter(e=>e && (!e.dead || this.ghostMode));
+            // 엘리베이터 좌우 여유 판정 (밀집 탑승 대응)
+            const elevMargin = 15;
             all.forEach(e=>{
                 if(e.onGround &&
-                   e.x+e.w/2 > elev.x && e.x-e.w/2 < elev.x+elev.w &&
-                   Math.abs((e.y+e.h) - elev.y) < 6){
+                   e.x+e.w/2 > elev.x - elevMargin && e.x-e.w/2 < elev.x+elev.w + elevMargin &&
+                   Math.abs((e.y+e.h) - elev.y) < 10){
                     riders++;
                 }
             });

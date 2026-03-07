@@ -493,12 +493,13 @@ export const GameStages = {
         if(n <= 10) return 3;
         if(n <= 15) return 4;
         if(n <= 20) return 5;
-        return 6;
+        if(n <= 25) return 6;
+        return Math.min(8, 6 + Math.floor((n - 25) / 5));
     },
     getCoopRequired(base, n){
         if(n <= 1) return 1;
         if(n <= 3) return 1;
-        return Math.max(2, Math.round(base * n / 25));
+        return Math.max(2, Math.round(base * n / Math.max(n, 25)));
     },
     isKeyUnlocked(key){
         if(!key.gateType) return true; // 게이트 없으면 항상 수집 가능
@@ -562,7 +563,17 @@ export const GameStages = {
             // 협동 요구 인원 스케일링
             const n = this.totalPlayers || 25;
             this.pushBlocks.forEach(b=>{ b.required = this.getCoopRequired(b.required, n); });
-            this.elevators.forEach(e=>{ e.required = this.getCoopRequired(e.required, n); });
+            this.elevators.forEach(e=>{
+                e.required = this.getCoopRequired(e.required, n);
+                // 엘리베이터 폭을 탑승 인원에 비례하여 동적 확장 (1인당 20px, 최소 원본 폭)
+                const baseW = e.w;
+                const needW = e.required * 20;
+                if(needW > baseW){
+                    const expand = needW - baseW;
+                    e.x -= Math.floor(expand / 2); // 중심 유지하며 좌우 확장
+                    e.w = needW;
+                }
+            });
 
             // ★ 소규모(3명 이하): 게이트 제거 – 협동 장치 없이 바로 수집 가능
             if(n <= 3){
@@ -605,7 +616,6 @@ export const GameStages = {
         if(this.isMultiplayer && this._remotePlayerData && this._remotePlayerData.size > 0){
             let idx = 0;
             for(const [sid, rpData] of this._remotePlayerData){
-                if(idx >= 24) break;
                 this.npcs.push({
                     x: sd.spawnX + (Math.random()*200-100),
                     y: sd.spawnY - Math.random()*20,
@@ -632,7 +642,7 @@ export const GameStages = {
         if(this.spectatorMode && this.totalStudents <= 0){
             count = 5;
         } else {
-            count = Math.min(this.totalStudents - 1, 24);
+            count = Math.max(0, this.totalStudents - 1);
         }
         for(let i=0;i<count;i++){
             this.npcs.push({

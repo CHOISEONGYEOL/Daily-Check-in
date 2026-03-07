@@ -80,43 +80,55 @@ export const GamePhysics = {
     },
 
     // ── Entity-to-Entity collision (Pico Park stacking!) ──
+    // 30명 밀집 최적화: 수평 겹침 허용, 수직 스태킹 간소화, 반복 상한
     resolveEntityCollisions(){
         if(!this.player) return;
         const all = [this.player, ...(this.npcs || [])].filter(e=>e && !e.enteredDoor && (!e.dead || this.ghostMode));
         const len = all.length;
-        for(let i=0;i<len;i++){
-            for(let j=i+1;j<len;j++){
-                const a=all[i], b=all[j];
-                const aL=a.x-a.w/2, aR=a.x+a.w/2, aT=a.y, aB=a.y+a.h;
-                const bL=b.x-b.w/2, bR=b.x+b.w/2, bT=b.y, bB=b.y+b.h;
-                if(aR<=bL||aL>=bR||aB<=bT||aT>=bB) continue;
-                const overlapX = Math.min(aR-bL, bR-aL);
-                const overlapY = Math.min(aB-bT, bB-aT);
-                if(overlapY < overlapX){
-                    if(aB - bT < bB - aT){
-                        // A lands on B's head
-                        if(a.vy >= 0){
-                            a.y = bT - a.h;
-                            a.vy = 0;
-                            a.onGround = true;
-                            a.jumpCount = 0;
+        // 반복 상한: 최대 2패스 (무한 루프 방지)
+        const MAX_PASSES = 2;
+        for(let pass = 0; pass < MAX_PASSES; pass++){
+            let resolved = 0;
+            for(let i=0;i<len;i++){
+                for(let j=i+1;j<len;j++){
+                    const a=all[i], b=all[j];
+                    const aL=a.x-a.w/2, aR=a.x+a.w/2, aT=a.y, aB=a.y+a.h;
+                    const bL=b.x-b.w/2, bR=b.x+b.w/2, bT=b.y, bB=b.y+b.h;
+                    if(aR<=bL||aL>=bR||aB<=bT||aT>=bB) continue;
+                    const overlapX = Math.min(aR-bL, bR-aL);
+                    const overlapY = Math.min(aB-bT, bB-aT);
+                    if(overlapY < overlapX){
+                        // ── 수직 충돌: 머리 위에 안착 (단순 Y 고정) ──
+                        if(aB - bT < bB - aT){
+                            if(a.vy >= 0){
+                                a.y = b.y - a.h;
+                                a.vy = 0;
+                                a.onGround = true;
+                                a.jumpCount = 0;
+                                resolved++;
+                            }
+                        } else {
+                            if(b.vy >= 0){
+                                b.y = a.y - b.h;
+                                b.vy = 0;
+                                b.onGround = true;
+                                b.jumpCount = 0;
+                                resolved++;
+                            }
                         }
-                    } else {
-                        // B lands on A's head
-                        if(b.vy >= 0){
-                            b.y = aT - b.h;
-                            b.vy = 0;
-                            b.onGround = true;
-                            b.jumpCount = 0;
-                        }
+                    } else if(overlapX > 4){
+                        // ── 수평 충돌: 4px 이하 겹침은 허용 (밀집 시 튕김 방지) ──
+                        // 초과분만 부드럽게 밀어냄 (25% 씩, 속도 감속 완화)
+                        const push = (overlapX - 4) * 0.25;
+                        if(a.x < b.x){ a.x -= push; b.x += push; }
+                        else { a.x += push; b.x -= push; }
+                        a.vx *= 0.7; b.vx *= 0.7;
                     }
-                } else {
-                    const half = overlapX / 2;
-                    if(a.x < b.x){ a.x -= half; b.x += half; }
-                    else { a.x += half; b.x -= half; }
-                    a.vx *= 0.3; b.vx *= 0.3;
+                    // overlapX <= 4: 무시 (겹침 허용)
                 }
             }
+            // 충돌이 없었으면 추가 패스 불필요
+            if(resolved === 0) break;
         }
     },
 };
