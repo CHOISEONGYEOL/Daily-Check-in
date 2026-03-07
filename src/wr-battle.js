@@ -686,7 +686,7 @@ export const WrBattle = {
         for (const pk of this._battlePickups) {
             if (!pk.active) continue;
             const dx = P.x - pk.x, dy = (P.y + P.h / 2) - pk.y;
-            if (Math.abs(dx) < 25 && Math.abs(dy) < 25) {
+            if (Math.abs(dx) < 40 && Math.abs(dy) < 40) {
                 pk.active = false;
                 pk.respawnTimer = BOMB_PICKUP_RESPAWN;
                 this._battleBombCount = Math.min(this._battleBombCount + 1, MAX_BOMBS);
