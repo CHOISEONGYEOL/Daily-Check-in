@@ -67,8 +67,9 @@ export const WrTeacher = {
             }
             this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
             this.godMode = true;
-            this.wrStartTime = Date.now(); this.wrTimeLimit = 300; this.wrElapsed = 0; this._wrTimerTriggered = false;
-            this._timerIdx = 2; // 기본 5분
+            this.wrStartTime = null; this.wrTimeLimit = 0; this.wrElapsed = 0; this._wrTimerTriggered = false;
+            this._timerRunning = false;
+            this._timerIdx = 2; // 기본 5분 (선택만, 시작은 별도)
             PerfMonitor.enabled = true;
             this.chatBubbles = []; this.particles = []; this._elevatorCooldown = 0; this._inSpectator = false;
             this.cvs = document.getElementById('waiting-canvas');
@@ -99,15 +100,7 @@ export const WrTeacher = {
             DB.getWrMode(Player.className).then(mode => {
                 if(mode === 'battle' && !this.battleMode) this._battleStart();
             }).catch(()=>{});
-            // 초기 타이머 브로드캐스트 (학생들에게 기본 5분 알림)
-            setTimeout(() => {
-                if(this._rtChannel && this.wrTimeLimit > 0){
-                    this._rtChannel.send({
-                        type: 'broadcast', event: 'wr_timer',
-                        payload: { timeLimit: this.wrTimeLimit, startTime: this.wrStartTime }
-                    });
-                }
-            }, 2000);
+            // 타이머는 교사가 명시적으로 시작 버튼을 눌러야 시작됨
         } else {
             // 재진입: 캔버스/ctx 재바인딩 (화면 전환 후 필요)
             this.cvs = document.getElementById('waiting-canvas');
@@ -123,7 +116,8 @@ export const WrTeacher = {
         const startBtn = document.getElementById('wr-start-game');
         if(startBtn) startBtn.classList.remove('hidden');
         const timerBtn = document.getElementById('wr-set-timer');
-        if(timerBtn){ timerBtn.classList.remove('hidden'); this._updateTimerBtn(); }
+        if(timerBtn){ timerBtn.classList.remove('hidden'); }
+        this._updateTimerBtn();
 
         // 채팅바, 모바일컨트롤 숨기기
         const chatBar = document.querySelector('.wr-chat-bar');
@@ -624,15 +618,41 @@ export const WrTeacher = {
     // ── 대기실 타이머 설정 (교사 전용) ──
     _timerOptions: [0, 180, 300, 600], // 없음, 3분, 5분, 10분
     _timerIdx: 2, // 기본값: 5분 (index 2)
+    _timerRunning: false,
     cycleTimer(){
+        // 타이머 실행 중이면 순환 불가
+        if(this._timerRunning) return;
         this._timerIdx = (this._timerIdx + 1) % this._timerOptions.length;
+        this._updateTimerBtn();
+    },
+    startTimer(){
         const sec = this._timerOptions[this._timerIdx];
+        if(this._timerRunning){
+            // 실행 중이면 정지
+            this._timerRunning = false;
+            this.wrTimeLimit = 0;
+            this.wrStartTime = null;
+            this.wrElapsed = 0;
+            this._wrTimerTriggered = false;
+            this._updateTimerBtn();
+            // 학생에게 타이머 취소 브로드캐스트
+            if(this._rtChannel){
+                this._rtChannel.send({
+                    type: 'broadcast', event: 'wr_timer',
+                    payload: { timeLimit: 0, startTime: null }
+                });
+            }
+            return;
+        }
+        if(sec === 0) return;
+        // 타이머 시작
+        this._timerRunning = true;
         this.wrTimeLimit = sec;
         this.wrStartTime = Date.now();
         this.wrElapsed = 0;
         this._wrTimerTriggered = false;
         this._updateTimerBtn();
-        // 전체 학생에게 브로드캐스트
+        // 학생에게 브로드캐스트
         if(this._rtChannel){
             this._rtChannel.send({
                 type: 'broadcast', event: 'wr_timer',
@@ -642,14 +662,38 @@ export const WrTeacher = {
     },
     _updateTimerBtn(){
         const btn = document.getElementById('wr-set-timer');
-        if(!btn) return;
-        const sec = this._timerOptions[this._timerIdx];
-        if(sec === 0){
-            btn.textContent = '⏱ 타이머 없음';
-        } else {
-            const mm = Math.floor(sec/60);
-            const ss = String(sec%60).padStart(2,'0');
-            btn.textContent = `⏱ ${mm}:${ss}`;
+        const startBtn = document.getElementById('wr-start-timer');
+        if(btn){
+            if(this._timerRunning){
+                // 실행 중: 남은 시간 표시
+                const rem = Math.max(0, this.wrTimeLimit - this.wrElapsed);
+                const mm = Math.floor(rem/60);
+                const ss = String(rem%60).padStart(2,'0');
+                btn.textContent = `⏱ ${mm}:${ss}`;
+            } else {
+                const sec = this._timerOptions[this._timerIdx];
+                if(sec === 0){
+                    btn.textContent = '⏱ 타이머 없음';
+                } else {
+                    const mm = Math.floor(sec/60);
+                    const ss = String(sec%60).padStart(2,'0');
+                    btn.textContent = `⏱ ${mm}:${ss}`;
+                }
+            }
+        }
+        if(startBtn){
+            const sec = this._timerOptions[this._timerIdx];
+            if(this._timerRunning){
+                startBtn.textContent = '⏹ 정지';
+                startBtn.classList.add('running');
+                startBtn.classList.remove('hidden');
+            } else if(sec > 0){
+                startBtn.textContent = '▶ 시작';
+                startBtn.classList.remove('running');
+                startBtn.classList.remove('hidden');
+            } else {
+                startBtn.classList.add('hidden');
+            }
         }
     },
 

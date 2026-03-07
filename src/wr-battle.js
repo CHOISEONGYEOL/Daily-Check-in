@@ -1163,10 +1163,10 @@ export const WrBattle = {
 
         // ── PUBG-style Kill Log (upper right) ──
         const kfStartY = isGod ? 10 : 72;
-        const kfMax = isGod ? 8 : 5;
-        const kfH = isGod ? 28 : 18;
-        const kfGap = isGod ? 4 : 4;
-        const kfFont = isGod ? 'bold 13px "Segoe UI",sans-serif' : 'bold 11px "Segoe UI",sans-serif';
+        const kfMax = 5;
+        const kfH = 18;
+        const kfGap = 4;
+        const kfFont = 'bold 11px "Segoe UI",sans-serif';
         if (this._battleKillFeed) {
             for (let i = 0; i < this._battleKillFeed.length && i < kfMax; i++) {
                 const kf = this._battleKillFeed[i];
@@ -1192,7 +1192,7 @@ export const WrBattle = {
                 const killerW = killer ? ctx.measureText(killer).width : 0;
                 const iconW = ctx.measureText(skullIcon).width;
                 const victimW = ctx.measureText(victim).width;
-                const pad = isGod ? 16 : 12;
+                const pad = 12;
                 const totalW = killerW + iconW + victimW + pad * 2;
 
                 const bx = VW - totalW - 10;
@@ -1228,45 +1228,6 @@ export const WrBattle = {
             }
         }
         ctx.textAlign = 'left';
-
-        // ── God mode: live scoreboard (left side) ──
-        if (isGod && this.remotePlayers && this.remotePlayers.size > 0) {
-            const sorted = [...this.remotePlayers.values()]
-                .filter(rp => (rp.kills || 0) + (rp.deaths || 0) > 0 || !rp.isDead)
-                .sort((a, b) => (b.kills || 0) - (a.kills || 0));
-            const top = sorted.slice(0, 8);
-            if (top.length > 0) {
-                const sbX = 10, sbY = 10, rowH = 22, sbW = 180;
-                const sbH = 26 + top.length * rowH;
-                ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                ctx.beginPath(); ctx.roundRect(sbX, sbY, sbW, sbH, 8); ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.15)';
-                ctx.fillRect(sbX, sbY, sbW, 24);
-                ctx.font = 'bold 12px "Segoe UI",sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillStyle = '#FFD700';
-                ctx.fillText('BATTLE SCOREBOARD', sbX + sbW / 2, sbY + 17);
-                ctx.textAlign = 'left';
-                for (let i = 0; i < top.length; i++) {
-                    const rp = top[i];
-                    const ry = sbY + 28 + i * rowH;
-                    const name = rp.displayName || '???';
-                    const k = rp.kills || 0;
-                    const d = rp.deaths || 0;
-                    // Rank badge
-                    const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : `${i + 1}.`;
-                    ctx.font = '12px "Segoe UI",sans-serif';
-                    ctx.fillStyle = rp.isDead ? 'rgba(255,255,255,0.35)' : '#fff';
-                    ctx.fillText(`${medal} ${name}`, sbX + 8, ry + 14);
-                    ctx.textAlign = 'right';
-                    ctx.fillStyle = '#4CAF50';
-                    ctx.fillText(`${k}K`, sbX + sbW - 36, ry + 14);
-                    ctx.fillStyle = '#F44336';
-                    ctx.fillText(`${d}D`, sbX + sbW - 8, ry + 14);
-                    ctx.textAlign = 'left';
-                }
-            }
-        }
 
         if (!isGod) {
             // Death screen (students only)

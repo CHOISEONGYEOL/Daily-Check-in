@@ -116,11 +116,15 @@
 .wr-spec-btn:active{transform:translateY(0);}
 .wr-back-dashboard{position:absolute;top:12px;left:12px;z-index:20;padding:8px 16px;border-radius:10px;border:2px solid rgba(108,92,231,.5);background:rgba(0,0,0,.75);color:#a29bfe;font-size:.85rem;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;}
 .wr-back-dashboard:hover{background:rgba(108,92,231,.3);color:#fff;border-color:rgba(108,92,231,.8);}
-.wr-start-game{position:absolute;top:12px;right:12px;z-index:20;padding:12px 28px;border-radius:12px;border:2px solid rgba(0,184,148,.6);background:rgba(0,0,0,.8);color:#00b894;font-size:1.1rem;font-weight:800;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;animation:pulseGlow 2s infinite;}
+.wr-start-game{position:absolute;top:160px;right:12px;z-index:20;padding:12px 28px;border-radius:12px;border:2px solid rgba(0,184,148,.6);background:rgba(0,0,0,.8);color:#00b894;font-size:1.1rem;font-weight:800;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;animation:pulseGlow 2s infinite;}
 .wr-start-game:hover{background:rgba(0,184,148,.3);color:#fff;border-color:#00b894;transform:scale(1.05);}
 @keyframes pulseGlow{0%,100%{box-shadow:0 0 8px rgba(0,184,148,.3)}50%{box-shadow:0 0 20px rgba(0,184,148,.6)}}
-.wr-set-timer{position:absolute;top:12px;right:220px;z-index:20;padding:10px 18px;border-radius:12px;border:2px solid rgba(254,202,87,.5);background:rgba(0,0,0,.8);color:#FECA57;font-size:.95rem;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;}
+.wr-set-timer{position:absolute;top:160px;right:220px;z-index:20;padding:10px 18px;border-radius:12px;border:2px solid rgba(254,202,87,.5);background:rgba(0,0,0,.8);color:#FECA57;font-size:.95rem;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;}
 .wr-set-timer:hover{background:rgba(254,202,87,.2);color:#fff;border-color:#FECA57;transform:scale(1.05);}
+.wr-start-timer{position:absolute;top:160px;right:120px;z-index:20;padding:10px 18px;border-radius:12px;border:2px solid rgba(0,184,148,.5);background:rgba(0,0,0,.8);color:#00b894;font-size:.95rem;font-weight:700;cursor:pointer;backdrop-filter:blur(6px);transition:all .2s;}
+.wr-start-timer:hover{background:rgba(0,184,148,.2);color:#fff;border-color:#00b894;transform:scale(1.05);}
+.wr-start-timer.running{border-color:rgba(255,71,87,.6);color:#FF4757;}
+.wr-start-timer.running:hover{background:rgba(255,71,87,.2);border-color:#FF4757;color:#fff;}
 /* Overlay mode for screens shown on top of waiting room */
 .screen.wr-overlay-mode{position:fixed;inset:0;z-index:100;background:rgba(23,31,38,.95);backdrop-filter:blur(8px);animation:fi .3s;}
 

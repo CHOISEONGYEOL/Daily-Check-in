@@ -725,7 +725,11 @@ export const WaitingRoom = {
                 const remaining = this.wrTimeLimit - this.wrElapsed;
                 if(remaining <= 0){
                     this._wrTimerTriggered = true;
-                    if(this.godMode) this.teacherStartGame();
+                    if(this.godMode){
+                        this._timerRunning = false;
+                        this._updateTimerBtn();
+                        this.teacherStartGame();
+                    }
                 }
             }
         }

@@ -348,12 +348,8 @@ export const WrRender = {
         this._frameNow = Date.now();
         const now = this._frameNow;
         // 교사 HTML 타이머 버튼 실시간 업데이트
-        if(this.godMode && this.wrStartTime && this.wrTimeLimit > 0){
-            const rem = Math.max(0, this.wrTimeLimit - this.wrElapsed);
-            const mm = Math.floor(rem/60);
-            const ss = String(rem%60).padStart(2,'0');
-            const btn = document.getElementById('wr-set-timer');
-            if(btn) btn.textContent = `⏱ ${mm}:${ss}`;
+        if(this.godMode && this._timerRunning && this.wrStartTime && this.wrTimeLimit > 0){
+            this._updateTimerBtn();
         }
         // Sky gradient (캐시 — VH 변경 시에만 재생성)
         if(!this._skyGrad || this._skyGradVH !== VH){
