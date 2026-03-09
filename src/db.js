@@ -30,23 +30,11 @@ export const DB = {
         const isExempt = this._EXEMPT_IDS.includes(studentId);
         const token = isExempt ? null : (existingToken || crypto.randomUUID());
 
-        // ── IP 중복 체크 (대리 출석 방지) ──
+        // ── IP 중복 체크 비활성화 ──
+        // 학교 네트워크에서 동일 공인 IP를 공유하므로 IP 기반 차단 제거
         if (!isExempt) {
             const ip = await this._getClientIP();
             this._currentIP = ip;
-            if (ip) {
-                // last_active 조건 제거 — DB에 해당 컬럼 없음
-                // login_ip만으로 동일 IP 중복 로그인 차단
-                const { data: conflicts } = await supabase
-                    .from('users')
-                    .select('student_id')
-                    .eq('login_ip', ip)
-                    .neq('student_id', studentId)
-                    .limit(1);
-                if (conflicts && conflicts.length > 0) {
-                    return { user: null, isNew: false, error: 'ip_conflict' };
-                }
-            }
         }
 
         // 1) 기존 유저 찾기
