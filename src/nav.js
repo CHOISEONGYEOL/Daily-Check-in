@@ -149,6 +149,10 @@ export const Nav = {
             setTimeout(() => window.dispatchEvent(new Event('resize')), 500);
             // 터치 기기: 풀스크린 진입
             this._tryFullscreen();
+            // iPad/태블릿: 더블탭 줌 & 텍스트 선택 방지
+            this._enableTouchGuard();
+        } else {
+            this._disableTouchGuard();
         }
     },
     // ── 게임 버튼 상태 폴링 ──
@@ -166,6 +170,16 @@ export const Nav = {
     },
     async _checkAndSetGameBtn() {
         try {
+            // className이 없으면 roster에서 한 번 갱신 시도
+            if(!Player.className) {
+                try {
+                    const roster = await DB.checkRoster(Player.studentId);
+                    if(roster && roster.class_name) {
+                        Player.className = roster.class_name;
+                        Player.save();
+                    }
+                } catch(_){}
+            }
             const open = await DB.isGameOpen(Player.className);
             this._setGameBtn(open);
         } catch(e) {
@@ -184,6 +198,30 @@ export const Nav = {
             btn.classList.add('disabled');
             btn.textContent = '🔒 출석 게임';
         }
+    },
+
+    // ── 터치 기기: 더블탭 줌 방지 (iOS Safari는 viewport meta를 무시) ──
+    _touchGuardActive: false,
+    _enableTouchGuard() {
+        if (this._touchGuardActive) return;
+        this._touchGuardActive = true;
+        // 더블탭 줌 방지: 300ms 내 연속 터치 차단
+        let lastTouchEnd = 0;
+        this._dblTapHandler = e => {
+            const now = Date.now();
+            if (now - lastTouchEnd < 300) { e.preventDefault(); }
+            lastTouchEnd = now;
+        };
+        // 텍스트 선택 방지: selectstart 차단
+        this._selectHandler = e => e.preventDefault();
+        document.addEventListener('touchend', this._dblTapHandler, { passive: false });
+        document.addEventListener('selectstart', this._selectHandler);
+    },
+    _disableTouchGuard() {
+        if (!this._touchGuardActive) return;
+        this._touchGuardActive = false;
+        if (this._dblTapHandler) document.removeEventListener('touchend', this._dblTapHandler);
+        if (this._selectHandler) document.removeEventListener('selectstart', this._selectHandler);
     },
 
     // ── 터치 기기 전용: 풀스크린 진입 ──

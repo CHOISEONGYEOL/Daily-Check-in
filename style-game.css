@@ -30,8 +30,9 @@
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 
 /* Waiting Room (MapleStory-style) */
-.waiting-wrap{flex:1;display:flex;flex-direction:column;position:relative;background:#0c0c24;overflow:hidden;}
-#waiting-canvas{width:100%;flex:1;display:block;}
+.waiting-wrap{flex:1;display:flex;flex-direction:column;position:relative;background:#0c0c24;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
+#waiting-canvas{width:100%;flex:1;display:block;touch-action:none;-webkit-user-select:none;user-select:none;}
 .wr-chat-bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:.4rem;z-index:10;align-items:center;}
 .wr-chat-bar input{width:240px;padding:.45rem .8rem;border-radius:20px;border:2px solid rgba(255,255,255,.2);background:rgba(0,0,0,.55);color:#fff;font-size:.85rem;outline:none;backdrop-filter:blur(4px);}.wr-chat-bar input:focus{border-color:var(--purple);background:rgba(0,0,0,.75);}
 .wr-chat-bar input::placeholder{color:rgba(255,255,255,.3);}
@@ -150,8 +151,9 @@
 .form-row input[type=number]{width:85px;padding:.5rem;border-radius:8px;border:2px solid var(--glass-b);background:rgba(255,255,255,.08);color:#fff;font-size:1rem;text-align:center;outline:none;}.form-row input[type=number]:focus{border-color:var(--purple);}
 
 /* ===== GAME (Mini-games) ===== */
-.game-wrap{position:relative;width:100%;flex:1;display:flex;flex-direction:column;background:#000;overflow:hidden;}
-#game-canvas{width:100%;flex:1;display:block;}
+.game-wrap{position:relative;width:100%;flex:1;display:flex;flex-direction:column;background:#000;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
+#game-canvas{width:100%;flex:1;display:block;touch-action:none;-webkit-user-select:none;user-select:none;}
 
 .hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:.5rem .8rem;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);z-index:10;pointer-events:none;}
 .hud>*{pointer-events:auto;}
@@ -212,6 +214,16 @@ body.touch-device .wr-chat-bar{display:none;}
 .gk-special{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-size:.8rem;min-width:48px;}
 .gk-enter{min-width:72px;background:rgba(108,92,231,.4);color:#fff;font-weight:700;}
 .gk-shift.active{background:rgba(108,92,231,.5);border-color:var(--purple);}
+
+/* -- 터치 기기: 게임 화면에서 텍스트 선택 & 더블탭 줌 방지 (iPad/태블릿) -- */
+body.touch-device #waiting-room.screen.active,
+body.touch-device #game.screen.active{
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
+}
+body.touch-device #waiting-room.screen.active *,
+body.touch-device #game.screen.active *{
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
 
 /* -- Force landscape rotation on portrait touch devices -- */
 @media(orientation:portrait){

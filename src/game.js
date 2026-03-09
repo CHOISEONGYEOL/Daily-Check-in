@@ -410,16 +410,24 @@ export const Game = {
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     },
 
+    // 한글 IME 활성 시 e.key가 한글('ㅈ','ㅁ' 등)을 반환하므로 e.code로 보정
+    _codeToKeys: {KeyW:['w','W'],KeyA:['a','A'],KeyS:['s','S'],KeyD:['d','D'],Space:[' ']},
     setupInput(){
         this.keys = {};
         window.onkeydown = e => {
             this.keys[e.key] = true;
-            if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'){
+            const mapped = this._codeToKeys[e.code];
+            if(mapped) mapped.forEach(k=>{ this.keys[k]=true; });
+            if(e.key===' '||e.key==='ArrowUp'||e.code==='KeyW'){
                 e.preventDefault();
                 this.playerJump();
             }
         };
-        window.onkeyup = e => { this.keys[e.key] = false; };
+        window.onkeyup = e => {
+            this.keys[e.key] = false;
+            const mapped = this._codeToKeys[e.code];
+            if(mapped) mapped.forEach(k=>{ this.keys[k]=false; });
+        };
         // Mobile
         document.querySelectorAll('.ctrl-btn').forEach(btn=>{
             const k=btn.dataset.key;

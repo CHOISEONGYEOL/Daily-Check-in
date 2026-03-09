@@ -262,6 +262,9 @@ export const WaitingRoom = {
         if(document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
         this._enterReady = false;
         setTimeout(() => { this._enterReady = true; }, 500);
+        // 한글 IME 활성 시 e.key가 한글('ㅈ','ㅁ' 등)을 반환하므로 e.code로 보정
+        this._codeToKeys = {KeyW:['w','W'],KeyA:['a','A'],KeyS:['s','S'],KeyD:['d','D'],
+            KeyF:['f','F'],KeyE:['e','E'],KeyR:['r','R'],KeyQ:['q','Q'],Space:[' ']};
         this._onkeydown = e => {
             if(this.overlayActive) return;
             const tag = document.activeElement?.tagName;
@@ -274,15 +277,20 @@ export const WaitingRoom = {
                 return;
             }
             this.keys[e.key]=true;
-            if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W'||e.key==='ArrowDown'||e.key==='s'||e.key==='S'){
+            // IME 보정: e.code 기반으로도 키 설정
+            const mapped = this._codeToKeys[e.code];
+            if(mapped) mapped.forEach(k=>{ this.keys[k]=true; });
+            const isUp = e.key===' '||e.key==='ArrowUp'||e.code==='KeyW';
+            const isDown = e.key==='ArrowDown'||e.code==='KeyS';
+            if(isUp||isDown){
                 e.preventDefault();
                 // 배틀 모드: 스페이스바는 사격 전용, 모든 점프 키 차단
                 if(this.battleMode){
-                    if(e.key===' ') this._battleShoot();
+                    if(e.key===' '||e.code==='Space') this._battleShoot();
                 } else if(this.reversedControls && !this._inSpectator){
-                    if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') this.playerJump();
+                    if(isDown) this.playerJump();
                 } else {
-                    if(e.key===' '||e.key==='ArrowUp'||e.key==='w'||e.key==='W') this.playerJump();
+                    if(isUp) this.playerJump();
                 }
             }
             if(e.key==='1') this.triggerEmote('flat');
@@ -290,13 +298,17 @@ export const WaitingRoom = {
             if(e.key==='3') this.triggerEmote('explode');
             // Battle mode controls (f/F: shoot, q/Q: switch weapon)
             if(this.battleMode){
-                if(e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
-                if(e.key==='e'||e.key==='E') { e.preventDefault(); this._battleMelee(); }
-                if(e.key==='r'||e.key==='R') { e.preventDefault(); this._battleShootMega(); }
-                if(e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
+                if(e.code==='KeyF'||e.key==='f'||e.key==='F') { e.preventDefault(); this._battleShoot(); }
+                if(e.code==='KeyE'||e.key==='e'||e.key==='E') { e.preventDefault(); this._battleMelee(); }
+                if(e.code==='KeyR'||e.key==='r'||e.key==='R') { e.preventDefault(); this._battleShootMega(); }
+                if(e.code==='KeyQ'||e.key==='q'||e.key==='Q') this._battleSwitchWeapon();
             }
         };
-        this._onkeyup = e => { this.keys[e.key]=false; };
+        this._onkeyup = e => {
+            this.keys[e.key]=false;
+            const mapped = this._codeToKeys[e.code];
+            if(mapped) mapped.forEach(k=>{ this.keys[k]=false; });
+        };
         window.addEventListener('keydown', this._onkeydown);
         window.addEventListener('keyup', this._onkeyup);
         const chatInput = document.getElementById('wr-chat-input');
