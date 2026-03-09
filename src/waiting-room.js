@@ -264,7 +264,8 @@ export const WaitingRoom = {
         setTimeout(() => { this._enterReady = true; }, 500);
         // 한글 IME 활성 시 e.key가 한글('ㅈ','ㅁ' 등)을 반환하므로 e.code로 보정
         this._codeToKeys = {KeyW:['w','W'],KeyA:['a','A'],KeyS:['s','S'],KeyD:['d','D'],
-            KeyF:['f','F'],KeyE:['e','E'],KeyR:['r','R'],KeyQ:['q','Q'],Space:[' ']};
+            KeyF:['f','F'],KeyE:['e','E'],KeyR:['r','R'],KeyQ:['q','Q'],Space:[' '],
+            ArrowLeft:['ArrowLeft'],ArrowRight:['ArrowRight'],ArrowUp:['ArrowUp'],ArrowDown:['ArrowDown']};
         this._onkeydown = e => {
             if(this.overlayActive) return;
             const tag = document.activeElement?.tagName;
@@ -280,8 +281,8 @@ export const WaitingRoom = {
             // IME 보정: e.code 기반으로도 키 설정
             const mapped = this._codeToKeys[e.code];
             if(mapped) mapped.forEach(k=>{ this.keys[k]=true; });
-            const isUp = e.key===' '||e.key==='ArrowUp'||e.code==='KeyW';
-            const isDown = e.key==='ArrowDown'||e.code==='KeyS';
+            const isUp = e.key===' '||e.key==='ArrowUp'||e.code==='ArrowUp'||e.code==='KeyW';
+            const isDown = e.key==='ArrowDown'||e.code==='ArrowDown'||e.code==='KeyS';
             if(isUp||isDown){
                 e.preventDefault();
                 // 배틀 모드: 스페이스바는 사격 전용, 모든 점프 키 차단

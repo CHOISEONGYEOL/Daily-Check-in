@@ -321,6 +321,22 @@
                 <button class="wr-ctrl-btn wr-bat-btn mega-btn disabled" data-key="megabomb" id="wr-mega-btn">💥</button>
             </div>
         </div>
+        <!-- 키보드 조작 가이드 (노트북용, 토글) -->
+        <button id="wr-keys-toggle" class="wr-keys-toggle" onclick="this.nextElementSibling.classList.toggle('hidden');this.classList.toggle('active')">⌨️</button>
+        <div id="wr-keys-guide" class="wr-keys-guide hidden">
+            <div class="kguide-title">조작법</div>
+            <div class="kguide-section">
+                <div class="kguide-row"><kbd>←</kbd><kbd>→</kbd> 또는 <kbd>A</kbd><kbd>D</kbd><span>이동</span></div>
+                <div class="kguide-row"><kbd>↑</kbd> 또는 <kbd>W</kbd> 또는 <kbd>Space</kbd><span>점프</span></div>
+            </div>
+            <div class="kguide-section kguide-battle" id="kguide-battle">
+                <div class="kguide-label">대전 모드</div>
+                <div class="kguide-row"><kbd>Space</kbd> 또는 <kbd>F</kbd><span>발사</span></div>
+                <div class="kguide-row"><kbd>E</kbd><span>근접 공격</span></div>
+                <div class="kguide-row"><kbd>Q</kbd><span>무기 전환</span></div>
+                <div class="kguide-row"><kbd>R</kbd><span>메가 폭탄</span></div>
+            </div>
+        </div>
         <div id="wr-countdown" class="wr-countdown hidden">
             <span id="wr-countdown-num">5</span>
         </div>

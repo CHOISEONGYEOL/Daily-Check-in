@@ -60,6 +60,16 @@
 .wr-bat-btn.mega-btn.disabled{opacity:0.35;pointer-events:none;filter:grayscale(1);}
 /* Mobile chat icon */
 .wr-chat-icon{display:none;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:50px;height:50px;border-radius:50%;background:rgba(108,92,231,.45);border:2px solid rgba(255,255,255,.18);color:#fff;font-size:1.3rem;z-index:15;align-items:center;justify-content:center;-webkit-user-select:none;user-select:none;touch-action:manipulation;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+/* Keyboard guide toggle */
+.wr-keys-toggle{position:absolute;top:8px;right:8px;z-index:18;width:36px;height:36px;border-radius:50%;background:rgba(30,30,50,.6);border:1px solid rgba(255,255,255,.15);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:.5;transition:opacity .2s;}
+.wr-keys-toggle:hover,.wr-keys-toggle.active{opacity:1;background:rgba(108,92,231,.5);}
+.wr-keys-guide{position:absolute;top:48px;right:8px;z-index:18;background:rgba(15,15,30,.88);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;min-width:180px;backdrop-filter:blur(8px);pointer-events:auto;}
+.kguide-title{font-size:.75rem;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:6px;text-align:center;}
+.kguide-section{margin-bottom:6px;}
+.kguide-label{font-size:.6rem;color:rgba(255,215,0,.6);font-weight:700;margin:4px 0 2px;}
+.kguide-row{display:flex;align-items:center;gap:4px;font-size:.65rem;color:rgba(255,255,255,.75);margin:2px 0;flex-wrap:wrap;}
+.kguide-row span{margin-left:auto;color:rgba(255,255,255,.5);font-size:.6rem;}
+.kguide-row kbd{display:inline-block;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);font-size:.6rem;font-family:inherit;min-width:18px;text-align:center;color:#fff;}
 .wr-countdown{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;pointer-events:none;}
 
 /* ===== VOTE OVERLAY ===== */
@@ -189,7 +199,7 @@
 
 /* ===== GAME-RELATED MEDIA QUERIES ===== */
 @media(max-width:650px){.hud-gauge{width:120px;}.otp-code{font-size:1.6rem;letter-spacing:5px;}.two-track-info{flex-direction:column;align-items:center;}.track-card{max-width:100%;}}
-@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}
+@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}.wr-keys-toggle{display:none;}.wr-keys-guide{display:none!important;}
 .btn.sm{min-height:44px;min-width:44px;padding:.5rem 1rem;font-size:.85rem;}
 }
 @media(hover:hover){.mobile-controls{display:none;}.wr-mobile-controls{display:none;}}
