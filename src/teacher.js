@@ -1,6 +1,5 @@
 import { supabase } from './supabase.js';
 import { DB } from './db.js';
-import { GRID } from './constants.js';
 import { esc } from './sanitize.js';
 import { TeacherAttendance } from './teacher-attendance.js';
 import { TeacherMarket, setTeacherMarketMarketplace } from './teacher-market.js';

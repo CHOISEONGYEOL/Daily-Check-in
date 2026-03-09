@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { GRID } from './constants.js';
+// GRID no longer needed — derived from pixel data length
 
 // Forward reference (set from teacher.js via setTeacherMarketMarketplace)
 let Marketplace = null;
@@ -64,8 +64,8 @@ export const TeacherMarket = {
             const cvs = card.querySelector('.tmr-pixel-cvs');
             if (cvs) {
                 const pd = JSON.parse(cvs.dataset.pixels);
-                const ctx = cvs.getContext('2d'), sz = 128, sc = sz / GRID;
-                for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+                const pg = pd.length, ctx = cvs.getContext('2d'), sz = 128, sc = sz / pg;
+                for (let y = 0; y < pg; y++) for (let x = 0; x < pg; x++) {
                     if (pd[y] && pd[y][x]) { ctx.fillStyle = pd[y][x]; ctx.fillRect(Math.floor(x * sc), Math.floor(y * sc), Math.ceil(sc), Math.ceil(sc)); }
                 }
             }

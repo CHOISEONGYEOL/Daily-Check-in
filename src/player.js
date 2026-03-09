@@ -30,9 +30,10 @@ export const Player = {
         if(ch) ch.equipped = v;
     },
     // Compatibility: pixels getter/setter
+    get grid() { const ch = this.characters[this.activeCharIdx]; return ch?.grid || (ch?.pixels ? ch.pixels.length : 32); },
     get pixels() { const ch = this.characters[this.activeCharIdx]; return ch ? ch.pixels : null; },
     set pixels(v) {
-        if (!this.characters.length) this.characters.push({ name: '캐릭터 1', pixels: v, equipped: {} });
+        if (!this.characters.length) this.characters.push({ name: '캐릭터 1', pixels: v, equipped: {}, grid: v ? v.length : 32 });
         else this.characters[this.activeCharIdx].pixels = v;
     },
     hasProfile() { return !!this.nickname; },
@@ -47,6 +48,7 @@ export const Player = {
         }
         this.characters.forEach(ch => {
             if(!ch.equipped) ch.equipped = {};
+            if(!ch.grid) ch.grid = 32;
         });
     },
 
@@ -119,7 +121,7 @@ export const Player = {
             this.maxSlots = 1;
             this.auctionGallery = [];
             this.clearedGames = [];
-            this.characters = [{ name: '캐릭터 1', pixels: null, equipped: {} }];
+            this.characters = [{ name: '캐릭터 1', pixels: null, equipped: {}, grid: 32 }];
             this.save();
         } else {
             // 기존 유저: DB에서 로드
@@ -156,7 +158,7 @@ export const Player = {
         if (this.coins < this.SLOT_PRICE) return false;
         this.addCoins(-this.SLOT_PRICE, 'slot_buy');
         this.maxSlots++;
-        this.characters.push({ name: '캐릭터 ' + this.maxSlots, pixels: null, equipped: {} });
+        this.characters.push({ name: '캐릭터 ' + this.maxSlots, pixels: null, equipped: {}, grid: 32 });
         this.save(); this.refreshUI();
         return true;
     },

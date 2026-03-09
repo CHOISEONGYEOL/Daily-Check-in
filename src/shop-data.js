@@ -195,6 +195,7 @@ export const ShopData = {
         ],
         misc:[
             {id:'r_rename',icon:'✏️',name:'이름변경권',desc:'캐릭터 이름을 1회 변경',price:50,consumable:true},
+            {id:'u_64grid',icon:'🔬',name:'HD 캔버스',desc:'64×64 고해상도 캐릭터 제작 해금',price:300},
         ],
     },
 };

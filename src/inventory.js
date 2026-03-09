@@ -1,7 +1,7 @@
 import { Player } from './player.js';
 import { CharRender } from './char-render.js';
 import { Shop } from './shop.js';
-import { GRID } from './constants.js';
+// GRID no longer needed — derived from pixel data length
 
 // Forward reference
 let Marketplace = null;
@@ -321,8 +321,8 @@ export const Inventory = {
             const siCvs = d.querySelector('.inv-si-preview');
             if(siCvs){
                 const pd = JSON.parse(siCvs.dataset.pixels);
-                const ctx = siCvs.getContext('2d'), sz = 48, s = sz / GRID;
-                for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){
+                const pg = pd.length, ctx = siCvs.getContext('2d'), sz = 48, s = sz / pg;
+                for(let y=0;y<pg;y++) for(let x=0;x<pg;x++){
                     if(pd[y]&&pd[y][x]){ ctx.fillStyle=pd[y][x]; ctx.fillRect(Math.floor(x*s),Math.floor(y*s),Math.ceil(s),Math.ceil(s)); }
                 }
             }

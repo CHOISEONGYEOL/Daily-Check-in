@@ -133,3 +133,8 @@ CREATE POLICY "auctions_all" ON auctions
 
 CREATE POLICY "bids_all" ON auction_bids
   FOR ALL USING (true);
+
+-- ============================================
+-- 64x64 HD 캔버스 지원: characters에 grid 컬럼 추가
+-- ============================================
+ALTER TABLE characters ADD COLUMN IF NOT EXISTS grid INTEGER DEFAULT 32;

@@ -12,16 +12,16 @@ export const CharRender = {
     toCanvas(id, size) {
         const c = document.getElementById(id); if (!c) return;
         c.width = size; c.height = size;
-        const ctx = c.getContext('2d'), px = Player.pixels, cell = size / GRID;
+        const ctx = c.getContext('2d'), px = Player.pixels, grid = px ? px.length : GRID, cell = size / grid;
         ctx.clearRect(0, 0, size, size);
         if (!px) { ctx.fillStyle='rgba(255,255,255,.1)'; ctx.beginPath(); ctx.arc(size/2,size*.35,size*.2,0,Math.PI*2); ctx.fill(); ctx.fillRect(size*.35,size*.55,size*.3,size*.3); ctx.fillStyle='rgba(255,255,255,.3)'; ctx.font=`${size*.11}px sans-serif`; ctx.textAlign='center'; ctx.fillText('캐릭터를 만드세요!',size/2,size*.92); return; }
-        for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++) if(px[y]&&px[y][x]){ctx.fillStyle=px[y][x];ctx.fillRect(Math.floor(x*cell),Math.floor(y*cell),Math.ceil(cell),Math.ceil(cell));}
+        for (let y=0;y<grid;y++) for (let x=0;x<grid;x++) if(px[y]&&px[y][x]){ctx.fillStyle=px[y][x];ctx.fillRect(Math.floor(x*cell),Math.floor(y*cell),Math.ceil(cell),Math.ceil(cell));}
     },
     toOffscreen(pxData, size) {
         const c = document.createElement('canvas'); c.width = size; c.height = size;
         if (!pxData) return c;
-        const ctx = c.getContext('2d'), cell = size / GRID;
-        for (let y=0;y<GRID;y++) for (let x=0;x<GRID;x++) if(pxData[y]&&pxData[y][x]){ctx.fillStyle=pxData[y][x];ctx.fillRect(Math.floor(x*cell),Math.floor(y*cell),Math.ceil(cell),Math.ceil(cell));}
+        const grid = pxData.length, ctx = c.getContext('2d'), cell = size / grid;
+        for (let y=0;y<grid;y++) for (let x=0;x<grid;x++) if(pxData[y]&&pxData[y][x]){ctx.fillStyle=pxData[y][x];ctx.fillRect(Math.floor(x*cell),Math.floor(y*cell),Math.ceil(cell),Math.ceil(cell));}
         return c;
     },
     toTinyCanvas(pxData, s) { return this.toOffscreen(pxData, s); },

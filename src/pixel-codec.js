@@ -12,19 +12,20 @@ export const PixelCodec = {
         return this._revMap;
     },
 
-    // Pixels (32x32 hex/null array) → flat TCOL string
+    // Pixels (NxN hex/null array) → flat TCOL string
     _pixelsToTcolStr(pixels) {
         const rev = this._getRevMap();
+        const grid = pixels.length;
         let s = '';
-        for (let y = 0; y < 32; y++) {
-            for (let x = 0; x < 32; x++) {
+        for (let y = 0; y < grid; y++) {
+            for (let x = 0; x < grid; x++) {
                 const c = pixels[y] && pixels[y][x];
                 if (!c) { s += '_'; continue; }
                 const up = c.toUpperCase();
                 s += rev[up] || '_';
             }
         }
-        return s; // 1024 chars
+        return s;
     },
 
     // RLE encode: char + 2-digit count (01-99), e.g. "_32a05F01"
@@ -54,21 +55,24 @@ export const PixelCodec = {
 
     // Encode: {pixels, name, price, seller} → compact code string
     encode(obj) {
+        const grid = obj.pixels.length;
         const tcolStr = this._pixelsToTcolStr(obj.pixels);
         const rle = this._rleEncode(tcolStr);
-        // Format: name|price|seller|rleData
-        const payload = [obj.name || '', obj.price || 0, obj.seller || '', rle].join('|');
-        // Base64url encode
+        // 64x64: H| 접두사 추가, 32x32: 기존 포맷 유지 (하위호환)
+        const prefix = grid > 32 ? `H${grid}|` : '';
+        const payload = prefix + [obj.name || '', obj.price || 0, obj.seller || '', rle].join('|');
         return btoa(unescape(encodeURIComponent(payload)))
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     },
 
     // Encode character: {pixels, charName, name, price, seller} → code with 'C' prefix
     encodeChar(obj) {
+        const grid = obj.pixels.length;
         const tcolStr = this._pixelsToTcolStr(obj.pixels);
         const rle = this._rleEncode(tcolStr);
-        // Format: C|charName|name|price|seller|rleData
-        const payload = ['C', obj.charName || '', obj.name || '', obj.price || 0, obj.seller || '', rle].join('|');
+        // 64x64: H| 접두사 추가
+        const prefix = grid > 32 ? `H${grid}|` : '';
+        const payload = prefix + ['C', obj.charName || '', obj.name || '', obj.price || 0, obj.seller || '', rle].join('|');
         return btoa(unescape(encodeURIComponent(payload)))
             .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     },
@@ -83,29 +87,37 @@ export const PixelCodec = {
             const parts = payload.split('|');
             if (parts.length < 4) return null;
 
-            const isChar = parts[0] === 'C';
+            // HD 포맷 감지: H64| 접두사
+            let grid = 32;
+            let offset = 0;
+            if (parts[0].match(/^H(\d+)$/)) {
+                grid = parseInt(parts[0].slice(1), 10) || 32;
+                offset = 1;
+            }
+
+            const isChar = parts[offset] === 'C';
             let name, price, seller, charName, rle;
             if (isChar) {
-                if (parts.length < 6) return null;
-                charName = parts[1];
-                name = parts[2];
-                price = parseInt(parts[3]) || 0;
-                seller = parts[4];
-                rle = parts.slice(5).join('|');
+                if (parts.length < offset + 6) return null;
+                charName = parts[offset + 1];
+                name = parts[offset + 2];
+                price = parseInt(parts[offset + 3]) || 0;
+                seller = parts[offset + 4];
+                rle = parts.slice(offset + 5).join('|');
             } else {
-                name = parts[0];
-                price = parseInt(parts[1]) || 0;
-                seller = parts[2];
-                rle = parts.slice(3).join('|');
+                name = parts[offset];
+                price = parseInt(parts[offset + 1]) || 0;
+                seller = parts[offset + 2];
+                rle = parts.slice(offset + 3).join('|');
             }
 
             const tcolStr = this._rleDecode(rle);
             // Convert back to pixel array
             const pixels = [];
-            for (let y = 0; y < 32; y++) {
+            for (let y = 0; y < grid; y++) {
                 const row = [];
-                for (let x = 0; x < 32; x++) {
-                    const ch = tcolStr[y * 32 + x] || '_';
+                for (let x = 0; x < grid; x++) {
+                    const ch = tcolStr[y * grid + x] || '_';
                     row.push(TCOL[ch] || null);
                 }
                 pixels.push(row);

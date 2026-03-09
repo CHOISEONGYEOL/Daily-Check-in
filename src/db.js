@@ -132,6 +132,7 @@ export const DB = {
             characters: chars.map(c => ({
                 name: c.name,
                 pixels: c.pixels,
+                grid: c.grid || (c.pixels ? c.pixels.length : 32),
                 equipped: { hat: c.hat || null, effect: c.effect || null, pet: c.pet || null },
                 _dbId: c.id           // DB row id (내부용)
             }))
@@ -172,6 +173,7 @@ export const DB = {
             slot_index: i,
             name: ch.name || `캐릭터 ${i + 1}`,
             pixels: ch.pixels,
+            grid: ch.grid || (ch.pixels ? ch.pixels.length : 32),
             hat: ch.equipped?.hat || null,
             effect: ch.equipped?.effect || null,
             pet: ch.equipped?.pet || null

@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js';
 import { Player } from './player.js';
 import { DB } from './db.js';
-import { GRID, CANVAS_PX, CELL } from './constants.js';
+import { CANVAS_PX } from './constants.js';
 import { CharRender } from './char-render.js';
 
 // Forward references (set from main.js)
@@ -147,8 +147,8 @@ export const Marketplace = {
             const px = JSON.parse(cvs.dataset.px);
             if (px) {
                 const ctx = cvs.getContext('2d');
-                const s = 64 / GRID;
-                for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+                const g = px.length, s = 64 / g;
+                for (let y = 0; y < g; y++) for (let x = 0; x < g; x++) {
                     if (px[y] && px[y][x]) { ctx.fillStyle = px[y][x]; ctx.fillRect(Math.floor(x*s), Math.floor(y*s), Math.ceil(s), Math.ceil(s)); }
                 }
             }
@@ -248,7 +248,9 @@ export const Marketplace = {
         if (!inner) return;
 
         // 도트 에디터 초기화
-        this._ed.pixels = Array.from({ length: GRID }, () => Array(GRID).fill(null));
+        this._ed.grid = 32;
+        this._ed.cell = CANVAS_PX / 32;
+        this._ed.pixels = Array.from({ length: 32 }, () => Array(32).fill(null));
         this._ed.tool = 'pen';
         this._ed.color = '#6C5CE7';
         this._selectedType = 'hat';
@@ -355,9 +357,10 @@ export const Marketplace = {
     _edPaint(e) {
         const c = document.getElementById('mks-canvas');
         const r = c.getBoundingClientRect();
-        const x = Math.floor((e.clientX - r.left) / (r.width / GRID));
-        const y = Math.floor((e.clientY - r.top) / (r.height / GRID));
-        if (x < 0 || x >= GRID || y < 0 || y >= GRID) return;
+        const g = this._ed.grid;
+        const x = Math.floor((e.clientX - r.left) / (r.width / g));
+        const y = Math.floor((e.clientY - r.top) / (r.height / g));
+        if (x < 0 || x >= g || y < 0 || y >= g) return;
         if (this._ed.tool === 'pen') this._ed.pixels[y][x] = this._ed.color;
         else if (this._ed.tool === 'eraser') this._ed.pixels[y][x] = null;
         else if (this._ed.tool === 'fill') this._edFlood(x, y, this._ed.pixels[y][x], this._ed.color);
@@ -365,7 +368,8 @@ export const Marketplace = {
         this._scheduleDraftSave();
     },
     _edFlood(x, y, t, r) {
-        if (t === r || x < 0 || x >= GRID || y < 0 || y >= GRID || this._ed.pixels[y][x] !== t) return;
+        const g = this._ed.grid;
+        if (t === r || x < 0 || x >= g || y < 0 || y >= g || this._ed.pixels[y][x] !== t) return;
         this._ed.pixels[y][x] = r;
         this._edFlood(x + 1, y, t, r); this._edFlood(x - 1, y, t, r);
         this._edFlood(x, y + 1, t, r); this._edFlood(x, y - 1, t, r);
@@ -374,19 +378,20 @@ export const Marketplace = {
         const c = document.getElementById('mks-canvas');
         if (!c) return;
         const ctx = c.getContext('2d');
+        const g = this._ed.grid, cl = this._ed.cell;
         ctx.clearRect(0, 0, CANVAS_PX, CANVAS_PX);
-        for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
-            if (this._ed.pixels[y][x]) { ctx.fillStyle = this._ed.pixels[y][x]; ctx.fillRect(x * CELL, y * CELL, CELL, CELL); }
+        for (let y = 0; y < g; y++) for (let x = 0; x < g; x++) {
+            if (this._ed.pixels[y][x]) { ctx.fillStyle = this._ed.pixels[y][x]; ctx.fillRect(x * cl, y * cl, cl, cl); }
         }
         ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = .5;
-        for (let i = 0; i <= GRID; i++) { ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, CANVAS_PX); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(CANVAS_PX, i * CELL); ctx.stroke(); }
+        for (let i = 0; i <= g; i++) { ctx.beginPath(); ctx.moveTo(i * cl, 0); ctx.lineTo(i * cl, CANVAS_PX); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i * cl); ctx.lineTo(CANVAS_PX, i * cl); ctx.stroke(); }
         // Preview
         const p = document.getElementById('mks-preview');
         if (p) {
             p.width = 64; p.height = 64;
             const pc = p.getContext('2d'); pc.clearRect(0, 0, 64, 64);
-            const s = 64 / GRID;
-            for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+            const s = 64 / g;
+            for (let y = 0; y < g; y++) for (let x = 0; x < g; x++) {
                 if (this._ed.pixels[y][x]) { pc.fillStyle = this._ed.pixels[y][x]; pc.fillRect(Math.floor(x * s), Math.floor(y * s), Math.ceil(s), Math.ceil(s)); }
             }
         }
@@ -396,7 +401,7 @@ export const Marketplace = {
         document.querySelectorAll('#mks-editor-area .tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
     },
     edClear() {
-        this._ed.pixels = Array.from({ length: GRID }, () => Array(GRID).fill(null));
+        this._ed.pixels = Array.from({ length: this._ed.grid }, () => Array(this._ed.grid).fill(null));
         this._edDraw();
         this._currentDraftId = null;
     },
@@ -520,8 +525,8 @@ export const Marketplace = {
                 const pd = JSON.parse(cvs.dataset.pixels || 'null');
                 if (!pd) return;
                 const ctx = cvs.getContext('2d');
-                const s = 64 / GRID;
-                for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+                const pg = pd.length, s = 64 / pg;
+                for (let y = 0; y < pg; y++) for (let x = 0; x < pg; x++) {
                     if (pd[y] && pd[y][x]) { ctx.fillStyle = pd[y][x]; ctx.fillRect(Math.floor(x*s), Math.floor(y*s), Math.ceil(s), Math.ceil(s)); }
                 }
             } catch(e) {}
@@ -661,8 +666,8 @@ export const Marketplace = {
         inner.querySelectorAll('.mks-item-preview').forEach(cvs => {
             const pd = JSON.parse(cvs.dataset.pixels);
             const ctx = cvs.getContext('2d');
-            const sz = 48, s = sz / GRID;
-            for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+            const pg = pd.length, sz = 48, s = sz / pg;
+            for (let y = 0; y < pg; y++) for (let x = 0; x < pg; x++) {
                 if (pd[y] && pd[y][x]) { ctx.fillStyle = pd[y][x]; ctx.fillRect(Math.floor(x * s), Math.floor(y * s), Math.ceil(s), Math.ceil(s)); }
             }
         });

@@ -1,6 +1,6 @@
 import { Player } from './player.js';
 import { CharRender } from './char-render.js';
-import { GRID, CANVAS_PX, CELL } from './constants.js';
+import { CANVAS_PX } from './constants.js';
 import { esc } from './sanitize.js';
 import { ShopData } from './shop-data.js';
 import { ShopFitting, setFittingMarketplace } from './shop-fitting.js';
@@ -514,7 +514,9 @@ export const Shop = {
         ce.color = '#6C5CE7';
         ce.trialColor = null;
         ce.trialId = null;
-        ce.pixels = Player.pixels ? Player.pixels.map(r=>[...r]) : Array.from({length:GRID},()=>Array(GRID).fill(null));
+        ce.grid = Player.pixels ? Player.pixels.length : 32;
+        ce.cell = CANVAS_PX / ce.grid;
+        ce.pixels = Player.pixels ? Player.pixels.map(r=>[...r]) : Array.from({length:ce.grid},()=>Array(ce.grid).fill(null));
         ce.origPixels = ce.pixels.map(r=>[...r]);
         ce.drawing = false;
 
@@ -541,8 +543,8 @@ export const Shop = {
         const scale = Math.min(dispW/CANVAS_PX, dispH/CANVAS_PX);
         const offX = (dispW - CANVAS_PX*scale)/2, offY = (dispH - CANVAS_PX*scale)/2;
         const mx = (e.clientX - r.left - offX)/scale, my = (e.clientY - r.top - offY)/scale;
-        const x = Math.floor(mx/CELL), y = Math.floor(my/CELL);
-        if(x<0||x>=GRID||y<0||y>=GRID) return;
+        const x = Math.floor(mx/ce.cell), y = Math.floor(my/ce.cell);
+        if(x<0||x>=ce.grid||y<0||y>=ce.grid) return;
         if(ce.tool==='pen') ce.pixels[y][x] = ce.color;
         else if(ce.tool==='eraser') ce.pixels[y][x] = null;
         else if(ce.tool==='fill') this.ceFlood(x,y,ce.pixels[y][x],ce.color);
@@ -551,7 +553,7 @@ export const Shop = {
 
     ceFlood(x,y,target,rep){
         const ce = this.ce;
-        if(target===rep||x<0||x>=GRID||y<0||y>=GRID||ce.pixels[y][x]!==target) return;
+        if(target===rep||x<0||x>=ce.grid||y<0||y>=ce.grid||ce.pixels[y][x]!==target) return;
         ce.pixels[y][x]=rep;
         this.ceFlood(x+1,y,target,rep);this.ceFlood(x-1,y,target,rep);
         this.ceFlood(x,y+1,target,rep);this.ceFlood(x,y-1,target,rep);
@@ -562,17 +564,18 @@ export const Shop = {
         const cvs = document.getElementById('color-editor-canvas');
         if(!cvs) return;
         const ctx = cvs.getContext('2d');
+        const g = ce.grid, cl = ce.cell;
         ctx.clearRect(0,0,CANVAS_PX,CANVAS_PX);
-        for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++) if(ce.pixels[y][x]){
-            ctx.fillStyle=ce.pixels[y][x]; ctx.fillRect(x*CELL,y*CELL,CELL,CELL);
+        for(let y=0;y<g;y++) for(let x=0;x<g;x++) if(ce.pixels[y][x]){
+            ctx.fillStyle=ce.pixels[y][x]; ctx.fillRect(x*cl,y*cl,cl,cl);
         }
         // Grid lines
         ctx.strokeStyle='rgba(255,255,255,.08)';ctx.lineWidth=.5;
-        for(let i=0;i<=GRID;i++){ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,CANVAS_PX);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(CANVAS_PX,i*CELL);ctx.stroke();}
+        for(let i=0;i<=g;i++){ctx.beginPath();ctx.moveTo(i*cl,0);ctx.lineTo(i*cl,CANVAS_PX);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cl);ctx.lineTo(CANVAS_PX,i*cl);ctx.stroke();}
         // Preview
         const p=document.getElementById('ce-preview');
-        if(p){p.width=64;p.height=64;const pc=p.getContext('2d');pc.clearRect(0,0,64,64);const s=64/GRID;
-        for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++) if(ce.pixels[y][x]){pc.fillStyle=ce.pixels[y][x];pc.fillRect(Math.floor(x*s),Math.floor(y*s),Math.ceil(s),Math.ceil(s));}}
+        if(p){p.width=64;p.height=64;const pc=p.getContext('2d');pc.clearRect(0,0,64,64);const s=64/g;
+        for(let y=0;y<g;y++) for(let x=0;x<g;x++) if(ce.pixels[y][x]){pc.fillStyle=ce.pixels[y][x];pc.fillRect(Math.floor(x*s),Math.floor(y*s),Math.ceil(s),Math.ceil(s));}}
     },
 
     ceTool(tool, btn){
