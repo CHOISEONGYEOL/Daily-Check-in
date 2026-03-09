@@ -705,7 +705,7 @@ export const Teacher = {
         this._mainTab = tab;
         document.querySelectorAll('.teacher-main-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const tabs = ['teacher-students-tab', 'teacher-market-tab', 'teacher-attendance-tab', 'teacher-perf-tab'];
+        const tabs = ['teacher-students-tab', 'teacher-market-tab', 'teacher-attendance-tab', 'teacher-chatmod-tab', 'teacher-perf-tab'];
         tabs.forEach(id => document.getElementById(id)?.classList.add('hidden'));
         clearInterval(this._perfInterval);
         if (tab === 'students') {
@@ -716,6 +716,9 @@ export const Teacher = {
         } else if (tab === 'attendance') {
             document.getElementById('teacher-attendance-tab').classList.remove('hidden');
             this._initAttendance();
+        } else if (tab === 'chatmod') {
+            document.getElementById('teacher-chatmod-tab').classList.remove('hidden');
+            this._initChatMod();
         } else if (tab === 'perf') {
             document.getElementById('teacher-perf-tab').classList.remove('hidden');
             this._initPerfTab();
@@ -775,4 +778,97 @@ export const Teacher = {
 
 };
 
-Object.assign(Teacher, TeacherAttendance, TeacherMarket);
+// ── 채팅 모더레이션 탭 ──
+const TeacherChatMod = {
+    _initChatMod() {
+        const dateEl = document.getElementById('cm-date');
+        if (dateEl && !dateEl.value) {
+            dateEl.value = new Date().toISOString().slice(0, 10);
+        }
+        // 반 필터 드롭다운 채우기
+        const sel = document.getElementById('cm-class-filter');
+        if (sel && sel.options.length <= 1) {
+            const classes = [...new Set(this.students.map(s => s.className).filter(c => c))].sort();
+            classes.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c; opt.textContent = c;
+                sel.appendChild(opt);
+            });
+        }
+        this.loadChatMod();
+    },
+
+    setChatModToday() {
+        const dateEl = document.getElementById('cm-date');
+        if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+        this.loadChatMod();
+    },
+
+    async loadChatMod() {
+        const date = document.getElementById('cm-date')?.value || '';
+        const className = document.getElementById('cm-class-filter')?.value || '';
+        const view = document.getElementById('cm-view')?.value || 'warnings';
+        const grid = document.getElementById('cm-grid');
+        if (!grid) return;
+
+        grid.innerHTML = '<div class="teacher-empty">로딩 중...</div>';
+
+        const opts = { date, className: className || undefined };
+
+        // 통계 로드
+        const [warnings, kicks, chatLogs] = await Promise.all([
+            DB.getChatWarnings(opts),
+            DB.getChatKicks(opts),
+            DB.getChatLogs({ ...opts, limit: 500 }),
+        ]);
+
+        document.getElementById('cm-warn-count').textContent = warnings.length;
+        document.getElementById('cm-kick-count').textContent = kicks.length;
+        document.getElementById('cm-chat-count').textContent = chatLogs.length;
+
+        let html = '';
+        if (view === 'warnings') {
+            if (!warnings.length) { grid.innerHTML = '<div class="teacher-empty">경고 기록 없음</div>'; return; }
+            html = warnings.map(w => `<div class="cm-card cm-warning">
+                <div class="cm-header"><span class="cm-badge warn">경고 ${esc(String(w.warning_num))}</span>
+                <span class="cm-name">${esc(w.student_name || '')} (${esc(w.student_id)})</span>
+                <span class="cm-class">${esc(w.class_name || '')}</span>
+                <span class="cm-time">${new Date(w.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <div class="cm-msg">${esc(w.message)}</div>
+            </div>`).join('');
+        } else if (view === 'kicks') {
+            if (!kicks.length) { grid.innerHTML = '<div class="teacher-empty">퇴장 기록 없음</div>'; return; }
+            html = kicks.map(k => `<div class="cm-card cm-kick">
+                <div class="cm-header"><span class="cm-badge kick">퇴장</span>
+                <span class="cm-name">${esc(k.student_name || '')} (${esc(k.student_id)})</span>
+                <span class="cm-class">${esc(k.class_name || '')}</span>
+                <span class="cm-time">${new Date(k.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <div class="cm-reason">${esc(k.reason)}</div>
+                <div class="cm-msg">마지막 메시지: ${esc(k.last_message || '')}</div>
+            </div>`).join('');
+        } else if (view === 'blocked') {
+            const blocked = chatLogs.filter(c => c.is_blocked);
+            if (!blocked.length) { grid.innerHTML = '<div class="teacher-empty">차단된 메시지 없음</div>'; return; }
+            html = blocked.map(c => `<div class="cm-card cm-blocked">
+                <div class="cm-header"><span class="cm-badge blocked">차단</span>
+                <span class="cm-name">${esc(c.student_name || '')} (${esc(c.student_id)})</span>
+                <span class="cm-class">${esc(c.class_name || '')}</span>
+                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <div class="cm-msg">${esc(c.message)}</div>
+            </div>`).join('');
+        } else {
+            // all
+            if (!chatLogs.length) { grid.innerHTML = '<div class="teacher-empty">채팅 기록 없음</div>'; return; }
+            html = chatLogs.map(c => `<div class="cm-card ${c.is_blocked ? 'cm-blocked' : ''}">
+                <div class="cm-header">${c.is_blocked ? '<span class="cm-badge blocked">차단</span>' : ''}
+                <span class="cm-name">${esc(c.student_name || '')} (${esc(c.student_id)})</span>
+                <span class="cm-class">${esc(c.class_name || '')}</span>
+                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <div class="cm-msg">${esc(c.message)}</div>
+            </div>`).join('');
+        }
+        grid.innerHTML = html;
+    },
+};
+
+Object.assign(Teacher, TeacherAttendance, TeacherMarket, TeacherChatMod);

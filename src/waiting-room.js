@@ -13,6 +13,9 @@ import { WrBattle } from './wr-battle.js';
 import { Vote } from './vote.js';
 import { DB } from './db.js';
 import { isClean } from './chat-filter.js';
+import { ChatModeration } from './chat-moderation.js';
+
+const MAX_WARNINGS = 2; // 경고 N회 시 퇴장
 import { GameKeyboard } from './game-keyboard.js';
 import { PerfMonitor } from './perf-monitor.js';
 
@@ -219,6 +222,7 @@ export const WaitingRoom = {
             DB.saveTeacherAttendance(Player.studentId, Player.className || '', 'present').catch(()=>{});
         }
         this.chatBubbles = []; this.particles = []; this._elevatorCooldown = 0; this._inSpectator = false;
+        ChatModeration.reset();
         this.cvs = document.getElementById('waiting-canvas');
         this.ctx = this.cvs.getContext('2d');
         this._needsCameraSnap = true;
@@ -466,9 +470,54 @@ export const WaitingRoom = {
     sendChat(text){
         if(!this.player) return;
         if(!text || text.length > 30) return;
-        if(!isClean(text)) return; // 욕설 → 조용히 무시
-        this.chatBubbles.push({x:this.player.x, y:this.player.y-45, text:text, timer:180, follow:this.player, isPlayer:true});
-        this._rtBroadcastChat(text);
+        if(ChatModeration.kicked) {
+            this.chatBubbles.push({x:this.player.x, y:this.player.y-45,
+                text:'[퇴장됨] 채팅이 금지되었습니다', timer:180, follow:this.player, isPlayer:true});
+            return;
+        }
+
+        ChatModeration.check(text).then(result => {
+            if(result.kicked) {
+                // 퇴장: 경고 메시지 + 대기실에서 내보내기
+                this.chatBubbles.push({x:this.player.x, y:this.player.y-45,
+                    text:`경고 ${MAX_WARNINGS}회 누적! 퇴장됩니다.`, timer:300, follow:this.player, isPlayer:true});
+                setTimeout(() => this._kickPlayer(), 2000);
+                return;
+            }
+            if(result.warning) {
+                // 경고 표시 (남은 경고 횟수 안내)
+                this.chatBubbles.push({x:this.player.x, y:this.player.y-45,
+                    text:`[경고 ${result.warning}/${MAX_WARNINGS}] 부적절한 언어 사용!`, timer:240, follow:this.player, isPlayer:true});
+                return;
+            }
+            if(result.allowed) {
+                this.chatBubbles.push({x:this.player.x, y:this.player.y-45, text:text, timer:180, follow:this.player, isPlayer:true});
+                this._rtBroadcastChat(text);
+            }
+        });
+    },
+
+    /** 퇴장 처리 — 대기실에서 강제 퇴출 */
+    _kickPlayer(){
+        if(!this.running) return;
+        // 화면에 퇴장 메시지 표시
+        this.chatBubbles.push({x:this.W/2, y:this.H/2-80,
+            text:`${Player.studentName || Player.nickname}님이 퇴장당했습니다.`, timer:300, follow:null});
+        // 브로드캐스트로 다른 플레이어에게 알림
+        if(this._rtChannel) {
+            this._rtChannel.send({
+                type: 'broadcast', event: 'chat',
+                payload: { sid: String(Player.studentId), text: `[${Player.studentName || Player.nickname}] 퇴장당했습니다.`, system: true }
+            });
+        }
+        // 2초 후 대기실 종료 → 메인 화면으로
+        setTimeout(() => {
+            this.stop();
+            const wrScreen = document.getElementById('screen-waiting');
+            if(wrScreen) wrScreen.classList.add('hidden');
+            const mainScreen = document.getElementById('screen-main');
+            if(mainScreen) mainScreen.classList.remove('hidden');
+        }, 2000);
     },
 
     // ── 모바일 전용: 커스텀 키보드로 채팅 ──

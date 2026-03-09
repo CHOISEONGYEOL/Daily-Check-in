@@ -468,6 +468,7 @@
             <button class="teacher-main-tab active" onclick="Teacher.switchMainTab(this,'students')">👥 학생 관리</button>
             <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'market')">🎨 판매 요청</button>
             <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'attendance')">📅 출결 기록</button>
+            <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'chatmod')">💬 채팅 관리</button>
             <button class="teacher-main-tab" onclick="Teacher.switchMainTab(this,'perf')">📊 성능</button>
         </div>
         <!-- 학생 관리 탭 -->
@@ -536,6 +537,33 @@
             </div>
             <div id="teacher-market-grid" class="teacher-market-grid">
                 <div class="teacher-empty">로딩 중...</div>
+            </div>
+        </div>
+        <!-- 채팅 관리 탭 -->
+        <div id="teacher-chatmod-tab" class="hidden">
+            <div class="teacher-controls" style="margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem">
+                <div class="ta-date-wrap">
+                    <input type="date" id="cm-date" class="ta-date-input" onchange="Teacher.loadChatMod()">
+                    <button class="btn sm blue" onclick="Teacher.setChatModToday()">오늘</button>
+                </div>
+                <select id="cm-class-filter" class="teacher-select" onchange="Teacher.loadChatMod()">
+                    <option value="">전체 반</option>
+                </select>
+                <select id="cm-view" class="teacher-select" onchange="Teacher.loadChatMod()">
+                    <option value="warnings">경고 기록</option>
+                    <option value="kicks">퇴장 기록</option>
+                    <option value="blocked">차단된 메시지</option>
+                    <option value="all">전체 채팅 로그</option>
+                </select>
+                <button class="btn sm purple" onclick="Teacher.loadChatMod()">🔄 새로고침</button>
+            </div>
+            <div class="teacher-stats">
+                <div class="teacher-stat"><span class="teacher-stat-num yellow" id="cm-warn-count">0</span><span class="teacher-stat-label">경고</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num red" id="cm-kick-count">0</span><span class="teacher-stat-label">퇴장</span></div>
+                <div class="teacher-stat"><span class="teacher-stat-num blue" id="cm-chat-count">0</span><span class="teacher-stat-label">메시지</span></div>
+            </div>
+            <div class="teacher-grid" id="cm-grid">
+                <div class="teacher-empty">날짜를 선택하세요</div>
             </div>
         </div>
         <!-- 성능 모니터링 탭 -->

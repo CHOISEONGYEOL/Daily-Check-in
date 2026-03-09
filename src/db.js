@@ -536,5 +536,53 @@ export const DB = {
             .eq('attend_date', date)
             .order('marked_at', { ascending: true });
         return data || [];
-    }
+    },
+
+    // ── 채팅 모더레이션 조회 (교사용) ──
+
+    /** 채팅 로그 조회 (최근 N건, 차단된 메시지만 필터 가능) */
+    async getChatLogs({ date, className, blockedOnly, limit = 100 } = {}) {
+        let q = supabase.from('chat_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (date) {
+            q = q.gte('created_at', date + 'T00:00:00')
+                 .lt('created_at', date + 'T23:59:59.999');
+        }
+        if (className) q = q.eq('class_name', className);
+        if (blockedOnly) q = q.eq('is_blocked', true);
+        const { data } = await q;
+        return data || [];
+    },
+
+    /** 경고 기록 조회 */
+    async getChatWarnings({ date, className, limit = 100 } = {}) {
+        let q = supabase.from('chat_warnings')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (date) {
+            q = q.gte('created_at', date + 'T00:00:00')
+                 .lt('created_at', date + 'T23:59:59.999');
+        }
+        if (className) q = q.eq('class_name', className);
+        const { data } = await q;
+        return data || [];
+    },
+
+    /** 퇴장 기록 조회 */
+    async getChatKicks({ date, className, limit = 100 } = {}) {
+        let q = supabase.from('chat_kicks')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (date) {
+            q = q.gte('created_at', date + 'T00:00:00')
+                 .lt('created_at', date + 'T23:59:59.999');
+        }
+        if (className) q = q.eq('class_name', className);
+        const { data } = await q;
+        return data || [];
+    },
 };
