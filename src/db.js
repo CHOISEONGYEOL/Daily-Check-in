@@ -12,6 +12,8 @@ export const DB = {
     sessionToken: null,  // 단일 기기 제한용 세션 토큰
     _currentIP: null,    // 대리 출석 방지용 IP
     _EXEMPT_IDS: ['77777', '99999'], // 교사/테스트 — 다중 기기 허용
+    _charCache: new Map(),           // 캐릭터 데이터 캐시 (studentId → data)
+    _charCacheExpiry: 60000,         // 캐시 만료 시간 (60초)
 
     // ── 클라이언트 IP 조회 (대리 출석 방지) ────────
     async _getClientIP() {
@@ -30,11 +32,15 @@ export const DB = {
         const isExempt = this._EXEMPT_IDS.includes(studentId);
         const token = isExempt ? null : (existingToken || crypto.randomUUID());
 
-        // ── IP 중복 체크 비활성화 ──
-        // 학교 네트워크에서 동일 공인 IP를 공유하므로 IP 기반 차단 제거
+        // ★ IP 조회를 논블로킹으로 (로그인 지연 방지, 30명 동시 로그인 대응)
         if (!isExempt) {
-            const ip = await this._getClientIP();
-            this._currentIP = ip;
+            this._getClientIP().then(ip => {
+                this._currentIP = ip;
+                // IP를 나중에 DB에 기록 (로그인 흐름 차단 안 함)
+                if (ip && this.userId) {
+                    supabase.from('users').update({ login_ip: ip }).eq('id', this.userId).then(() => {});
+                }
+            }).catch(() => {});
         }
 
         // 1) 기존 유저 찾기
@@ -53,16 +59,25 @@ export const DB = {
             if (user.nickname && user.nickname !== nickname) {
                 return { user: null, isNew: false, error: 'nickname_mismatch' };
             }
+            // 닉네임이 초기화된 경우 (교사 삭제 등): 새 닉네임 중복 체크 후 설정
+            if (!user.nickname && nickname) {
+                const { data: dup } = await supabase
+                    .from('users').select('id').eq('nickname', nickname).limit(1).maybeSingle();
+                if (dup) return { user: null, isNew: false, error: 'nickname_taken' };
+                await supabase.from('users').update({ nickname }).eq('id', user.id);
+                user.nickname = nickname;
+            }
             this.userId = user.id;
             this.sessionToken = token;
             this.ready = true;
-            // 세션 토큰 + IP 기록
+            // ★ 세션 토큰 기록 (IP 조회 완료를 기다리지 않음)
             if (!isExempt) {
                 const upd = { session_token: token };
-                if (this._currentIP) upd.login_ip = this._currentIP;
-                await supabase.from('users')
+                supabase.from('users')
                     .update(upd)
-                    .eq('id', user.id);
+                    .eq('id', user.id)
+                    .then(() => {})
+                    .catch(e => console.warn('[DB] session token update failed:', e));
             }
             this._startHeartbeat();
             return { user, isNew: false };
@@ -293,16 +308,21 @@ export const DB = {
         return data; // new balance
     },
 
-    // ── Heartbeat: 세션 토큰 검증만 (60초마다, DB Write 없음) ──
+    // ── Heartbeat: 세션 토큰 검증 (첫 체크는 로그인 후 90초 뒤, 이후 60초마다) ──
     // 접속 상태(online/offline)는 Supabase Presence가 담당
     _startHeartbeat() {
-        this._sendHeartbeat();
         clearInterval(this._heartbeatId);
-        this._heartbeatId = setInterval(() => this._sendHeartbeat(), 60000);
+        this._heartbeatMismatchCount = 0;
+        // ★ 첫 heartbeat는 90초 뒤 (30명 동시 로그인 시 세션 토큰 DB 반영 지연 대응)
+        this._heartbeatId = setTimeout(() => {
+            this._sendHeartbeat();
+            this._heartbeatId = setInterval(() => this._sendHeartbeat(), 60000);
+        }, 90000);
     },
 
     stopHeartbeat() {
         clearInterval(this._heartbeatId);
+        clearTimeout(this._heartbeatId);
         this._heartbeatId = null;
     },
 
@@ -320,21 +340,30 @@ export const DB = {
     async _sendHeartbeat() {
         if (!this.userId) return;
 
-        // DB WRITE (last_active update) 완전 삭제!
-        // 접속 상태는 Supabase Realtime Presence로 추적
-
-        // 세션 토큰 검증만 수행 (Read Only — 면제 계정 제외)
+        // 세션 토큰 검증 (Read Only — 면제 계정 제외)
         if (this.sessionToken) {
             try {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('users')
                     .select('session_token')
                     .eq('id', this.userId)
                     .single();
-                if (data && data.session_token !== this.sessionToken) {
-                    this._onSessionRevoked();
+                // ★ DB 오류 시 무시 (네트워크 일시 장애로 킥 방지)
+                if (error) {
+                    console.warn('[DB] heartbeat query failed, skipping:', error.message);
+                    return;
                 }
-            } catch(e) { /* ignore */ }
+                if (data && data.session_token !== this.sessionToken) {
+                    // ★ 연속 2회 불일치 시에만 킥 (일시적 DB 지연 대응)
+                    this._heartbeatMismatchCount = (this._heartbeatMismatchCount || 0) + 1;
+                    console.warn(`[DB] session mismatch ${this._heartbeatMismatchCount}/2`);
+                    if (this._heartbeatMismatchCount >= 2) {
+                        this._onSessionRevoked();
+                    }
+                } else {
+                    this._heartbeatMismatchCount = 0;
+                }
+            } catch(e) { /* ignore network errors */ }
         }
     },
 
@@ -359,15 +388,32 @@ export const DB = {
         return (data || []).map(r => r.game_id);
     },
 
-    // ── 게임 세션 상태 조회 (반별) ──────────────────
+    // ── 게임 세션 상태 조회 (반별, 재시도 포함) ──────────────────
     async isGameOpen(className) {
         const sessionId = className ? 'class_' + className : 'main';
-        const { data } = await supabase
-            .from('game_sessions')
-            .select('is_open')
-            .eq('id', sessionId)
-            .single();
-        return data?.is_open === true;
+        // ★ 최대 3회 재시도 (30명 동시 조회 시 DB 일시 과부하 대응)
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const { data, error } = await supabase
+                    .from('game_sessions')
+                    .select('is_open')
+                    .eq('id', sessionId)
+                    .single();
+                if (error && attempt < 2) {
+                    await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+                    continue;
+                }
+                return data?.is_open === true;
+            } catch(e) {
+                if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+                    continue;
+                }
+                console.error('[DB] isGameOpen failed after retries:', e);
+                return false;
+            }
+        }
+        return false;
     },
 
     async getWrMode(className) {
@@ -506,28 +552,42 @@ export const DB = {
         if (error) console.error('saveTeacherAttendance error:', error);
     },
 
-    // ── 원격 플레이어 캐릭터 조회 (실시간 멀티플레이어용) ──
+    // ── 원격 플레이어 캐릭터 조회 (캐시 적용, 동시 접속 시 DB 부하 방지) ──
     async getPlayerCharacterByStudentId(studentId) {
-        const { data: user } = await supabase
-            .from('users')
-            .select('id, nickname, active_title, active_char_idx')
-            .eq('student_id', studentId)
-            .single();
-        if (!user) return null;
-        const { data: char } = await supabase
-            .from('characters')
-            .select('pixels, hat, effect, pet')
-            .eq('user_id', user.id)
-            .eq('slot_index', user.active_char_idx ?? 0)
-            .single();
-        return {
-            nickname: user.nickname,
-            activeTitle: user.active_title,
-            pixels: char?.pixels || null,
-            hat: char?.hat || null,
-            effect: char?.effect || null,
-            pet: char?.pet || null,
-        };
+        // 캐시 확인
+        const cached = this._charCache.get(studentId);
+        if (cached && Date.now() - cached.ts < this._charCacheExpiry) {
+            return cached.data;
+        }
+
+        try {
+            const { data: user } = await supabase
+                .from('users')
+                .select('id, nickname, active_title, active_char_idx')
+                .eq('student_id', studentId)
+                .single();
+            if (!user) return null;
+            const { data: char } = await supabase
+                .from('characters')
+                .select('pixels, hat, effect, pet')
+                .eq('user_id', user.id)
+                .eq('slot_index', user.active_char_idx ?? 0)
+                .single();
+            const result = {
+                nickname: user.nickname,
+                activeTitle: user.active_title,
+                pixels: char?.pixels || null,
+                hat: char?.hat || null,
+                effect: char?.effect || null,
+                pet: char?.pet || null,
+            };
+            // 캐시 저장
+            this._charCache.set(studentId, { data: result, ts: Date.now() });
+            return result;
+        } catch(e) {
+            console.warn('[DB] getPlayerCharacter failed:', studentId, e);
+            return cached?.data || null; // 실패 시 만료된 캐시라도 반환
+        }
     },
 
     async loadTeacherAttendance(date) {

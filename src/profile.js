@@ -2,6 +2,7 @@ import { Player } from './player.js';
 import { CharRender } from './char-render.js';
 import { DB } from './db.js';
 import { AppPresence } from './app-presence.js';
+import { isNicknameClean } from './chat-filter.js';
 
 let Nav = null;
 export function setNav(n) { Nav = n; }
@@ -16,6 +17,13 @@ export const ProfileSetup = {
         const err = document.getElementById('ps-error');
         if (!nick || !sid || !sname) {
             if (err) { err.textContent = '모든 항목을 입력해주세요!'; err.classList.remove('hidden'); }
+            return;
+        }
+
+        // 닉네임 부적절 검사
+        if (!isNicknameClean(nick)) {
+            const nickErr = document.getElementById('ps-nick-error');
+            if (nickErr) { nickErr.textContent = '⚠️ 부적절한 닉네임입니다! 욕설, 비속어, 실명(정치인 등)은 사용할 수 없습니다.'; nickErr.classList.remove('hidden'); }
             return;
         }
 
@@ -112,6 +120,10 @@ export const ProfileSetup = {
             if(msg) { msg.textContent = '모든 항목을 입력해주세요!'; msg.className = 'pe-msg error'; }
             return;
         }
+        if(!isNicknameClean(nick)) {
+            if(msg) { msg.textContent = '⚠️ 부적절한 닉네임입니다! 욕설, 비속어, 실명(정치인 등)은 사용할 수 없습니다.'; msg.className = 'pe-msg error'; }
+            return;
+        }
         Player.nickname = nick;
         Player.studentId = sid;
         Player.studentName = sname;
@@ -165,6 +177,10 @@ export const ProfileSetup = {
         if(!newName || !newName.trim()) return;
         const trimmed = newName.trim().slice(0, 12);
         if(trimmed === ch.name) return;
+        if(!isNicknameClean(trimmed)) {
+            alert('⚠️ 부적절한 이름입니다! 욕설, 비속어, 실명(정치인 등)은 사용할 수 없습니다.');
+            return;
+        }
         const ticketIdx = Player.owned.indexOf(this.RENAME_ITEM_ID);
         if(ticketIdx !== -1) Player.owned.splice(ticketIdx, 1);
         ch.name = trimmed;

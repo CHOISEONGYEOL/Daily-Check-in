@@ -66,7 +66,7 @@
 .wr-keys-guide{position:absolute;top:48px;right:8px;z-index:18;background:rgba(15,15,30,.88);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 14px;min-width:180px;backdrop-filter:blur(8px);pointer-events:auto;}
 .kguide-title{font-size:.75rem;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:6px;text-align:center;}
 .kguide-section{margin-bottom:6px;}
-.kguide-label{font-size:.6rem;color:rgba(255,215,0,.6);font-weight:700;margin:4px 0 2px;}
+.kguide-label{font-size:.6rem;color:rgba(255,215,0,.6);font-weight:700;margin:4px 0 2px;}.kguide-battle{border-top:1px solid rgba(255,215,0,.15);padding-top:4px;}
 .kguide-row{display:flex;align-items:center;gap:4px;font-size:.65rem;color:rgba(255,255,255,.75);margin:2px 0;flex-wrap:wrap;}
 .kguide-row span{margin-left:auto;color:rgba(255,255,255,.5);font-size:.6rem;}
 .kguide-row kbd{display:inline-block;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);font-size:.6rem;font-family:inherit;min-width:18px;text-align:center;color:#fff;}
@@ -199,7 +199,7 @@
 
 /* ===== GAME-RELATED MEDIA QUERIES ===== */
 @media(max-width:650px){.hud-gauge{width:120px;}.otp-code{font-size:1.6rem;letter-spacing:5px;}.two-track-info{flex-direction:column;align-items:center;}.track-card{max-width:100%;}}
-@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}.wr-keys-toggle{display:none;}.wr-keys-guide{display:none!important;}
+@media(hover:none){.mobile-controls{display:flex;}.wr-mobile-controls{display:flex;}
 .btn.sm{min-height:44px;min-width:44px;padding:.5rem 1rem;font-size:.85rem;}
 }
 @media(hover:hover){.mobile-controls{display:none;}.wr-mobile-controls{display:none;}}
@@ -243,6 +243,7 @@ body.touch-device #game.screen.active{
     width:100vh;height:100vw;
     transform:translate(-50%,-50%) rotate(90deg);
     z-index:1000;overflow:hidden;
+    background:var(--darker);
 }
 }
 

@@ -7,10 +7,21 @@ import { Templates, parseTemplate } from './templates.js';
 import { DB } from './db.js';
 import { PerfMonitor } from './perf-monitor.js';
 import { Vote } from './vote.js';
+import { ChatModeration } from './chat-moderation.js';
 
+const MAX_WARNINGS = 2;       // 경고 N회 시 퇴장 (chat-moderation과 동일)
 const POS_HEARTBEAT = 1000;   // 위치 heartbeat 주기 (1초) — 안전망
 const POS_MIN_INTERVAL = 100;
 const BALL_HEARTBEAT = 1000;  // 공 heartbeat 주기 (1초)
+
+// ── 동시 접속 안정화 상수 ──
+const SUBSCRIBE_MAX_RETRIES = 5;        // 채널 구독 최대 재시도 횟수
+const SUBSCRIBE_RETRY_BASE_MS = 1000;   // 재시도 기본 대기 (지수 백오프)
+const SUBSCRIBE_JITTER_MS = 2000;       // 재시도 랜덤 지터 (thundering herd 방지)
+const SPRITE_BATCH_DELAY = 100;         // 스프라이트 로드 배치 간격 (ms)
+const SPRITE_BATCH_SIZE = 5;            // 한 번에 로드할 스프라이트 수
+const RECONNECT_CHECK_INTERVAL = 5000;  // 연결 상태 체크 주기 (5초)
+const CONNECTION_STAGGER_MS = 300;      // 초기 연결 시 랜덤 지연 (0~300ms)
 
 // ── 관람석 바운스 디버그 (F9 토글) ──
 let _specDebug = false;
@@ -51,25 +62,67 @@ export const WrRealtime = {
     _rtLastBallVxSign: 0,      // 마지막 전송한 공 vx 부호
     _rtLastBallVySign: 0,      // 마지막 전송한 공 vy 부호
 
+    // ── 채널 구독 (지수 백오프 재시도 + 지터) ──
+    _rtSubscribeWithRetry(channel, onSubscribed, retryCount = 0) {
+        channel.subscribe(async (status) => {
+            console.log(`[RT] subscribe: ${status} (attempt ${retryCount + 1})`);
+            if (status === 'SUBSCRIBED') {
+                this._rtRetryCount = 0;
+                if (onSubscribed) await onSubscribed();
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn(`[RT] channel ${status}, retry ${retryCount + 1}/${SUBSCRIBE_MAX_RETRIES}`);
+                if (retryCount < SUBSCRIBE_MAX_RETRIES && this.running) {
+                    const delay = SUBSCRIBE_RETRY_BASE_MS * Math.pow(2, retryCount)
+                                + Math.random() * SUBSCRIBE_JITTER_MS;
+                    console.log(`[RT] retrying in ${Math.round(delay)}ms...`);
+                    setTimeout(() => {
+                        if (!this.running) return;
+                        // 기존 채널 정리 후 재생성
+                        try {
+                            channel.unsubscribe();
+                            supabase.removeChannel(channel);
+                        } catch(e) { /* ignore */ }
+                        this._rtDoInit(retryCount + 1);
+                    }, delay);
+                } else {
+                    this._rtStatus = 'error';
+                    console.error(`[RT] 채널 연결 실패 — ${SUBSCRIBE_MAX_RETRIES}회 재시도 후 포기`);
+                    PerfMonitor.logError(`RT 채널 연결 실패 (${SUBSCRIBE_MAX_RETRIES}회 재시도)`);
+                }
+            }
+        });
+    },
+
     // ── 채널 초기화 ──
     rtInit() {
         if (this._rtChannel) this.rtDestroy();
-        this.remotePlayers = new Map();
+        // 동시 접속 thundering herd 방지: 랜덤 지연 후 연결
+        const stagger = Math.random() * CONNECTION_STAGGER_MS;
+        console.log(`[RT] init with ${Math.round(stagger)}ms stagger delay`);
+        this._rtInitTimer = setTimeout(() => this._rtDoInit(0), stagger);
+    },
+
+    _rtDoInit(retryCount) {
+        this.remotePlayers = this.remotePlayers || new Map();
         this._rtStatus = 'connecting';
         this._rtLastSendTime = 0;
         this._rtLastSentX = 0;
         this._rtLastSentY = 0;
+        this._rtRetryCount = retryCount;
         // ★ 게임 런치 동기화 상태 초기화
         this._gameLaunchReceived = false;
         this._gameChannelId = null;
         this._gameChannel = null;
         this._gameChannelReady = false;
+        // ★ 스프라이트 로드 큐 초기화
+        this._spriteLoadQueue = [];
+        this._spriteLoadRunning = false;
 
         const className = this.godMode
             ? (this._teacherClassName || '')
             : (Player.className || '');
         const channelName = `wr:${className || 'main'}`;
-        console.log('[RT] init channel=' + channelName + ' sid=' + Player.studentId);
+        console.log(`[RT] init channel=${channelName} sid=${Player.studentId} attempt=${retryCount + 1}`);
 
         const channel = supabase.channel(channelName, {
             config: { broadcast: { self: false }, presence: { key: String(Player.studentId) } }
@@ -109,6 +162,15 @@ export const WrRealtime = {
                 window.Game._onCwRemoteProgress(payload);
             }
         });
+        // ★ 교사 수동 경고/퇴장
+        channel.on('broadcast', { event: 'teacher_warn' }, ({ payload }) => { this._rtOnTeacherWarn(payload); });
+        channel.on('broadcast', { event: 'teacher_kick' }, ({ payload }) => { this._rtOnTeacherKick(payload); });
+        // ★ 교사 강제 재로그인 (아이디 삭제)
+        channel.on('broadcast', { event: 'force_relogin' }, ({ payload }) => {
+            if (payload?.targetSid === String(Player.studentId)) {
+                window.dispatchEvent(new CustomEvent('force-relogin'));
+            }
+        });
 
         // Presence 수신
         channel.on('presence', { event: 'sync' }, () => this._rtOnPresenceSync());
@@ -121,48 +183,103 @@ export const WrRealtime = {
             this._rtOnPresenceLeave(key);
         });
 
-        channel.subscribe(async (status) => {
-            console.log('[RT] subscribe:', status);
-            if (status === 'SUBSCRIBED') {
-                this._rtStatus = 'connected';
-                try {
-                    if (!this.godMode) {
-                        await channel.track({
-                            studentId: String(Player.studentId),
-                            nickname: Player.nickname || '',
-                            activeTitle: Player.activeTitle || '',
-                            hat: Player.equipped?.hat || null,
-                            effect: Player.equipped?.effect || null,
-                            pet: Player.equipped?.pet || null,
-                            isTeacher: false,
-                        });
-                        console.log('[RT] tracked OK');
-                    } else {
-                        await channel.track({
-                            studentId: String(Player.studentId || '77777'),
-                            nickname: '선생님',
-                            isTeacher: true,
-                        });
-                    }
-                } catch (e) {
-                    console.error('[RT] track error:', e);
-                    this._rtStatus = 'error';
-                }
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                this._rtStatus = 'error';
-                console.error('[RT] channel error:', status);
-            }
-        });
-
         this._rtChannel = channel;
+
+        // ★ 지수 백오프 재시도로 구독
+        this._rtSubscribeWithRetry(channel, async () => {
+            this._rtStatus = 'connected';
+            try {
+                if (!this.godMode) {
+                    await channel.track({
+                        studentId: String(Player.studentId),
+                        nickname: Player.nickname || '',
+                        activeTitle: Player.activeTitle || '',
+                        hat: Player.equipped?.hat || null,
+                        effect: Player.equipped?.effect || null,
+                        pet: Player.equipped?.pet || null,
+                        isTeacher: false,
+                    });
+                    console.log('[RT] tracked OK');
+                } else {
+                    await channel.track({
+                        studentId: String(Player.studentId || '77777'),
+                        nickname: '선생님',
+                        isTeacher: true,
+                    });
+                }
+            } catch (e) {
+                console.error('[RT] track error:', e);
+                // track 실패도 재시도
+                setTimeout(async () => {
+                    if (!this._rtChannel || this._rtStatus !== 'connected') return;
+                    try {
+                        if (!this.godMode) {
+                            await this._rtChannel.track({
+                                studentId: String(Player.studentId),
+                                nickname: Player.nickname || '',
+                                activeTitle: Player.activeTitle || '',
+                                hat: Player.equipped?.hat || null,
+                                effect: Player.equipped?.effect || null,
+                                pet: Player.equipped?.pet || null,
+                                isTeacher: false,
+                            });
+                            console.log('[RT] track retry OK');
+                        }
+                    } catch(e2) {
+                        console.error('[RT] track retry failed:', e2);
+                        this._rtStatus = 'error';
+                    }
+                }, 2000 + Math.random() * 1000);
+            }
+            // ★ 연결 상태 모니터링 시작
+            this._rtStartHealthCheck();
+        }, retryCount);
+
         // Event-driven: setInterval 없음 — 상태 변화 시 _rtCheckAndSendPos()에서 전송
+    },
+
+    // ── 연결 상태 모니터링 (자동 재연결) ──
+    _rtStartHealthCheck() {
+        clearInterval(this._rtHealthCheckId);
+        this._rtHealthCheckId = setInterval(() => {
+            if (!this.running) {
+                clearInterval(this._rtHealthCheckId);
+                return;
+            }
+            if (!this._rtChannel) return;
+
+            // 이미 재연결 진행 중이면 스킵 (이중 재연결 방지)
+            if (this._rtStatus === 'connecting') return;
+
+            // Supabase channel 내부 상태 확인
+            const state = this._rtChannel.state;
+            if (state === 'closed' || state === 'errored') {
+                console.warn(`[RT] health check: channel state=${state}, reconnecting...`);
+                PerfMonitor.logError(`RT 연결 끊김 (state=${state}), 재연결 시도`);
+                this._rtStatus = 'connecting';
+                // 기존 채널 정리 후 재연결
+                try {
+                    this._rtChannel.unsubscribe();
+                    supabase.removeChannel(this._rtChannel);
+                } catch(e) { /* ignore */ }
+                this._rtChannel = null;
+                this._rtDoInit(0);
+            }
+        }, RECONNECT_CHECK_INTERVAL);
     },
 
     // ── 채널 해제 ──
     rtDestroy() {
+        // 타이머 정리
+        clearTimeout(this._rtInitTimer);
+        clearInterval(this._rtHealthCheckId);
+        this._rtHealthCheckId = null;
+
         if (this._rtChannel) {
-            this._rtChannel.unsubscribe();
-            supabase.removeChannel(this._rtChannel);
+            try {
+                this._rtChannel.unsubscribe();
+                supabase.removeChannel(this._rtChannel);
+            } catch(e) { /* ignore */ }
             this._rtChannel = null;
         }
         if (this.remotePlayers) this.remotePlayers.clear();
@@ -170,17 +287,23 @@ export const WrRealtime = {
         this._rtRemoteArrayDirty = true;
         this._isHost = false;
         this._rtStatus = 'disconnected';
+        this._spriteLoadQueue = [];
+        this._spriteLoadRunning = false;
         // 대기 중이던 게임 채널도 정리
         if(this._gameChannel){
-            this._gameChannel.unsubscribe();
-            supabase.removeChannel(this._gameChannel);
+            try {
+                this._gameChannel.unsubscribe();
+                supabase.removeChannel(this._gameChannel);
+            } catch(e) { /* ignore */ }
             this._gameChannel = null;
             this._gameChannelReady = false;
         }
         // ★ 백업 WR 채널 정리 (게임 중 shutdown 수신용)
         if(this._wrBackupChannel){
-            this._wrBackupChannel.unsubscribe();
-            supabase.removeChannel(this._wrBackupChannel);
+            try {
+                this._wrBackupChannel.unsubscribe();
+                supabase.removeChannel(this._wrBackupChannel);
+            } catch(e) { /* ignore */ }
             this._wrBackupChannel = null;
         }
     },
@@ -241,8 +364,12 @@ export const WrRealtime = {
         }
     },
 
-    _rtPrepareGameChannel(channelId) {
-        if(this._gameChannel) return; // 이미 준비 중
+    _rtPrepareGameChannel(channelId, retryCount = 0) {
+        if(this._gameChannel && this._gameChannelReady) return; // 이미 준비 완료
+        // 이전 시도 정리
+        if(this._gameChannel) {
+            try { this._gameChannel.unsubscribe(); supabase.removeChannel(this._gameChannel); } catch(e){}
+        }
 
         const channel = supabase.channel(channelId, {
             config: { broadcast: { self: false }, presence: { key: String(Player.studentId) } }
@@ -269,9 +396,18 @@ export const WrRealtime = {
         this._gameChannelReady = false;
 
         channel.subscribe((status) => {
-            console.log('[RT] game channel subscribe:', status);
+            console.log(`[RT] game channel subscribe: ${status} (attempt ${retryCount + 1})`);
             if(status === 'SUBSCRIBED'){
                 this._gameChannelReady = true;
+            } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && retryCount < SUBSCRIBE_MAX_RETRIES) {
+                const delay = SUBSCRIBE_RETRY_BASE_MS * Math.pow(2, retryCount) + Math.random() * SUBSCRIBE_JITTER_MS;
+                console.warn(`[RT] game channel failed, retry in ${Math.round(delay)}ms`);
+                setTimeout(() => {
+                    if (!this.running) return;
+                    try { channel.unsubscribe(); supabase.removeChannel(channel); } catch(e){}
+                    this._gameChannel = null;
+                    this._rtPrepareGameChannel(channelId, retryCount + 1);
+                }, delay);
             }
         });
     },
@@ -346,7 +482,7 @@ export const WrRealtime = {
 
         const movedFar = Math.abs(P.x - this._rtLastSentX) >= 12 || Math.abs(P.y - this._rtLastSentY) >= 12;
         const elapsed = now - this._rtLastSendTime;
-        const burstMinInterval = 33;
+        const burstMinInterval = 100; // 30명 대응: 33ms→100ms (초당 10회, 채널 부하 1/3)
         const minInterval = (changed || movedFar) ? burstMinInterval : POS_MIN_INTERVAL;
         if (elapsed < minInterval) return;
 
@@ -596,6 +732,43 @@ export const WrRealtime = {
         });
     },
 
+    // ── 교사 수동 경고 수신 ──
+    _rtOnTeacherWarn(data) {
+        if (!data || !this.player) return;
+        if (data.targetSid !== String(Player.studentId)) return;
+        // 경고 카운트 증가
+        ChatModeration.warnings++;
+        const wn = ChatModeration.warnings;
+        // 화면에 경고 메시지 표시
+        this.chatBubbles.push({
+            x: this.player.x, y: this.player.y - 45,
+            text: `[교사 경고 ${wn}/${MAX_WARNINGS}] 부적절한 채팅!`,
+            timer: 300, follow: this.player, isPlayer: true
+        });
+        if (ChatModeration.warnings >= MAX_WARNINGS) {
+            ChatModeration.kicked = true;
+            this.chatBubbles.push({
+                x: this.player.x, y: this.player.y - 45,
+                text: `경고 ${MAX_WARNINGS}회 누적! 퇴장됩니다.`,
+                timer: 300, follow: this.player, isPlayer: true
+            });
+            setTimeout(() => this._kickPlayer(), 2000);
+        }
+    },
+
+    // ── 교사 수동 퇴장 수신 ──
+    _rtOnTeacherKick(data) {
+        if (!data || !this.player) return;
+        if (data.targetSid !== String(Player.studentId)) return;
+        ChatModeration.kicked = true;
+        this.chatBubbles.push({
+            x: this.player.x, y: this.player.y - 45,
+            text: '교사에 의해 퇴장됩니다.',
+            timer: 300, follow: this.player, isPlayer: true
+        });
+        setTimeout(() => this._kickPlayer(), 2000);
+    },
+
     // ── 원격 이모트 수신 ──
     _rtOnRemoteEmote(data) {
         if (!data || data.sid === String(Player.studentId) || !this.remotePlayers) return;
@@ -707,13 +880,13 @@ export const WrRealtime = {
     },
 
     // ── Presence 접속 ──
-    async _rtOnPresenceJoin(key, presence) {
+    _rtOnPresenceJoin(key, presence) {
         console.log('[RT] join:', key, presence?.nickname);
         if (!presence || String(presence.studentId) === String(Player.studentId)) return;
         if (presence.isTeacher) return;
 
         if (!this.remotePlayers.has(String(presence.studentId))) {
-            await this._rtCreateRemotePlayer(presence);
+            this._rtCreateRemotePlayer(presence);
         }
 
         this._rtElectHost();
@@ -753,9 +926,10 @@ export const WrRealtime = {
         }
     },
 
-    // ── 원격 플레이어 엔티티 생성 ──
-    async _rtCreateRemotePlayer(presence) {
+    // ── 원격 플레이어 엔티티 생성 (논블로킹, 스프라이트는 큐로 비동기 로드) ──
+    _rtCreateRemotePlayer(presence) {
         const sid = String(presence.studentId);
+        if (this.remotePlayers.has(sid)) return; // 이미 존재하면 스킵
         console.log('[RT] create player:', sid, presence.nickname);
 
         // 스폰 위치: 맵 하단 중앙 근처
@@ -770,27 +944,29 @@ export const WrRealtime = {
             jumpCount: 0, maxJumps: 2,
             emote: null, emoteTimer: 0,
             stunTimer: 0, explodeTimer: 0,
-            team: null, // _rtAssignTeams()에서 균형 배정 (presence.team 사용 시 모두 'left' 되는 버그)
+            team: null,
             sprite: null,
             hat: presence.hat || null,
             effect: presence.effect || null,
             pet: presence.pet || null,
             displayName: presence.nickname || sid,
             activeTitle: presence.activeTitle || '',
-            // 클라이언트 예측 상태
-            _moveDir: 0,    // 입력 방향 (-1/0/1)
-            _corrX: 0,      // lerp 보정 잔량 X
-            _corrY: 0,      // lerp 보정 잔량 Y
+            _moveDir: 0,
+            _corrX: 0,
+            _corrY: 0,
         };
 
         // 배틀 모드 중 입장 시 배틀 필드 초기화
         if (this.battleMode) {
-            rp.hp = 100; // MAX_HP
+            rp.hp = 100;
             rp.kills = 0;
             rp.deaths = 0;
             rp.isDead = false;
-            rp.invincible = 120; // INVINCIBLE_TIME (입장 직후 무적)
+            rp.invincible = 120;
         }
+
+        // ★ 폴백 스프라이트 즉시 설정 (DB 조회 없이 바로 화면에 표시)
+        rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
 
         this.remotePlayers.set(sid, rp);
         this._rtRemoteArrayDirty = true;
@@ -814,26 +990,13 @@ export const WrRealtime = {
             });
         }
 
-        // 스프라이트 비동기 로드 (폴백 먼저 설정)
-        rp.sprite = CharRender.toOffscreen(parseTemplate(Templates[0]), 64);
-
-        try {
-            if (this._rtSpriteCache.has(sid)) {
-                rp.sprite = this._rtSpriteCache.get(sid);
-            } else {
-                const charData = await DB.getPlayerCharacterByStudentId(sid);
-                if (charData && charData.pixels) {
-                    rp.sprite = CharRender.toOffscreen(charData.pixels, 64);
-                    rp.hat = charData.hat;
-                    rp.effect = charData.effect;
-                    rp.pet = charData.pet;
-                    rp.displayName = charData.nickname || sid;
-                    rp.activeTitle = charData.activeTitle || '';
-                    this._rtSpriteCache.set(sid, rp.sprite);
-                }
-            }
-        } catch (e) {
-            console.warn('[RT] sprite load fail:', sid, e);
+        // ★ 스프라이트 로드를 큐에 추가 (30명 동시 DB 쿼리 방지)
+        if (this._rtSpriteCache.has(sid)) {
+            rp.sprite = this._rtSpriteCache.get(sid);
+        } else {
+            this._spriteLoadQueue = this._spriteLoadQueue || [];
+            this._spriteLoadQueue.push(sid);
+            this._rtProcessSpriteQueue();
         }
 
         // 도착 알림
@@ -844,6 +1007,48 @@ export const WrRealtime = {
         });
 
         if (this.godMode) this._updateWrStudentList();
+    },
+
+    // ── 스프라이트 배치 로드 (DB 과부하 방지) ──
+    _rtProcessSpriteQueue() {
+        if (this._spriteLoadRunning || !this._spriteLoadQueue || this._spriteLoadQueue.length === 0) return;
+        this._spriteLoadRunning = true;
+
+        const processBatch = async () => {
+            while (this._spriteLoadQueue && this._spriteLoadQueue.length > 0) {
+                const batch = this._spriteLoadQueue.splice(0, SPRITE_BATCH_SIZE);
+                const promises = batch.map(async (sid) => {
+                    if (this._rtSpriteCache.has(sid)) {
+                        const rp = this.remotePlayers?.get(sid);
+                        if (rp) rp.sprite = this._rtSpriteCache.get(sid);
+                        return;
+                    }
+                    try {
+                        const charData = await DB.getPlayerCharacterByStudentId(sid);
+                        const rp = this.remotePlayers?.get(sid);
+                        if (rp && charData && charData.pixels) {
+                            rp.sprite = CharRender.toOffscreen(charData.pixels, 64);
+                            rp.hat = charData.hat;
+                            rp.effect = charData.effect;
+                            rp.pet = charData.pet;
+                            rp.displayName = charData.nickname || sid;
+                            rp.activeTitle = charData.activeTitle || '';
+                            this._rtSpriteCache.set(sid, rp.sprite);
+                        }
+                    } catch (e) {
+                        console.warn('[RT] sprite load fail:', sid, e);
+                    }
+                });
+                await Promise.all(promises);
+                // 다음 배치 전 잠시 대기 (DB 부하 분산)
+                if (this._spriteLoadQueue.length > 0) {
+                    await new Promise(r => setTimeout(r, SPRITE_BATCH_DELAY));
+                }
+            }
+            this._spriteLoadRunning = false;
+        };
+
+        processBatch();
     },
 
     // ── 호스트 선출 ──

@@ -130,6 +130,20 @@ export const WrBattle = {
         const battleBtns = document.getElementById('wr-battle-btns');
         if (battleBtns) battleBtns.style.display = '';
 
+        // PC: 배틀 키 가이드 표시 + 자동으로 잠깐 열어서 알려주기
+        const kgBattle = document.getElementById('kguide-battle');
+        if (kgBattle) kgBattle.style.display = '';
+        const kgPanel = document.getElementById('wr-keys-guide');
+        const kgToggle = document.getElementById('wr-keys-toggle');
+        if (kgPanel && kgToggle && kgPanel.classList.contains('hidden')) {
+            kgPanel.classList.remove('hidden');
+            kgToggle.classList.add('active');
+            setTimeout(() => {
+                kgPanel.classList.add('hidden');
+                kgToggle.classList.remove('active');
+            }, 5000);
+        }
+
         // Hide ball + clear active gimmicks
         this.ball = null;
         this.ballGameStarted = false;
@@ -164,6 +178,9 @@ export const WrBattle = {
         this.battleMode = false;
         const battleBtns = document.getElementById('wr-battle-btns');
         if (battleBtns) battleBtns.style.display = 'none';
+        // PC: 배틀 키 가이드 숨기기
+        const kgBattle = document.getElementById('kguide-battle');
+        if (kgBattle) kgBattle.style.display = 'none';
         this._battleProjectiles = [];
         this._battleParticles = [];
         this._projPool = null;

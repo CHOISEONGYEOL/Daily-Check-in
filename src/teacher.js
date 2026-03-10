@@ -194,26 +194,34 @@ export const Teacher = {
                 if (entry && entry.channel) {
                     entry.channel.send({ type: 'broadcast', event: 'shutdown', payload: {} });
                 }
-                // ★ 게임 채널에도 game_end 브로드캐스트 (게임 중인 학생의 물리/렌더 루프 클린업)
+                // ★ 게임 채널에도 game_end 브로드캐스트 (순차적으로, 동시 채널 생성 방지)
                 const gameIds = ['picopark', 'numbermatch', 'maze', 'escaperoom', 'crossword', 'ollaolla'];
-                const endPromises = gameIds.map(gid => {
+                for (const gid of gameIds) {
                     const chName = `game:${className}_${gid}`;
-                    return new Promise((resolve) => {
-                        try {
+                    try {
+                        await new Promise((resolve) => {
                             const ch = supabase.channel(chName);
-                            const timeout = setTimeout(() => { try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){} resolve(); }, 3000);
+                            const timeout = setTimeout(() => {
+                                try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){}
+                                resolve();
+                            }, 2000);
                             ch.subscribe((status) => {
                                 if (status === 'SUBSCRIBED') {
                                     ch.send({ type: 'broadcast', event: 'game_end', payload: {} });
-                                    setTimeout(() => { clearTimeout(timeout); ch.unsubscribe(); supabase.removeChannel(ch); resolve(); }, 200);
+                                    setTimeout(() => {
+                                        clearTimeout(timeout);
+                                        try { ch.unsubscribe(); supabase.removeChannel(ch); } catch(e){}
+                                        resolve();
+                                    }, 150);
                                 } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                                    clearTimeout(timeout); try { supabase.removeChannel(ch); } catch(e){} resolve();
+                                    clearTimeout(timeout);
+                                    try { supabase.removeChannel(ch); } catch(e){}
+                                    resolve();
                                 }
                             });
-                        } catch(e) { resolve(); }
-                    });
-                });
-                await Promise.all(endPromises);
+                        });
+                    } catch(e) { /* skip failed game channel */ }
+                }
             }
             // DB 성공 → 로컬 상태 반영
             if (newState) {
@@ -312,15 +320,14 @@ export const Teacher = {
         this._populateGameClassSelect();
     },
 
-    // ── 실시간 접속 상태: Presence 구독 ──
-    _rtSubscribe(className) {
+    // ── 실시간 접속 상태: Presence 구독 (재시도 포함) ──
+    _rtSubscribe(className, retryCount = 0) {
         if (this._rtChannels.has(className)) return; // 이미 구독 중
 
         // WaitingRoom이 이미 이 채널을 사용 중이면 공유 모드
         if (WaitingRoom && WaitingRoom.running && WaitingRoom._rtChannel) {
             const wrChannel = WaitingRoom._rtChannel;
             this._rtChannels.set(className, { shared: true, channel: wrChannel });
-            // 공유 채널에서 Presence 읽기 → 폴링으로 처리
             this._rtSyncFromChannel(className, wrChannel);
             return;
         }
@@ -337,7 +344,21 @@ export const Teacher = {
         channel.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 console.log('[Teacher RT] subscribed to', channelName);
-                await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+                try {
+                    await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+                } catch(e) {
+                    console.warn('[Teacher RT] track failed:', e);
+                    setTimeout(async () => {
+                        try { await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' }); } catch(e2){}
+                    }, 2000);
+                }
+            } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && retryCount < 3) {
+                console.warn(`[Teacher RT] ${channelName} ${status}, retry ${retryCount + 1}/3`);
+                try { channel.unsubscribe(); supabase.removeChannel(channel); } catch(e){}
+                this._rtChannels.delete(className);
+                const delay = 1000 * Math.pow(2, retryCount) + Math.random() * 2000;
+                setTimeout(() => this._rtSubscribe(className, retryCount + 1), delay);
+                return;
             }
         });
 
@@ -386,8 +407,8 @@ export const Teacher = {
         this.render();
     },
 
-    // ── 앱 레벨 Presence: 전체 온라인 상태 추적 (app: 채널) ──
-    _appSubscribe(className) {
+    // ── 앱 레벨 Presence: 전체 온라인 상태 추적 (app: 채널, 재시도 포함) ──
+    _appSubscribe(className, retryCount = 0) {
         if (this._appChannels.has(className)) return;
         const channelName = `app:${className || 'main'}`;
         const channel = supabase.channel(channelName, {
@@ -398,7 +419,20 @@ export const Teacher = {
         });
         channel.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+                try {
+                    await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' });
+                } catch(e) {
+                    setTimeout(async () => {
+                        try { await channel.track({ isTeacher: true, studentId: '77777', role: 'dashboard' }); } catch(e2){}
+                    }, 2000);
+                }
+            } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && retryCount < 3) {
+                console.warn(`[Teacher App] ${channelName} ${status}, retry ${retryCount + 1}/3`);
+                try { channel.unsubscribe(); supabase.removeChannel(channel); } catch(e){}
+                this._appChannels.delete(className);
+                const delay = 1000 * Math.pow(2, retryCount) + Math.random() * 2000;
+                setTimeout(() => this._appSubscribe(className, retryCount + 1), delay);
+                return;
             }
         });
         this._appChannels.set(className, channel);
@@ -577,7 +611,10 @@ export const Teacher = {
             if (s.unregistered) {
                 actionBtns = `<button class="t-card-btn t-card-reg" onclick="Teacher.registerStudent('${eSid}','${eName}')">등록</button>`;
             } else {
-                actionBtns = `<button class="t-card-btn t-card-edit" onclick="Teacher.editStudent('${eSid}')">✏️</button><button class="t-card-btn t-card-del" onclick="Teacher.removeStudent('${eSid}','${eName}')">✕</button>`;
+                const nickResetBtn = s.nickname
+                    ? `<button class="t-card-btn t-card-nick-reset" onclick="Teacher.resetNickname('${eSid}','${eName}','${esc(s.className || '')}')">🔑</button>`
+                    : '';
+                actionBtns = `${nickResetBtn}<button class="t-card-btn t-card-edit" onclick="Teacher.editStudent('${eSid}')">✏️</button><button class="t-card-btn t-card-del" onclick="Teacher.removeStudent('${eSid}','${eName}')">✕</button>`;
             }
 
             card.innerHTML = `
@@ -641,6 +678,31 @@ export const Teacher = {
         const ok = await DB.removeFromRoster(sid);
         if (ok) await this.refresh();
         else alert('삭제 실패!');
+    },
+
+    /** 학생 아이디(닉네임) 삭제 — 강제 재설정 */
+    async resetNickname(sid, name, className) {
+        if (!confirm(`"${name}" (${sid})의 아이디(닉네임)를 삭제하시겠습니까?\n\n학생은 강제 퇴장되며, 아이디를 다시 만들어야 합니다.`)) return;
+
+        // DB에서 닉네임 삭제
+        const { error } = await supabase.from('users')
+            .update({ nickname: null })
+            .eq('student_id', sid);
+        if (error) { alert('아이디 삭제 실패: ' + error.message); return; }
+
+        // 접속 중인 학생에게 강제 재로그인 브로드캐스트
+        const appEntry = this._appChannels.get(className);
+        if (appEntry) {
+            appEntry.send({ type: 'broadcast', event: 'force_relogin', payload: { targetSid: sid } });
+        }
+        // 대기실 채널로도 전송 (대기실에 있을 수 있으므로)
+        this._sendTeacherAction(className, {
+            type: 'broadcast', event: 'force_relogin',
+            payload: { targetSid: sid }
+        });
+
+        alert(`${name}의 아이디가 삭제되었습니다.`);
+        await this.refresh();
     },
 
     editStudent(sid) {
@@ -827,6 +889,8 @@ const TeacherChatMod = {
         document.getElementById('cm-chat-count').textContent = chatLogs.length;
 
         let html = '';
+        grid.onclick = null; // 이전 이벤트 핸들러 정리
+        this._cmActionData = null;
         if (view === 'warnings') {
             if (!warnings.length) { grid.innerHTML = '<div class="teacher-empty">경고 기록 없음</div>'; return; }
             html = warnings.map(w => `<div class="cm-card cm-warning">
@@ -849,25 +913,110 @@ const TeacherChatMod = {
         } else if (view === 'blocked') {
             const blocked = chatLogs.filter(c => c.is_blocked);
             if (!blocked.length) { grid.innerHTML = '<div class="teacher-empty">차단된 메시지 없음</div>'; return; }
-            html = blocked.map(c => `<div class="cm-card cm-blocked">
+            html = blocked.map((c, i) => `<div class="cm-card cm-blocked">
                 <div class="cm-header"><span class="cm-badge blocked">차단</span>
                 <span class="cm-name">${esc(c.student_name || '')} (${esc(c.student_id)})</span>
                 <span class="cm-class">${esc(c.class_name || '')}</span>
-                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span>
+                <span class="cm-actions">
+                    <button class="cm-action-btn cm-warn-btn" data-cm-action="warn" data-cm-idx="${i}">⚠️ 경고</button>
+                    <button class="cm-action-btn cm-kick-btn" data-cm-action="kick" data-cm-idx="${i}">🚫 퇴장</button>
+                </span></div>
                 <div class="cm-msg">${esc(c.message)}</div>
             </div>`).join('');
+            this._cmActionData = blocked;
         } else {
             // all
             if (!chatLogs.length) { grid.innerHTML = '<div class="teacher-empty">채팅 기록 없음</div>'; return; }
-            html = chatLogs.map(c => `<div class="cm-card ${c.is_blocked ? 'cm-blocked' : ''}">
+            html = chatLogs.map((c, i) => `<div class="cm-card ${c.is_blocked ? 'cm-blocked' : ''}">
                 <div class="cm-header">${c.is_blocked ? '<span class="cm-badge blocked">차단</span>' : ''}
                 <span class="cm-name">${esc(c.student_name || '')} (${esc(c.student_id)})</span>
                 <span class="cm-class">${esc(c.class_name || '')}</span>
-                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span></div>
+                <span class="cm-time">${new Date(c.created_at).toLocaleTimeString('ko-KR')}</span>
+                <span class="cm-actions">
+                    <button class="cm-action-btn cm-warn-btn" data-cm-action="warn" data-cm-idx="${i}">⚠️ 경고</button>
+                    <button class="cm-action-btn cm-kick-btn" data-cm-action="kick" data-cm-idx="${i}">🚫 퇴장</button>
+                </span></div>
                 <div class="cm-msg">${esc(c.message)}</div>
             </div>`).join('');
+            this._cmActionData = chatLogs;
         }
         grid.innerHTML = html;
+
+        // 이벤트 위임: 경고/퇴장 버튼 클릭 처리
+        grid.onclick = (e) => {
+            const btn = e.target.closest('[data-cm-action]');
+            if (!btn) return;
+            const action = btn.dataset.cmAction;
+            const idx = parseInt(btn.dataset.cmIdx, 10);
+            const c = this._cmActionData?.[idx];
+            if (!c) return;
+            if (action === 'warn') this.manualWarn(c.student_id, c.student_name || '', c.class_name || '', c.message);
+            else if (action === 'kick') this.manualKick(c.student_id, c.student_name || '', c.class_name || '', c.message);
+        };
+    },
+
+    /** 교사가 직접 경고 부여 */
+    async manualWarn(studentId, studentName, className, message) {
+        if (!confirm(`${studentName} (${studentId})에게 경고를 부여하시겠습니까?\n\n메시지: "${message}"`)) return;
+
+        // DB에 경고 기록 저장
+        const { error } = await supabase.from('chat_warnings').insert({
+            student_id: studentId,
+            student_name: studentName,
+            class_name: className,
+            message: `[교사 경고] ${message}`,
+            warning_num: 0,  // 0 = 교사 수동 경고
+        });
+        if (error) { alert('경고 저장 실패: ' + error.message); return; }
+
+        // 실시간 브로드캐스트로 해당 학생에게 경고 전달
+        this._sendTeacherAction(className, {
+            type: 'broadcast', event: 'teacher_warn',
+            payload: { targetSid: studentId, message }
+        });
+
+        alert(`${studentName}에게 경고를 부여했습니다.`);
+        this.loadChatMod(); // 새로고침
+    },
+
+    /** 교사가 직접 퇴장 처리 */
+    async manualKick(studentId, studentName, className, message) {
+        if (!confirm(`${studentName} (${studentId})를 퇴장시키겠습니까?\n\n메시지: "${message}"`)) return;
+
+        // DB에 퇴장 기록 저장
+        const { error } = await supabase.from('chat_kicks').insert({
+            student_id: studentId,
+            student_name: studentName,
+            class_name: className,
+            reason: '교사 직접 퇴장 처리',
+            last_message: message,
+            warning_count: 0,
+        });
+        if (error) { alert('퇴장 저장 실패: ' + error.message); return; }
+
+        // 실시간 브로드캐스트로 해당 학생에게 퇴장 전달
+        this._sendTeacherAction(className, {
+            type: 'broadcast', event: 'teacher_kick',
+            payload: { targetSid: studentId, message }
+        });
+
+        alert(`${studentName}을(를) 퇴장시켰습니다.`);
+        this.loadChatMod(); // 새로고침
+    },
+
+    /** 교사 액션을 해당 반 채널로 브로드캐스트 */
+    _sendTeacherAction(className, msg) {
+        // 대기실 채널 (wr:반이름)로 전송
+        const entry = this._rtChannels.get(className);
+        if (entry && entry.channel) {
+            entry.channel.send(msg);
+            return;
+        }
+        // 채널이 없으면 WaitingRoom 채널 시도
+        if (WaitingRoom && WaitingRoom._rtChannel) {
+            WaitingRoom._rtChannel.send(msg);
+        }
     },
 };
 

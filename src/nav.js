@@ -18,18 +18,53 @@ const TEACHER_ACCOUNT = '77777';
 
 // ── 터치 기기 감지 → CSS 강제 가로 회전 활성화 ──
 // 크롬북은 터치스크린이 있지만 키보드도 있으므로 모바일 컨트롤 불필요
+// iPad(iPadOS 13+)는 UA가 "Macintosh"로 보고되지만 maxTouchPoints > 1
 const _isCrOS = /CrOS/.test(navigator.userAgent);
 const _hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-const _smallScreen = window.innerWidth < 1024 && window.innerHeight < 768;
-if (_hasTouch && !_isCrOS && _smallScreen) {
+const _isIPad = !_isCrOS && navigator.maxTouchPoints > 1
+    && /Macintosh|iPad/.test(navigator.userAgent);
+// 세로/가로 어느 방향이든 짧은 변 기준으로 태블릿·폰 판별
+const _smallScreen = Math.min(window.innerWidth, window.innerHeight) < 1024;
+if ((_hasTouch && !_isCrOS && _smallScreen) || _isIPad) {
     document.body.classList.add('touch-device');
 }
+
+// ── 화면 회전 시 캔버스 리사이즈 트리거 (iPad 등 태블릿 대응) ──
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 400);
+});
 
 // ── 세션 강제 종료 (다른 기기 로그인) ──
 window.addEventListener('session-revoked', () => {
     DB.stopHeartbeat();
     const overlay = document.getElementById('session-kicked-overlay');
     if (overlay) overlay.classList.remove('hidden');
+});
+
+// ── 교사 강제 아이디 재설정 ──
+window.addEventListener('force-relogin', () => {
+    // 대기실 중이면 정지
+    WaitingRoom.stop();
+    AppPresence.leave();
+    DB.stopHeartbeat();
+    // 닉네임만 삭제 (학번·이름 유지)
+    const keepSid = Player.studentId;
+    const keepName = Player.studentName;
+    Player.logout(); // 전체 초기화
+    Player.studentId = keepSid;
+    Player.studentName = keepName;
+    localStorage.setItem('ck_studentId', keepSid);
+    localStorage.setItem('ck_studentName', keepName);
+    // 프로필 설정 화면으로 이동 + 학번·이름 미리 채우기
+    Nav.go('profile-setup');
+    const sidEl = document.getElementById('ps-studentid');
+    const nameEl = document.getElementById('ps-name');
+    const nickEl = document.getElementById('ps-nickname');
+    if (sidEl) { sidEl.value = keepSid; sidEl.readOnly = true; }
+    if (nameEl) { nameEl.value = keepName; nameEl.readOnly = true; }
+    if (nickEl) nickEl.value = '';
+    alert('교사에 의해 아이디가 초기화되었습니다.\n새 아이디(닉네임)를 만들어주세요.');
 });
 
 export const Nav = {
@@ -39,10 +74,10 @@ export const Nav = {
         Player.logout();
         DB.stopHeartbeat();
         this.go('profile-setup');
-        // 입력 필드 초기화
+        // 입력 필드 초기화 + readOnly 해제
         ['ps-nickname','ps-studentid','ps-name'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.value = '';
+            if (el) { el.value = ''; el.readOnly = false; }
         });
     },
 
