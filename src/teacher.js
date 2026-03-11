@@ -301,9 +301,29 @@ export const Teacher = {
             }
         }
 
-        // 게임 모드 선택 잠금 (열린 반이 있으면 변경 불가)
+        // 게임 모드 선택 (열린 반에도 변경 가능 → DB + 대기실 즉시 반영)
         const wrModeSelect = document.getElementById('teacher-wr-mode');
-        if (wrModeSelect) wrModeSelect.disabled = this._openClasses.length > 0;
+        if (wrModeSelect) {
+            wrModeSelect.disabled = false;
+            if (!wrModeSelect._modeChangeWired) {
+                wrModeSelect._modeChangeWired = true;
+                wrModeSelect.addEventListener('change', async () => {
+                    const newMode = wrModeSelect.value;
+                    // 열린 모든 반에 모드 업데이트
+                    for (const cls of this._openClasses) {
+                        const sessionId = 'class_' + cls;
+                        await supabase.from('game_sessions').update({
+                            wr_mode: newMode, updated_at: new Date().toISOString()
+                        }).eq('id', sessionId).catch(() => {});
+                    }
+                    // 대기실이 실행 중이면 즉시 모드 전환
+                    if (WaitingRoom && WaitingRoom.running) {
+                        if (newMode === 'battle' && !WaitingRoom.battleMode) WaitingRoom._battleStart();
+                        else if (newMode === 'soccer' && WaitingRoom.battleMode) WaitingRoom._battleStop();
+                    }
+                });
+            }
+        }
 
         // 출석부 + 대기실 입장 버튼
         const rosterCheck = document.getElementById('teacher-roster-check');

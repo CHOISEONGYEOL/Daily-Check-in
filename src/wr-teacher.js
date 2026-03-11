@@ -61,9 +61,9 @@ export const WrTeacher = {
             const Teacher = window.Teacher;
             if(Teacher && Teacher.getParticipantCount){
                 const participants = Teacher.getParticipantCount();
-                this.totalStudents = participants > 0 ? participants : (parseInt(document.getElementById('s-total').value)||25);
+                this.totalStudents = participants > 0 ? participants : (parseInt(document.getElementById('s-total').value)||40);
             } else {
-                this.totalStudents = parseInt(document.getElementById('s-total').value)||25;
+                this.totalStudents = parseInt(document.getElementById('s-total').value)||40;
             }
             this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
             this.godMode = true;

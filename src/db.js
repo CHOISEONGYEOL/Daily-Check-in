@@ -388,9 +388,16 @@ export const DB = {
         return (data || []).map(r => r.game_id);
     },
 
-    // ── 게임 세션 상태 조회 (반별, 재시도 포함) ──────────────────
+    // ── 게임 세션 상태 조회 (반별, 캐시 + 재시도) ──────────────────
+    _isGameOpenCache: {},      // { sessionId: { value, ts } }
+    _IS_GAME_OPEN_TTL: 10000, // 캐시 TTL 10초 (30명×15초 폴링 = DB 부하 최소화)
     async isGameOpen(className) {
         const sessionId = className ? 'class_' + className : 'main';
+        // ★ 캐시 히트: TTL 내면 DB 쿼리 없이 즉시 반환
+        const cached = this._isGameOpenCache[sessionId];
+        if (cached && Date.now() - cached.ts < this._IS_GAME_OPEN_TTL) {
+            return cached.value;
+        }
         // ★ 최대 3회 재시도 (30명 동시 조회 시 DB 일시 과부하 대응)
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -403,16 +410,21 @@ export const DB = {
                     await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
                     continue;
                 }
-                return data?.is_open === true;
+                const result = data?.is_open === true;
+                this._isGameOpenCache[sessionId] = { value: result, ts: Date.now() };
+                return result;
             } catch(e) {
                 if (attempt < 2) {
                     await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
                     continue;
                 }
                 console.error('[DB] isGameOpen failed after retries:', e);
+                // ★ 에러 시 캐시된 마지막 상태 반환 (접속 차단 방지)
+                if (cached) return cached.value;
                 return false;
             }
         }
+        if (cached) return cached.value;
         return false;
     },
 

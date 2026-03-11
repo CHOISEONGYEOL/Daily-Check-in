@@ -1103,38 +1103,58 @@ export const WrRealtime = {
         }
     },
 
-    // ── 팀 자동 배정 (studentId 정렬 → 결정적 배정, 모든 클라이언트 동일 결과) ──
+    // ── 팀 자동 배정 (한번 배정되면 고정 — 게임 중 팀 변경 방지) ──
     _rtAssignTeams() {
         if (!this._rtChannel || this.godMode || !this.remotePlayers) return;
-
-        // 활성 플레이어 목록 (관람석 제외) — studentId로 정렬하여 모든 클라이언트가 동일 순서
-        const active = [];
-        const mySid = String(Player.studentId);
-        if (this.player && !this._inSpectator) {
-            active.push({ sid: mySid, isLocal: true });
-        }
-        for (const [sid, rp] of this.remotePlayers.entries()) {
-            if (!rp._inSpectator) {
-                active.push({ sid, isLocal: false });
-            }
-        }
-        active.sort((a, b) => a.sid.localeCompare(b.sid));
-
-        // 교대 배정: 정렬 순서대로 left, right, left, right...
-        for (let i = 0; i < active.length; i++) {
-            const team = i % 2 === 0 ? 'left' : 'right';
-            if (active[i].isLocal) {
-                this.player.team = team;
-            } else {
-                const rp = this.remotePlayers.get(active[i].sid);
-                if (rp) rp.team = team;
-            }
-        }
 
         // 관람석 플레이어는 팀 null
         if (this._inSpectator && this.player) this.player.team = null;
         for (const rp of this.remotePlayers.values()) {
             if (rp._inSpectator) rp.team = null;
+        }
+
+        // 이미 팀이 배정된 활성 플레이어 수 카운트
+        let leftCount = 0, rightCount = 0;
+        const mySid = String(Player.studentId);
+        if (this.player && !this._inSpectator && this.player.team) {
+            if (this.player.team === 'left') leftCount++;
+            else rightCount++;
+        }
+        for (const rp of this.remotePlayers.values()) {
+            if (!rp._inSpectator && rp.team) {
+                if (rp.team === 'left') leftCount++;
+                else rightCount++;
+            }
+        }
+
+        // 팀 미배정 플레이어만 새로 배정 (인원 적은 팀 우선, 동수면 studentId 기반 결정)
+        const unassigned = [];
+        if (this.player && !this._inSpectator && !this.player.team) {
+            unassigned.push({ sid: mySid, isLocal: true });
+        }
+        for (const [sid, rp] of this.remotePlayers.entries()) {
+            if (!rp._inSpectator && !rp.team) {
+                unassigned.push({ sid, isLocal: false });
+            }
+        }
+        // studentId 정렬으로 결정적 배정 (모든 클라이언트 동일 결과)
+        unassigned.sort((a, b) => a.sid.localeCompare(b.sid));
+
+        for (const entry of unassigned) {
+            // 인원 적은 팀에 배정, 동수면 studentId 해시로 결정
+            let team;
+            if (leftCount < rightCount) team = 'left';
+            else if (rightCount < leftCount) team = 'right';
+            else team = parseInt(entry.sid, 10) % 2 === 0 ? 'left' : 'right';
+
+            if (entry.isLocal) {
+                this.player.team = team;
+            } else {
+                const rp = this.remotePlayers.get(entry.sid);
+                if (rp) rp.team = team;
+            }
+            if (team === 'left') leftCount++;
+            else rightCount++;
         }
     },
 

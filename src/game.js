@@ -43,7 +43,7 @@ export const Game = {
     // World dimensions (scrollable)
     W:1600, H:600, VW:800, VH:600,
     running:false, completed:false,
-    remaining:300, totalStudents:25,
+    remaining:300, totalStudents:40,
     timerRef:null, animRef:null, keys:{},
     npcs:[], player:null, particles:[], chatBubbles:[],
     camera:{x:0, y:0},
@@ -103,7 +103,7 @@ export const Game = {
         otpEl.value='';
         otpEl.blur();
         OTP.stop();
-        this.totalStudents = parseInt(document.getElementById('s-total').value)||25;
+        this.totalStudents = parseInt(document.getElementById('s-total').value)||40;
         Player.streak++;
         Player.save();
         Nav.go('waiting-room');
@@ -228,7 +228,7 @@ export const Game = {
 
     // ── Direct enter (testing) ──
     enter(){
-        this.totalStudents = parseInt(document.getElementById('s-total').value)||25;
+        this.totalStudents = parseInt(document.getElementById('s-total').value)||40;
         this.remaining = 300;
         this.gameMode = Math.random() < 0.5 ? 'picopark' : 'numbermatch';
         Player.streak++;

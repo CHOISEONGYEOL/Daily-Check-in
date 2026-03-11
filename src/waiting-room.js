@@ -39,7 +39,7 @@ export const WaitingRoom = {
     godMode:false, // 교사 전지전능 모드
     godCamSpeed:8,
     player:null, npcs:[], chatBubbles:[], particles:[],
-    readyCount:0, totalStudents:25,
+    readyCount:0, totalStudents:40,
     countdownTimer:null, countdown:0,
     chatting:false,
     GRAVITY: 0.55, JUMP_FORCE: -10, MOVE_SPD: 3.5,
@@ -145,9 +145,8 @@ export const WaitingRoom = {
             {x:1200, y:20, w:120, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
             {x:1500, y:40, w:140, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
             {x:1750, y:18, w:130, h:12, color:'#546E7A', top:'#78909C', type:'wood'},
-            // ── 관람석: 3구간 (구멍 2개로 내려갈 수 있음, 양쪽 골대 40px 확보) ──
+            // ── 관람석: 양쪽만 (가운데 제거, 골대 40px 확보) ──
             {x:40,       y:250, w:W*0.3-40,   h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
-            {x:W*0.37,   y:250, w:W*0.26,     h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
             {x:W*0.7,    y:250, w:W*0.3-40,   h:14, color:'#8B6914', top:'#FFD700', type:'spectator'},
         ];
         const goalTop = H-15-120; // 골대 꼭대기 y (765)
@@ -166,21 +165,18 @@ export const WaitingRoom = {
             {x:0, y:goalTop, w:55, h:8, color:'#555', top:'#888', type:'wood'},
             {x:W-55, y:goalTop, w:55, h:8, color:'#555', top:'#888', type:'wood'},
         );
-        // 엘리베이터 — 올라가기: 골대 위 (양쪽) + 중앙 (골대 높이) / 내려가기: 관람석 내부
+        // 엘리베이터 — 올라가기: 골대 위 (양쪽만) / 내려가기: 관람석 내부 (양쪽만)
         this.elevators = [
-            // 올라가기: 골대 꼭대기 (양쪽) + 중앙 (같은 높이)
+            // 올라가기: 골대 꼭대기 (양쪽만, 중앙 제거)
             {x:0,        y:goalTop-70, w:55, h:70, targetX:W*0.15,  targetY:250, dir:'up'},
-            {x:W*0.5-25, y:goalTop-70, w:50, h:70, targetX:W*0.5,   targetY:250, dir:'up'},
             {x:W-55,     y:goalTop-70, w:55, h:70, targetX:W*0.85,  targetY:250, dir:'up'},
-            // 내려가기: 관람석 내부
+            // 내려가기: 관람석 내부 (양쪽만, 중앙 제거)
             {x:W*0.25-25,  y:250-70,  w:50, h:70, targetX:W*0.25,  targetY:H-15, dir:'down'},
-            {x:W*0.60-25,  y:250-70,  w:50, h:70, targetX:W*0.60,  targetY:H-15, dir:'down'},
             {x:W*0.95-25,  y:250-70,  w:50, h:70, targetX:W*0.95,  targetY:H-15, dir:'down'},
         ];
-        // 관람석 박스 (완전 밀폐 사각형 — 침투 감지 + 강제 밀어내기)
+        // 관람석 박스 (완전 밀폐 사각형 — 침투 감지 + 강제 밀어내기, 양쪽만)
         this.spectatorBoxes = [
             {x:40,      y:250-120, w:W*0.3-40,  h:120+14},   // 왼쪽 (골대 40px 확보)
-            {x:W*0.37,  y:250-120, w:W*0.26,    h:120+14},   // 가운데
             {x:W*0.7,   y:250-120, w:W*0.3-40,  h:120+14},   // 오른쪽 (골대 40px 확보)
         ];
         this.decorations=[
@@ -209,9 +205,9 @@ export const WaitingRoom = {
         // 교사가 설정한 참여 인원 가져오기
         try {
             const pCount = await DB.getParticipantCount(Player.className);
-            this.totalStudents = pCount > 0 ? pCount : (parseInt(document.getElementById('s-total').value)||25);
+            this.totalStudents = pCount > 0 ? pCount : (parseInt(document.getElementById('s-total').value)||40);
         } catch(e) {
-            this.totalStudents = parseInt(document.getElementById('s-total').value)||25;
+            this.totalStudents = parseInt(document.getElementById('s-total').value)||40;
         }
         this.running = true; this.readyCount = 0; this.countdown = 0; this.chatting = false;
         this.wrStartTime = Date.now(); this.wrElapsed = 0; this._wrTimerTriggered = false;
@@ -531,7 +527,7 @@ export const WaitingRoom = {
 
     updateReadyUI(){
         const el = document.getElementById('wr-ready-count');
-        if(el) el.textContent = this.readyCount + ' / ' + this.totalStudents;
+        if(el) el.textContent = this.readyCount + '명 접속중';
     },
 
     resolveEntityCollisions(){

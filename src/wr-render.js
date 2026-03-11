@@ -463,7 +463,7 @@ export const WrRender = {
                 ctx.strokeRect(box.x,box.y,box.w,box.h);
             });
         }
-        // ── 엘리베이터 3개 (올라가기 + 내려가기) ──
+        // ── 엘리베이터 (양쪽 올라가기 + 내려가기) ──
         if(this.elevators){
             const pulse=0.4+Math.sin(this.frameCount*0.06)*0.3;
             this.elevators.forEach(ev=>{
@@ -876,7 +876,7 @@ export const WrRender = {
         ctx.strokeStyle='rgba(255,255,255,.1)';ctx.lineWidth=0.5;
         ctx.beginPath();ctx.roundRect(hudX,hudTopY,130,28,10);ctx.stroke();
         ctx.fillStyle='#fff';ctx.font='bold 13px "Segoe UI",sans-serif';ctx.textAlign='center';
-        ctx.fillText('👥 '+this.readyCount+' / '+this.totalStudents,hudX+65,hudTopY+19);
+        ctx.fillText('👥 '+this.readyCount+'명 접속중',hudX+65,hudTopY+19);
         // ── 대기실 타이머 HUD (학생만 — 교사는 HTML 타이머 버튼 사용) ──
         if(!this.godMode && this.wrStartTime && !this.voteStarted && !this.countdown){
             let timerSec, timerColor = '#fff', timerBlink = false;

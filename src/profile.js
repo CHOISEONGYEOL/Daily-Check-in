@@ -35,12 +35,20 @@ export const ProfileSetup = {
         if (nickErr) nickErr.classList.add('hidden');
 
         try {
-            // roster 검증: 학번이 등록되어 있으면 이름이 일치해야 함
+            // roster 검증: 등록된 학번+이름만 허용 (교사/테스트 계정 제외)
+            const EXEMPT_IDS = ['77777', '99999'];
             const roster = await DB.checkRoster(sid);
-            if (roster && roster.student_name !== sname) {
-                if (err) { err.textContent = '학번과 이름이 일치하지 않습니다! 정확히 입력해주세요.'; err.classList.remove('hidden'); }
-                if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
-                return;
+            if (!EXEMPT_IDS.includes(sid)) {
+                if (!roster) {
+                    if (err) { err.textContent = '등록되지 않은 학번입니다! 선생님께 문의하세요.'; err.classList.remove('hidden'); }
+                    if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                    return;
+                }
+                if (roster.student_name !== sname) {
+                    if (err) { err.textContent = '학번과 이름이 일치하지 않습니다! 정확히 입력해주세요.'; err.classList.remove('hidden'); }
+                    if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+                    return;
+                }
             }
 
             // roster에서 반 정보 저장

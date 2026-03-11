@@ -119,7 +119,11 @@ export const Nav = {
                 this._showGameClosed();
             }
         } catch (e) {
-            this._showGameClosed();
+            // DB 오류 시 입장 허용 (동시접속 과부하로 차단 방지, 세션 체크는 WR 내부에서 재시도)
+            console.warn('[Nav] session check failed, allowing entry:', e);
+            Player.streak++;
+            Player.save();
+            this._doGo('waiting-room');
         } finally {
             if (btn) { btn.textContent = origText; btn.disabled = false; }
         }
@@ -199,10 +203,11 @@ export const Nav = {
             this._setGameBtn(true);
             return;
         }
-        // 즉시 1회 + 5초마다 체크
+        // 즉시 1회 + 15초마다 체크 (30명+ 동시접속 DB 부하 방지)
         this._checkAndSetGameBtn();
-        this._gameBtnPollId = setInterval(() => this._checkAndSetGameBtn(), 5000);
+        this._gameBtnPollId = setInterval(() => this._checkAndSetGameBtn(), 15000);
     },
+    _lastGameBtnState: null, // 마지막으로 확인된 게임 열림 상태 (에러 시 유지)
     async _checkAndSetGameBtn() {
         try {
             // className이 없으면 roster에서 한 번 갱신 시도
@@ -216,9 +221,13 @@ export const Nav = {
                 } catch(_){}
             }
             const open = await DB.isGameOpen(Player.className);
+            this._lastGameBtnState = open;
             this._setGameBtn(open);
         } catch(e) {
-            this._setGameBtn(false);
+            // DB 오류 시 마지막 상태 유지 (동시접속 과부하로 인한 입장 차단 방지)
+            if(this._lastGameBtnState !== null) {
+                this._setGameBtn(this._lastGameBtnState);
+            }
         }
     },
     _setGameBtn(open) {

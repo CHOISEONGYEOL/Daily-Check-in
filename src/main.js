@@ -88,28 +88,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     GameKeyboard.init();
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 
+    // 항상 로그인 폼 표시 (auto-login 제거: 매번 학번+이름+닉네임 입력 필수)
+    document.getElementById('profile-setup').classList.add('active');
     if (Player.hasProfile()) {
-        // 프로필 있으면 자동 로그인 → 교사는 대시보드, 학생은 로비
-        document.getElementById('profile-setup').classList.add('active');
-        try {
-            const savedToken = LS.get('sessionToken', null);
-            await Player.login(Player.studentId, Player.studentName, Player.nickname, savedToken);
-            // 로그인 후 roster에서 최신 className 갱신 (반 변경 반영)
-            if (Player.studentId !== TEACHER_ACCOUNT) {
-                const roster = await DB.checkRoster(Player.studentId);
-                if (roster && roster.class_name) {
-                    Player.className = roster.class_name;
-                    Player.save();
-                }
-                AppPresence.join(Player.className);
-            }
-            Nav.go(Player.studentId === TEACHER_ACCOUNT ? 'teacher' : 'lobby');
-        } catch (e) {
-            console.error('Auto-login failed:', e);
-            document.getElementById('profile-setup').classList.add('active');
-        }
-    } else {
-        document.getElementById('profile-setup').classList.add('active');
+        // 기존 값을 폼에 미리 채워서 편의 제공
+        const sidEl = document.getElementById('ps-studentid');
+        const nameEl = document.getElementById('ps-name');
+        const nickEl = document.getElementById('ps-nickname');
+        if (sidEl) sidEl.value = Player.studentId;
+        if (nameEl) nameEl.value = Player.studentName;
+        if (nickEl) nickEl.value = Player.nickname;
     }
 
     // ── 페이지 닫기 시 Presence 해제 ──
