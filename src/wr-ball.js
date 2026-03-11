@@ -27,7 +27,12 @@ export const WrBall = {
             for(const obs of this.obstacles){if(obs.type==='bouncyZone'&&b.x>=obs.x&&b.x<=obs.x+obs.w){bounce*=2;break;}}
             b.vy=-b.vy*bounce; if(Math.abs(b.vy)<1)b.vy=0; b.vx*=0.97;
         }
-        if(this.gravityReversed && b.y >= gY){ b.y=gY; b.vy=-Math.abs(b.vy)*this.BALL_BOUNCE; }
+        if(this.gravityReversed && b.y >= gY){
+            b.y=gY;
+            let bounce=this.BALL_BOUNCE;
+            for(const obs of this.obstacles){if(obs.type==='bouncyZone'&&b.x>=obs.x&&b.x<=obs.x+obs.w){bounce*=2;break;}}
+            b.vy=-Math.abs(b.vy)*bounce; if(Math.abs(b.vy)<1)b.vy=0; b.vx*=0.97;
+        }
         // Ceiling
         if(!this.gravityReversed && b.y <= b.r){ b.y=b.r; b.vy=Math.abs(b.vy)*this.BALL_BOUNCE; }
         if(this.gravityReversed && b.y <= b.r){

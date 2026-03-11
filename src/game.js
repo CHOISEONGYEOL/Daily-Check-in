@@ -414,7 +414,7 @@ export const Game = {
     _codeToKeys: {KeyW:['w','W'],KeyA:['a','A'],KeyS:['s','S'],KeyD:['d','D'],Space:[' ']},
     setupInput(){
         this.keys = {};
-        window.onkeydown = e => {
+        this._boundKeyDown = e => {
             this.keys[e.key] = true;
             const mapped = this._codeToKeys[e.code];
             if(mapped) mapped.forEach(k=>{ this.keys[k]=true; });
@@ -423,11 +423,13 @@ export const Game = {
                 this.playerJump();
             }
         };
-        window.onkeyup = e => {
+        this._boundKeyUp = e => {
             this.keys[e.key] = false;
             const mapped = this._codeToKeys[e.code];
             if(mapped) mapped.forEach(k=>{ this.keys[k]=false; });
         };
+        window.addEventListener('keydown', this._boundKeyDown);
+        window.addEventListener('keyup', this._boundKeyUp);
         // Mobile
         document.querySelectorAll('.ctrl-btn').forEach(btn=>{
             const k=btn.dataset.key;
@@ -850,8 +852,8 @@ export const Game = {
         clearInterval(this.timerRef);
         this.timerRef = null;
         // 3) 키 입력 리스너 해제
-        window.onkeydown = null;
-        window.onkeyup = null;
+        if(this._boundKeyDown){ window.removeEventListener('keydown', this._boundKeyDown); this._boundKeyDown = null; }
+        if(this._boundKeyUp){ window.removeEventListener('keyup', this._boundKeyUp); this._boundKeyUp = null; }
         if(this._mazeKeyDown){ window.removeEventListener('keydown', this._mazeKeyDown); this._mazeKeyDown = null; }
         if(this._mazeKeyUp){ window.removeEventListener('keyup', this._mazeKeyUp); this._mazeKeyUp = null; }
         if(this._mazeSpecClick && this.cvs){ this.cvs.removeEventListener('click', this._mazeSpecClick); this._mazeSpecClick = null; }
@@ -899,7 +901,8 @@ export const Game = {
         this._remotePlayerData = null;
         clearInterval(this.timerRef);
         cancelAnimationFrame(this.animRef);
-        window.onkeydown=null; window.onkeyup=null;
+        if(this._boundKeyDown){ window.removeEventListener('keydown', this._boundKeyDown); this._boundKeyDown = null; }
+        if(this._boundKeyUp){ window.removeEventListener('keyup', this._boundKeyUp); this._boundKeyUp = null; }
         // 미로 모드 키 리스너 + 관전 클릭 정리
         if(this._mazeKeyDown){ window.removeEventListener('keydown', this._mazeKeyDown); this._mazeKeyDown=null; }
         if(this._mazeKeyUp){ window.removeEventListener('keyup', this._mazeKeyUp); this._mazeKeyUp=null; }

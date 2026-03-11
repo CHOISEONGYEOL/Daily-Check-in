@@ -289,7 +289,7 @@ export const WrRender = {
                 ctx.beginPath();ctx.arc(obs.x,obs.y,26*pulse,0,Math.PI*2);ctx.stroke();
                 ctx.fillStyle='rgba(135,206,235,0.8)';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
                 ctx.fillText('🌪️ 태풍',obs.x,obs.y-40);
-                ctx.fillStyle='rgba(135,206,235,0.4)';ctx.fillRect(obs.x-30,obs.y-32,60*(obs.timer/480),3);
+                ctx.fillStyle='rgba(135,206,235,0.4)';ctx.fillRect(obs.x-30,obs.y-32,60*(obs.timer/600),3);
             }
         });
     },

@@ -192,7 +192,7 @@ export const WrBattle = {
         this._battleExplosionRings = null;
         this._battleMuzzleFlashes = null;
         this._battleIsDead = false;
-        this._battleHP = 0;
+        this._battleHP = MAX_HP;
         this._battleBulletCD = 0;
         this._battleMeleeCD = 0;
         this._battleBombCount = 0;
@@ -1329,10 +1329,19 @@ export const WrBattle = {
                 ctx.textAlign = 'left';
             }
             // Invincible indicator
-            if (this._battleInvincible > 0 && !this._battleIsDead) {
-                const alpha = 0.3 + 0.3 * Math.sin(this.frameCount * 0.3);
+            if (this._battleInvincible > 0 && !this._battleIsDead && this.player) {
+                const alpha = 0.15 + 0.15 * Math.sin(this.frameCount * 0.3);
+                const px = this.player.x - (this.camera ? this.camera.x : 0);
+                const py = this.player.y - (this.camera ? this.camera.y : 0);
+                const r = 50;
+                ctx.save();
+                ctx.beginPath(); ctx.arc(px + this.player.w/2, py + this.player.h/2, r, 0, Math.PI*2);
                 ctx.fillStyle = `rgba(100,200,255,${alpha})`;
-                ctx.fillRect(0, 0, VW, VH);
+                ctx.fill();
+                ctx.strokeStyle = `rgba(100,200,255,${alpha + 0.2})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
             }
         }
     },

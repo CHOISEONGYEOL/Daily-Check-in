@@ -332,7 +332,6 @@ export const GameKeyboard = {
             // 예외: 그냥 자모 나열
             comp.forEach(c => { this._text += c.char; });
         }
-        comp.length = 0;
         this._composing = [];
     },
 

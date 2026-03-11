@@ -120,7 +120,7 @@ export const WrGimmicks = {
                 }
                 if(obs.timer<=0){
                     const P=this.player,botY=P.y+P.h;
-                    P.w=this.originalPlayerSize.w;P.h=this.originalPlayerSize.h;
+                    if(this.originalPlayerSize){P.w=this.originalPlayerSize.w;P.h=this.originalPlayerSize.h;}
                     P.y=botY-P.h;
                     this.sizeChange=null;this.obstacles.splice(i,1);
                 }
