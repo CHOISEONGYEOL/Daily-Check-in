@@ -131,6 +131,7 @@ export const Player = {
     },
 
     addCoins(n, reason = 'unknown') {
+        const prevCoins = this.coins;
         this.coins += n;
         if(this.coins < 0) this.coins = 0;
         this.save();
@@ -139,10 +140,19 @@ export const Player = {
         DB.addCoins(n, reason).then(balance => {
             if(balance !== null && balance !== undefined) {
                 this.coins = balance; // 서버 잔액으로 동기화
-                LS.set('coins', this.coins);
-                this.refreshUI();
+            } else {
+                // RPC가 null 반환 (서버 에러) → 롤백
+                this.coins = prevCoins;
+                this.save(); // 300ms 엇갈림 방지용 서버 강제 원복
             }
-        }).catch(e => console.warn('Coin sync failed:', e));
+            LS.set('coins', this.coins);
+            this.refreshUI();
+        }).catch(e => {
+            console.warn('Coin sync failed:', e);
+            this.coins = prevCoins;
+            this.save();
+            this.refreshUI();
+        });
     },
     refreshUI() {
         ['L-coins','S-coins','G-coins','A-coins'].forEach(id => { const e = document.getElementById(id); if (e) e.textContent = this.coins; });
