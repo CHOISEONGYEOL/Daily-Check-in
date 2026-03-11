@@ -157,8 +157,21 @@ export const DB = {
     // ── 유저 데이터 저장 (debounced) ────────────
     savePlayer(player) {
         if (!this.userId) return;
+        this._pendingPlayer = player;
         clearTimeout(this._saveTimer);
-        this._saveTimer = setTimeout(() => this._doSave(player), 300);
+        this._saveTimer = setTimeout(() => {
+            this._doSave(player);
+            this._pendingPlayer = null;
+        }, 300);
+    },
+
+    flushPendingSave() {
+        if (this._saveTimer && this._pendingPlayer) {
+            clearTimeout(this._saveTimer);
+            this._saveTimer = null;
+            this._doSave(this._pendingPlayer);
+            this._pendingPlayer = null;
+        }
     },
 
     async _doSave(p) {

@@ -100,8 +100,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (nickEl) nickEl.value = Player.nickname;
     }
 
-    // ── 페이지 닫기 시 Presence 해제 ──
-    window.addEventListener('beforeunload', () => AppPresence.leave());
+    // ── 페이지 닫기 시 미저장 데이터 flush + Presence 해제 ──
+    window.addEventListener('beforeunload', () => {
+        DB.flushPendingSave();
+        AppPresence.leave();
+    });
+
+    // ── 모바일 탭 전환/백그라운드 이동 시 저장 보장 ──
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            DB.flushPendingSave();
+        }
+    });
 
     // Profile setup Enter key
     ['ps-nickname','ps-studentid','ps-name'].forEach(id => {
