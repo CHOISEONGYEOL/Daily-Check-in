@@ -364,6 +364,7 @@ export const DB = {
                 // ★ DB 오류 시 무시 (네트워크 일시 장애로 킥 방지)
                 if (error) {
                     console.warn('[DB] heartbeat query failed, skipping:', error.message);
+                    this._heartbeatMismatchCount = 0;
                     return;
                 }
                 if (data && data.session_token !== this.sessionToken) {
@@ -376,7 +377,7 @@ export const DB = {
                 } else {
                     this._heartbeatMismatchCount = 0;
                 }
-            } catch(e) { /* ignore network errors */ }
+            } catch(e) { this._heartbeatMismatchCount = 0; }
         }
     },
 

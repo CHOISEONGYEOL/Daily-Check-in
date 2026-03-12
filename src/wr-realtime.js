@@ -1015,37 +1015,40 @@ export const WrRealtime = {
         this._spriteLoadRunning = true;
 
         const processBatch = async () => {
-            while (this._spriteLoadQueue && this._spriteLoadQueue.length > 0) {
-                const batch = this._spriteLoadQueue.splice(0, SPRITE_BATCH_SIZE);
-                const promises = batch.map(async (sid) => {
-                    if (this._rtSpriteCache.has(sid)) {
-                        const rp = this.remotePlayers?.get(sid);
-                        if (rp) rp.sprite = this._rtSpriteCache.get(sid);
-                        return;
-                    }
-                    try {
-                        const charData = await DB.getPlayerCharacterByStudentId(sid);
-                        const rp = this.remotePlayers?.get(sid);
-                        if (rp && charData && charData.pixels) {
-                            rp.sprite = CharRender.toOffscreen(charData.pixels, 64);
-                            rp.hat = charData.hat;
-                            rp.effect = charData.effect;
-                            rp.pet = charData.pet;
-                            rp.displayName = charData.nickname || sid;
-                            rp.activeTitle = charData.activeTitle || '';
-                            this._rtSpriteCache.set(sid, rp.sprite);
+            try {
+                while (this._spriteLoadQueue && this._spriteLoadQueue.length > 0) {
+                    const batch = this._spriteLoadQueue.splice(0, SPRITE_BATCH_SIZE);
+                    const promises = batch.map(async (sid) => {
+                        if (this._rtSpriteCache.has(sid)) {
+                            const rp = this.remotePlayers?.get(sid);
+                            if (rp) rp.sprite = this._rtSpriteCache.get(sid);
+                            return;
                         }
-                    } catch (e) {
-                        console.warn('[RT] sprite load fail:', sid, e);
+                        try {
+                            const charData = await DB.getPlayerCharacterByStudentId(sid);
+                            const rp = this.remotePlayers?.get(sid);
+                            if (rp && charData && charData.pixels) {
+                                rp.sprite = CharRender.toOffscreen(charData.pixels, 64);
+                                rp.hat = charData.hat;
+                                rp.effect = charData.effect;
+                                rp.pet = charData.pet;
+                                rp.displayName = charData.nickname || sid;
+                                rp.activeTitle = charData.activeTitle || '';
+                                this._rtSpriteCache.set(sid, rp.sprite);
+                            }
+                        } catch (e) {
+                            console.warn('[RT] sprite load fail:', sid, e);
+                        }
+                    });
+                    await Promise.all(promises);
+                    // 다음 배치 전 잠시 대기 (DB 부하 분산)
+                    if (this._spriteLoadQueue.length > 0) {
+                        await new Promise(r => setTimeout(r, SPRITE_BATCH_DELAY));
                     }
-                });
-                await Promise.all(promises);
-                // 다음 배치 전 잠시 대기 (DB 부하 분산)
-                if (this._spriteLoadQueue.length > 0) {
-                    await new Promise(r => setTimeout(r, SPRITE_BATCH_DELAY));
                 }
+            } finally {
+                this._spriteLoadRunning = false;
             }
-            this._spriteLoadRunning = false;
         };
 
         processBatch();
