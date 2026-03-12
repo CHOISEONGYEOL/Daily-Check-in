@@ -490,6 +490,11 @@ export const WaitingRoom = {
                 this.chatBubbles.push({x:this.player.x, y:this.player.y-45, text:text, timer:180, follow:this.player, isPlayer:true});
                 this._rtBroadcastChat(text);
             }
+        }).catch((e) => {
+            console.warn('[Chat] 모더레이션 체크 실패, 기본 허용 처리:', e);
+            this.chatBubbles.push({x:this.player.x, y:this.player.y-45,
+                text:text, timer:180, follow:this.player, isPlayer:true});
+            this._rtBroadcastChat(text);
         });
     },
 

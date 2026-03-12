@@ -38,9 +38,10 @@ export const DB = {
                 this._currentIP = ip;
                 // IP를 나중에 DB에 기록 (로그인 흐름 차단 안 함)
                 if (ip && this.userId) {
-                    supabase.from('users').update({ login_ip: ip }).eq('id', this.userId).then(() => {});
+                    supabase.from('users').update({ login_ip: ip }).eq('id', this.userId)
+                        .then(({ error }) => { if (error) console.warn('[DB] IP update failed:', error.message); });
                 }
-            }).catch(() => {});
+            }).catch(e => console.warn('[DB] IP lookup failed:', e));
         }
 
         // 1) 기존 유저 찾기
